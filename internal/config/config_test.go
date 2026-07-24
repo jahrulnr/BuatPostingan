@@ -11,50 +11,51 @@ import (
 func clearLLMEnv(t *testing.T) {
 	t.Helper()
 	keys := []string{
-		"BP_HTTP_ADDR", "WEBCHAT_HTTP_ADDR",
-		"BP_WEB_ROOT", "WEBCHAT_WEB_ROOT",
-		"BP_STORAGE_ROOT", "WEBCHAT_STORAGE_ROOT",
-		"BP_DOCS_ROOT", "WEBCHAT_DOCS_ROOT",
-		"BP_PROMPTS_ROOT", "WEBCHAT_PROMPTS_ROOT",
-		"BP_TOOLS_ROOT", "WEBCHAT_TOOLS_ROOT",
-		"BP_MAX_TOOL_ROUNDS", "WEBCHAT_MAX_TOOL_ROUNDS",
-		"BP_SPEAK_FLOOR_TTL_SEC", "WEBCHAT_SPEAK_FLOOR_TTL_SEC",
-		"BP_LOCK_TTL_SEC", "WEBCHAT_LOCK_TTL_SEC",
-		"BP_TURN_RATE_LIMIT_PER_MIN", "WEBCHAT_TURN_RATE_LIMIT_PER_MIN",
-		"BP_TURN_JOB_TIMEOUT_SEC", "WEBCHAT_TURN_JOB_TIMEOUT_SEC",
-		"BP_LLM_STUB", "WEBCHAT_LLM_STUB",
-		"BP_LLM_STRATEGY", "WEBCHAT_LLM_STRATEGY",
-		"BP_LLM_ACTIVE_PROVIDER", "WEBCHAT_LLM_ACTIVE_PROVIDER",
-		"BP_LLM_TOTAL_ATTEMPT_BUDGET", "WEBCHAT_LLM_TOTAL_ATTEMPT_BUDGET",
-		"BP_LLM_CIRCUIT_FAILURE_THRESHOLD", "WEBCHAT_LLM_CIRCUIT_FAILURE_THRESHOLD",
-		"BP_LLM_CIRCUIT_COOLDOWN_SEC", "WEBCHAT_LLM_CIRCUIT_COOLDOWN_SEC",
-		"BP_LLM_RETRY_STATUSES", "WEBCHAT_LLM_RETRY_STATUSES",
-		"BP_LLM_PROVIDERS", "WEBCHAT_LLM_PROVIDERS",
-		"BP_LLM_OPENROUTER_API_KEY", "WEBCHAT_LLM_OPENROUTER_API_KEY",
-		"BP_LLM_OPENROUTER_BASE_URL", "WEBCHAT_LLM_OPENROUTER_BASE_URL",
-		"BP_LLM_OPENROUTER_MODEL", "WEBCHAT_LLM_OPENROUTER_MODEL",
-		"BP_LLM_OPENROUTER_API", "WEBCHAT_LLM_OPENROUTER_API",
-		"BP_LLM_OPENROUTER_ENABLED", "WEBCHAT_LLM_OPENROUTER_ENABLED",
-		"BP_LLM_OPENROUTER_MAX_ATTEMPTS", "WEBCHAT_LLM_OPENROUTER_MAX_ATTEMPTS",
-		"BP_LLM_OPENROUTER_CONTEXT_WINDOW", "WEBCHAT_LLM_OPENROUTER_CONTEXT_WINDOW",
-		"BP_LLM_OPENROUTER_MAX_OUTPUT_TOKENS", "WEBCHAT_LLM_OPENROUTER_MAX_OUTPUT_TOKENS",
-		"BP_LLM_OPENROUTER_MAX_INPUT_TOKENS", "WEBCHAT_LLM_OPENROUTER_MAX_INPUT_TOKENS",
-		"BP_LLM_OPENROUTER_TIMEOUT_SEC", "WEBCHAT_LLM_OPENROUTER_TIMEOUT_SEC",
-		"BP_LLM_OPENROUTER_WEIGHT", "WEBCHAT_LLM_OPENROUTER_WEIGHT",
-		"BP_LLM_LOCAL_API_KEY", "WEBCHAT_LLM_LOCAL_API_KEY",
-		"BP_LLM_LOCAL_ENABLED", "WEBCHAT_LLM_LOCAL_ENABLED",
-		"BP_LLM_TIMEOUT_SEC", "WEBCHAT_LLM_TIMEOUT_SEC",
-		"BP_LLM_CONTEXT_WINDOW", "WEBCHAT_LLM_CONTEXT_WINDOW",
-		"BP_LLM_MAX_OUTPUT_TOKENS", "WEBCHAT_LLM_MAX_OUTPUT_TOKENS",
-		"BP_CONTEXT_COMPACTION_ENABLED", "WEBCHAT_CONTEXT_COMPACTION_ENABLED",
-		"BP_CONTEXT_MAX_INPUT_TOKENS", "WEBCHAT_CONTEXT_MAX_INPUT_TOKENS",
-		"BP_CONTEXT_RESERVE_TOKENS", "WEBCHAT_CONTEXT_RESERVE_TOKENS",
-		"BP_CONTEXT_RECENT_TURNS", "WEBCHAT_CONTEXT_RECENT_TURNS",
-		"BP_CONTEXT_SUMMARY_MAX_CHARS", "WEBCHAT_CONTEXT_SUMMARY_MAX_CHARS",
-		"BP_DOCS_TOP_K", "WEBCHAT_DOCS_TOP_K",
-		"BP_DOCS_MIN_SCORE", "WEBCHAT_DOCS_MIN_SCORE",
-		"BP_DOCS_FUZZY_ENABLED", "WEBCHAT_DOCS_FUZZY_ENABLED",
-		"BP_DOCS_APP_ID", "WEBCHAT_DOCS_APP_ID",
+		"BP_HTTP_ADDR",
+		"BP_WEB_ROOT",
+		"BP_STORAGE_ROOT",
+		"BP_DOCS_ROOT",
+		"BP_PROMPTS_ROOT",
+		"BP_TOOLS_ROOT",
+		"BP_MAX_TOOL_ROUNDS",
+		"BP_SPEAK_FLOOR_TTL_SEC",
+		"BP_LOCK_TTL_SEC",
+		"BP_TURN_RATE_LIMIT_PER_MIN",
+		"BP_TURN_JOB_TIMEOUT_SEC",
+		"BP_LLM_STUB",
+		"BP_LLM_STREAM",
+		"BP_LLM_STRATEGY",
+		"BP_LLM_ACTIVE_PROVIDER",
+		"BP_LLM_TOTAL_ATTEMPT_BUDGET",
+		"BP_LLM_CIRCUIT_FAILURE_THRESHOLD",
+		"BP_LLM_CIRCUIT_COOLDOWN_SEC",
+		"BP_LLM_RETRY_STATUSES",
+		"BP_LLM_PROVIDERS",
+		"BP_LLM_OPENROUTER_API_KEY",
+		"BP_LLM_OPENROUTER_BASE_URL",
+		"BP_LLM_OPENROUTER_MODEL",
+		"BP_LLM_OPENROUTER_API",
+		"BP_LLM_OPENROUTER_ENABLED",
+		"BP_LLM_OPENROUTER_MAX_ATTEMPTS",
+		"BP_LLM_OPENROUTER_CONTEXT_WINDOW",
+		"BP_LLM_OPENROUTER_MAX_OUTPUT_TOKENS",
+		"BP_LLM_OPENROUTER_MAX_INPUT_TOKENS",
+		"BP_LLM_OPENROUTER_TIMEOUT_SEC",
+		"BP_LLM_OPENROUTER_WEIGHT",
+		"BP_LLM_LOCAL_API_KEY",
+		"BP_LLM_LOCAL_ENABLED",
+		"BP_LLM_TIMEOUT_SEC",
+		"BP_LLM_CONTEXT_WINDOW",
+		"BP_LLM_MAX_OUTPUT_TOKENS",
+		"BP_CONTEXT_COMPACTION_ENABLED",
+		"BP_CONTEXT_MAX_INPUT_TOKENS",
+		"BP_CONTEXT_RESERVE_TOKENS",
+		"BP_CONTEXT_RECENT_TURNS",
+		"BP_CONTEXT_SUMMARY_MAX_CHARS",
+		"BP_DOCS_TOP_K",
+		"BP_DOCS_MIN_SCORE",
+		"BP_DOCS_FUZZY_ENABLED",
+		"BP_DOCS_APP_ID",
 	}
 	for _, k := range keys {
 		t.Setenv(k, "")
@@ -80,6 +81,9 @@ func TestLoad_Defaults(t *testing.T) {
 	if !cfg.LLMStub {
 		t.Fatal("expected stub when no provider key")
 	}
+	if !cfg.LLMStream {
+		t.Fatal("LLMStream should default true")
+	}
 	if cfg.LLMStrategy != "failover" || cfg.LLMActiveProvider != "OPENROUTER" {
 		t.Fatalf("llm %+v %q", cfg.LLMStrategy, cfg.LLMActiveProvider)
 	}
@@ -95,16 +99,12 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 }
 
-func TestLoad_BPAliasWinsOverWEBCHAT(t *testing.T) {
+func TestLoad_BPOverrides(t *testing.T) {
 	clearLLMEnv(t)
 	t.Setenv("BP_HTTP_ADDR", ":9090")
-	t.Setenv("WEBCHAT_HTTP_ADDR", ":7070")
 	t.Setenv("BP_MAX_TOOL_ROUNDS", "3")
-	t.Setenv("WEBCHAT_MAX_TOOL_ROUNDS", "99")
 	t.Setenv("BP_DOCS_MIN_SCORE", "0.9")
-	t.Setenv("WEBCHAT_DOCS_MIN_SCORE", "0.1")
 	t.Setenv("BP_LLM_STUB", "false")
-	t.Setenv("WEBCHAT_LLM_STUB", "true")
 	t.Setenv("BP_LLM_OPENROUTER_API_KEY", "sk-test")
 	cfg := config.Load()
 	if cfg.HTTPAddr != ":9090" {
@@ -117,18 +117,18 @@ func TestLoad_BPAliasWinsOverWEBCHAT(t *testing.T) {
 		t.Fatalf("score %v", cfg.DocsMinScore)
 	}
 	if cfg.LLMStub {
-		t.Fatal("BP stub false should win")
+		t.Fatal("BP stub false should apply")
 	}
 }
 
-func TestLoad_WEBCHATFallback(t *testing.T) {
+func TestLoad_BPEnv(t *testing.T) {
 	clearLLMEnv(t)
-	t.Setenv("WEBCHAT_HTTP_ADDR", ":6060")
-	t.Setenv("WEBCHAT_STORAGE_ROOT", "tmp/storage")
-	t.Setenv("WEBCHAT_LLM_STRATEGY", "ROUND_ROBIN")
-	t.Setenv("WEBCHAT_CONTEXT_COMPACTION_ENABLED", "yes")
-	t.Setenv("WEBCHAT_DOCS_FUZZY_ENABLED", "off")
-	t.Setenv("WEBCHAT_DOCS_APP_ID", "kit")
+	t.Setenv("BP_HTTP_ADDR", ":6060")
+	t.Setenv("BP_STORAGE_ROOT", "tmp/storage")
+	t.Setenv("BP_LLM_STRATEGY", "ROUND_ROBIN")
+	t.Setenv("BP_CONTEXT_COMPACTION_ENABLED", "yes")
+	t.Setenv("BP_DOCS_FUZZY_ENABLED", "off")
+	t.Setenv("BP_DOCS_APP_ID", "kit")
 	cfg := config.Load()
 	if cfg.HTTPAddr != ":6060" || cfg.StorageRoot != "tmp/storage" {
 		t.Fatalf("%+v", cfg)
@@ -156,6 +156,24 @@ func TestLoad_StubDefaultWithKey(t *testing.T) {
 	cfg := config.Load()
 	if cfg.LLMStub {
 		t.Fatal("expected stub=false when key present and stub unset")
+	}
+}
+
+func TestLoad_LLMStream(t *testing.T) {
+	clearLLMEnv(t)
+	cfg := config.Load()
+	if !cfg.LLMStream {
+		t.Fatal("default stream true")
+	}
+	t.Setenv("BP_LLM_STREAM", "false")
+	cfg = config.Load()
+	if cfg.LLMStream {
+		t.Fatal("BP_LLM_STREAM=false should disable")
+	}
+	t.Setenv("BP_LLM_STREAM", "0")
+	cfg = config.Load()
+	if cfg.LLMStream {
+		t.Fatal("BP_LLM_STREAM=0 should disable")
 	}
 }
 
@@ -228,7 +246,7 @@ func TestLoad_DotEnvFillsUnset(t *testing.T) {
 	clearLLMEnv(t)
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
-	content := "# comment\n\nexport BP_HTTP_ADDR=:5555\nBP_DOCS_APP_ID=\"from-dotenv\"\nWEBCHAT_DOCS_TOP_K='7'\nbadline\n=novalue\nBP_LLM_STUB=1\n"
+	content := "# comment\n\nexport BP_HTTP_ADDR=:5555\nBP_DOCS_APP_ID=\"from-dotenv\"\nBP_DOCS_TOP_K='7'\nbadline\n=novalue\nBP_LLM_STUB=1\n"
 	if err := os.WriteFile(envPath, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}

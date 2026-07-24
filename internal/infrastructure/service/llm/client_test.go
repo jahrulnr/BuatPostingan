@@ -263,6 +263,152 @@ func TestLooksLikeSSE(t *testing.T) {
 	}
 }
 
+func boolPtr(v bool) *bool { return &v }
+
+func TestPostJSONStreamDisabledSendsFalseAndJSONAccept(t *testing.T) {
+	var gotStream any
+	var gotAccept string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAccept = r.Header.Get("Accept")
+		raw, _ := io.ReadAll(r.Body)
+		var body map[string]any
+		_ = json.Unmarshal(raw, &body)
+		gotStream = body["stream"]
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"object": "chat.completion",
+			"choices": []any{
+				map[string]any{"message": map[string]any{"role": "assistant", "content": "no stream"}},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{Stream: boolPtr(false)})
+	c.cfg.Providers = map[string]config.LLMProvider{
+		"OPENROUTER": {
+			ID: "OPENROUTER", BaseURL: srv.URL, APIKey: "k", Model: "m", API: "chat", TimeoutSec: 5, MaxOutputTokens: 64,
+		},
+	}
+	c.cfg.ActiveProvider = "OPENROUTER"
+	res, err := c.Chat(context.Background(), []map[string]any{{"role": "user", "content": "hi"}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Text != "no stream" {
+		t.Fatalf("text=%q", res.Text)
+	}
+	if gotStream != false {
+		t.Fatalf("stream want false, got %#v", gotStream)
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept=%q", gotAccept)
+	}
+	if strings.Contains(gotAccept, "event-stream") {
+		t.Fatalf("Accept should not include event-stream when stream disabled: %q", gotAccept)
+	}
+}
+
+func TestPostJSONStreamFallbackOnUnsupported(t *testing.T) {
+	var streams []bool
+	var accepts []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		accepts = append(accepts, r.Header.Get("Accept"))
+		raw, _ := io.ReadAll(r.Body)
+		var body map[string]any
+		_ = json.Unmarshal(raw, &body)
+		stream, _ := body["stream"].(bool)
+		streams = append(streams, stream)
+		if stream {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error": map[string]any{
+					"message": "streaming not supported for this model",
+					"type":    "invalid_request_error",
+				},
+			})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"object": "response",
+			"output": []any{
+				map[string]any{
+					"type": "message",
+					"content": []any{
+						map[string]any{"type": "output_text", "text": "fallback ok"},
+					},
+				},
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{Stream: boolPtr(true)})
+	c.cfg.Providers = map[string]config.LLMProvider{
+		"OPENROUTER": {
+			ID: "OPENROUTER", BaseURL: srv.URL, APIKey: "k", Model: "m", API: "responses", TimeoutSec: 5, MaxOutputTokens: 64,
+		},
+	}
+	c.cfg.ActiveProvider = "OPENROUTER"
+	res, err := c.Chat(context.Background(), []map[string]any{{"role": "user", "content": "hi"}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Text != "fallback ok" {
+		t.Fatalf("text=%q", res.Text)
+	}
+	if len(streams) != 2 || streams[0] != true || streams[1] != false {
+		t.Fatalf("streams=%v", streams)
+	}
+	if len(accepts) != 2 {
+		t.Fatalf("accepts=%v", accepts)
+	}
+	if !strings.Contains(accepts[0], "text/event-stream") {
+		t.Fatalf("first Accept=%q", accepts[0])
+	}
+	if accepts[1] != "application/json" {
+		t.Fatalf("second Accept=%q", accepts[1])
+	}
+}
+
+func TestPostJSONNoFallbackOnAuthError(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":{"message":"invalid api key, stream unrelated"}}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{Stream: boolPtr(true)})
+	p := config.LLMProvider{ID: "OPENROUTER", BaseURL: srv.URL, APIKey: "bad", TimeoutSec: 5}
+	_, err := c.postJSON(context.Background(), p, "responses", map[string]any{"model": "m"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if calls != 1 {
+		t.Fatalf("should not retry auth errors, calls=%d", calls)
+	}
+}
+
+func TestIsStreamUnsupported(t *testing.T) {
+	if !isStreamUnsupported(&Error{Status: 400, Msg: `status=400 body=streaming not supported`}) {
+		t.Fatal("want true for streaming not supported")
+	}
+	if isStreamUnsupported(&Error{Status: 400, Msg: `status=400 body=invalid max_tokens`}) {
+		t.Fatal("unrelated 400 should not match")
+	}
+	if isStreamUnsupported(&Error{Status: 401, Msg: `status=401 body=streaming not supported`}) {
+		t.Fatal("auth must not fallback")
+	}
+	if isStreamUnsupported(&Error{Status: 429, Msg: `status=429 body=rate limit`}) {
+		t.Fatal("rate limit without stream signal")
+	}
+}
+
 func TestToResponsesRequestIncludesFunctionCallOutput(t *testing.T) {
 	p := config.LLMProvider{ID: "OPENROUTER", Model: "m", API: "responses", MaxOutputTokens: 64}
 	messages := []map[string]any{
@@ -287,7 +433,7 @@ func TestToResponsesRequestIncludesFunctionCallOutput(t *testing.T) {
 			"content":      `{"ok":true,"tool":"list_dir","data":{"listing":"total 0\n. ..","entries":[],"total":0}}`,
 		},
 	}
-	body := toResponsesRequest(p, messages, nil)
+	body := toResponsesRequest(p, messages, nil, true)
 	input, _ := body["input"].([]map[string]any)
 	if len(input) < 3 {
 		t.Fatalf("input=%#v", input)

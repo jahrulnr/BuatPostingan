@@ -19,7 +19,7 @@ Human + agent documentation grounded in **current code**. Start here, then dive 
 ```bash
 cp .env.example .env   # optional
 make be                # Go + static FE → http://localhost:8080/
-# or: make fe          # static only :5173; needs make be for real API
+# or: make fe          # static + livereload :5173 (needs Node/npx); needs make be for real API
 ```
 
 Without provider API keys the backend runs **LLM stub** (canned replies). Details: [Runbook](operations/runbook.md), [LLM providers](architecture/llm-providers.md).

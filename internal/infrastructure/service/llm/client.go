@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -54,13 +56,20 @@ func (c *Client) ChatWithProvider(ctx context.Context, providerID string, messag
 	return c.chatViaCompletions(ctx, p, messages, tools)
 }
 
+func (c *Client) wantStream() bool {
+	if c.cfg.Stream == nil {
+		return true
+	}
+	return *c.cfg.Stream
+}
+
 func (c *Client) chatViaCompletions(ctx context.Context, p config.LLMProvider, messages []map[string]any, tools []map[string]any) (service.LLMResult, error) {
 	body := map[string]any{
 		"model":       p.Model,
 		"messages":    messages,
 		"tool_choice": "auto",
 		"max_tokens":  p.MaxOutputTokens,
-		"stream":      true,
+		"stream":      c.wantStream(),
 	}
 	if len(tools) > 0 {
 		body["tools"] = normalizeChatTools(tools)
@@ -73,7 +82,7 @@ func (c *Client) chatViaCompletions(ctx context.Context, p config.LLMProvider, m
 }
 
 func (c *Client) chatViaResponses(ctx context.Context, p config.LLMProvider, messages []map[string]any, tools []map[string]any) (service.LLMResult, error) {
-	body := toResponsesRequest(p, messages, tools)
+	body := toResponsesRequest(p, messages, tools, c.wantStream())
 	payload, err := c.postJSON(ctx, p, "responses", body)
 	if err != nil {
 		return service.LLMResult{}, err
@@ -148,11 +157,11 @@ func parseResponsesPayload(p config.LLMProvider, payload map[string]any) service
 }
 
 func (c *Client) postJSON(ctx context.Context, p config.LLMProvider, path string, body map[string]any) (map[string]any, error) {
-	// Prefer SSE streaming; many OpenAI-compatible proxies (incl. local) stream by default
-	// and only degrade Responses → chat.completion when stream=false.
-	if _, ok := body["stream"]; !ok {
-		body["stream"] = true
-	}
+	return c.postJSONStream(ctx, p, path, body, c.wantStream(), true)
+}
+
+func (c *Client) postJSONStream(ctx context.Context, p config.LLMProvider, path string, body map[string]any, stream bool, allowFallback bool) (map[string]any, error) {
+	body["stream"] = stream
 	raw, err := json.Marshal(body)
 	if err != nil {
 		return nil, &Error{Provider: p.ID, Msg: "marshal body", Cause: err}
@@ -164,7 +173,11 @@ func (c *Client) postJSON(ctx context.Context, p config.LLMProvider, path string
 	}
 	req.Header.Set("Authorization", "Bearer "+p.APIKey)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "text/event-stream, application/json")
+	if stream {
+		req.Header.Set("Accept", "text/event-stream, application/json")
+	} else {
+		req.Header.Set("Accept", "application/json")
+	}
 	// OpenRouter asks for these; harmless for other OpenAI-compatible proxies.
 	req.Header.Set("HTTP-Referer", "https://buatpostingan.local")
 	req.Header.Set("X-Title", "BuatPostingan")
@@ -193,12 +206,18 @@ func (c *Client) postJSON(ctx context.Context, p config.LLMProvider, path string
 		rest, _ := io.ReadAll(br)
 		snippet = truncateBody(rest, 800)
 		transient := resp.StatusCode == 0 || c.isTransient(resp.StatusCode)
-		return nil, &Error{
+		httpErr := &Error{
 			Provider:  p.ID,
 			Status:    resp.StatusCode,
 			Transient: transient,
 			Msg:       fmt.Sprintf("status=%d content-type=%s body=%s", resp.StatusCode, ctype, snippet),
 		}
+		if stream && allowFallback && isStreamUnsupported(httpErr) {
+			log.Printf("webchat.llm stream_fallback provider=%s path=%s status=%d body=%s",
+				p.ID, path, resp.StatusCode, snippet)
+			return c.postJSONStream(ctx, p, path, body, false, false)
+		}
+		return nil, httpErr
 	}
 
 	if looksLikeSSE(ctype, prefix) {
@@ -217,22 +236,122 @@ func (c *Client) postJSON(ctx context.Context, p config.LLMProvider, path string
 	respBody, _ := io.ReadAll(br)
 	trimmed := bytes.TrimSpace(respBody)
 	if len(trimmed) == 0 {
-		return nil, &Error{
+		emptyErr := &Error{
 			Provider: p.ID,
 			Status:   resp.StatusCode,
 			Msg:      fmt.Sprintf("BAD_BODY status=%d content-type=%s empty body", resp.StatusCode, ctype),
 		}
+		if stream && allowFallback && isStreamUnsupported(emptyErr) {
+			log.Printf("webchat.llm stream_fallback provider=%s path=%s status=%d reason=empty_non_sse",
+				p.ID, path, resp.StatusCode)
+			return c.postJSONStream(ctx, p, path, body, false, false)
+		}
+		return nil, emptyErr
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(respBody, &payload); err != nil || payload == nil {
-		return nil, &Error{
+		badErr := &Error{
 			Provider: p.ID,
 			Status:   resp.StatusCode,
 			Cause:    err,
 			Msg:      fmt.Sprintf("BAD_BODY status=%d content-type=%s body=%s", resp.StatusCode, ctype, truncateBody(respBody, 800)),
 		}
+		if stream && allowFallback && isStreamUnsupported(badErr) {
+			log.Printf("webchat.llm stream_fallback provider=%s path=%s status=%d body=%s",
+				p.ID, path, resp.StatusCode, truncateBody(respBody, 200))
+			return c.postJSONStream(ctx, p, path, body, false, false)
+		}
+		return nil, badErr
+	}
+	// Some proxies return 200 + JSON error object when streaming is rejected.
+	if stream && allowFallback && looksLikeJSONStreamReject(payload) {
+		msg := truncateBody(respBody, 800)
+		log.Printf("webchat.llm stream_fallback provider=%s path=%s status=%d body=%s",
+			p.ID, path, resp.StatusCode, msg)
+		return c.postJSONStream(ctx, p, path, body, false, false)
 	}
 	return payload, nil
+}
+
+// isStreamUnsupported detects provider/proxy rejections that indicate streaming
+// is not supported for this model/API — safe to retry once with stream=false.
+// Skips auth/quota and unrelated 4xx (no stream-related signal in the body).
+func isStreamUnsupported(err error) bool {
+	var e *Error
+	if !errors.As(err, &e) || e == nil {
+		return false
+	}
+	switch e.Status {
+	case 401, 402, 403:
+		return false
+	}
+	msg := strings.ToLower(e.Msg)
+	if e.Cause != nil {
+		msg += " " + strings.ToLower(e.Cause.Error())
+	}
+	if !strings.Contains(msg, "stream") {
+		return false
+	}
+	// Strong / common proxy phrases.
+	strong := []string{
+		"streaming not supported",
+		"stream not supported",
+		"does not support stream",
+		"doesn't support stream",
+		"streaming is not supported",
+		"streaming unsupported",
+		"stream unsupported",
+		"streaming is disabled",
+		"stream is disabled",
+		"streaming not available",
+		"stream not available",
+		"stream=true is not",
+		"cannot stream",
+		"can't stream",
+		"streaming is not enabled",
+		"event-stream",
+	}
+	for _, s := range strong {
+		if strings.Contains(msg, s) {
+			return true
+		}
+	}
+	// 4xx with "stream" + rejection language.
+	if e.Status >= 400 && e.Status < 500 {
+		for _, u := range []string{
+			"not support", "unsupported", "not supported", "disabled",
+			"not available", "unavailable", "not allowed", "not enabled",
+			"invalid", "must be false", "only non-stream", "non-streaming",
+		} {
+			if strings.Contains(msg, u) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func looksLikeJSONStreamReject(payload map[string]any) bool {
+	if payload == nil {
+		return false
+	}
+	// OpenAI-shaped: {"error":{"message":"...stream..."}}
+	if errObj, ok := payload["error"].(map[string]any); ok {
+		parts := []string{
+			fmt.Sprint(errObj["message"]),
+			fmt.Sprint(errObj["code"]),
+			fmt.Sprint(errObj["type"]),
+			fmt.Sprint(payload["error"]),
+		}
+		blob := strings.ToLower(strings.Join(parts, " "))
+		if strings.Contains(blob, "stream") {
+			return isStreamUnsupported(&Error{Status: 400, Msg: blob})
+		}
+	}
+	if msg, ok := payload["message"].(string); ok && strings.Contains(strings.ToLower(msg), "stream") {
+		return isStreamUnsupported(&Error{Status: 400, Msg: msg})
+	}
+	return false
 }
 
 func truncateBody(b []byte, max int) string {
@@ -432,7 +551,7 @@ func normalizeChatTools(tools []map[string]any) []map[string]any {
 	return out
 }
 
-func toResponsesRequest(p config.LLMProvider, messages []map[string]any, tools []map[string]any) map[string]any {
+func toResponsesRequest(p config.LLMProvider, messages []map[string]any, tools []map[string]any, stream bool) map[string]any {
 	var instructions []string
 	var input []map[string]any
 	for _, msg := range messages {
@@ -473,7 +592,7 @@ func toResponsesRequest(p config.LLMProvider, messages []map[string]any, tools [
 		"input":             input,
 		"tool_choice":       "auto",
 		"max_output_tokens": p.MaxOutputTokens,
-		"stream":            true,
+		"stream":            stream,
 	}
 	if len(instructions) > 0 {
 		body["instructions"] = strings.Join(instructions, "\n\n")

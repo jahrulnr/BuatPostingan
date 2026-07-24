@@ -5,6 +5,7 @@ Local ops for humans and agents. Product locks and layer rules: [`AGENTS.md`](..
 ## Prerequisites
 
 - Go **1.22+**
+- Node.js (`npx`) for `make fe` live-reload (no committed `node_modules`)
 - Optional: provider API key for real LLM turns
 - Optional: host `rg` for faster `grep` tool (Go RE2 fallback if missing)
 
@@ -39,15 +40,18 @@ Useful env (defaults in parentheses):
 | `BP_PROMPTS_ROOT` | `resources/webchat/prompts` |
 | `BP_TOOLS_ROOT` | `resources/webchat/tools` |
 | `BP_LLM_STUB` | `true` if no provider API key |
+| `BP_LLM_STREAM` | `true` (SSE; auto-fallback if unsupported) |
 
-Portable aliases: same names with `WEBCHAT_*` prefix (see [LLM providers](../architecture/llm-providers.md)).
+See [LLM providers](../architecture/llm-providers.md) for provider slot env details.
 
 ## Frontend (`make fe`)
 
 ```bash
-make fe                # python http.server → http://localhost:5173/
+make fe                # npx live-server → http://localhost:5173/ (auto-refresh on web/ edits)
 # FE_PORT=3000 make fe
 ```
+
+Requires **Node.js** (`npx`); downloads `live-server` on first run via `npx --yes` (no repo `node_modules`).
 
 | Mode | How |
 |---|---|
@@ -56,9 +60,9 @@ make fe                # python http.server → http://localhost:5173/
 | Override API | `?api=http://host:port` or `?api=…/api/webchat` |
 | **Mock** | `?mock=1` — no Go required |
 
-Same-origin real UI: use Go-served page at http://localhost:8080/ (no CORS dance).
+Same-origin real UI: use Go-served page at http://localhost:8080/ (no CORS dance; **no FE livereload** — use `make fe` when editing HTML/CSS/JS).
 
-> Python `http.server` returns **HTTP 501** on `POST /api/*`. That is the static FE process, not a missing Go route. Real mode must not post to `:5173`.
+> Static `:5173` cannot handle `POST /api/*`. That is the live-server process, not a missing Go route. Real mode must not post to `:5173`.
 
 ## Stub vs real LLM
 
@@ -96,9 +100,10 @@ Details: [LLM providers](../architecture/llm-providers.md).
 
 | Symptom | Likely cause |
 |---|---|
-| POST 501 from `:5173` | Hitting Python static server — run `make be`, use auto API base or `?api=` |
+| POST fail from `:5173` | Hitting static live-server — run `make be`, use auto API base or `?api=` |
+| `make fe` exits “requires Node.js” | Install Node (`npx`), or use `make be` + http://localhost:8080/ without FE livereload |
 | Docs / turns refused | Docs index not usable — check `BP_DOCS_ROOT` + startup Reindex/Gate |
-| Empty model replies on Responses | Prefer `API=responses` + SSE streaming; avoid forcing non-stream |
+| Empty model replies on Responses | Prefer `API=responses` + SSE (`BP_LLM_STREAM=true` default); only set `BP_LLM_STREAM=false` if upstream cannot stream |
 | Mock UI when you wanted real | Remove `?mock=1` / clear `localStorage bp.mockMode` |
 | Tool path errors | Tools are sandboxed to `BP_DOCS_ROOT` only |
 

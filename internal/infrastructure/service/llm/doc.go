@@ -8,17 +8,20 @@ import (
 
 // Config subset used by client/router (from config.Config).
 type Config struct {
-	StorageRoot                string
-	Strategy                   string
-	ActiveProvider             string
-	TotalAttemptBudget         int
-	CircuitFailureThreshold    int
-	CircuitCooldownSec         int
-	RetryStatuses              []int
-	Providers                  map[string]config.LLMProvider
+	StorageRoot             string
+	Strategy                string
+	ActiveProvider          string
+	TotalAttemptBudget      int
+	CircuitFailureThreshold int
+	CircuitCooldownSec      int
+	RetryStatuses           []int
+	Providers               map[string]config.LLMProvider
+	// Stream requests stream=true when non-nil. Nil defaults to true (SSE preferred).
+	Stream *bool
 }
 
 func FromApp(cfg config.Config) Config {
+	stream := cfg.LLMStream
 	return Config{
 		StorageRoot:             cfg.StorageRoot,
 		Strategy:                cfg.LLMStrategy,
@@ -28,6 +31,7 @@ func FromApp(cfg config.Config) Config {
 		CircuitCooldownSec:      cfg.LLMCircuitCooldownSec,
 		RetryStatuses:           cfg.LLMRetryStatuses,
 		Providers:               cfg.LLMProviders,
+		Stream:                  &stream,
 	}
 }
 

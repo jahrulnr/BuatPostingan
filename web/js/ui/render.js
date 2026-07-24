@@ -125,7 +125,7 @@ export function disclosureHtml(kind, block) {
         '<span class="disclosure__chevron" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>' +
         '<span class="disclosure__title">' + title + '</span>' +
         modelBadge(block.model) +
-        '<span class="disclosure__summary">' + escapeHtml(summary) + '</span></button>' +
+        '</button>' +
         '<div class="disclosure__body">' + body + '</div></div>'
     );
 }
@@ -136,8 +136,9 @@ export function welcomeHtml(productName) {
         || 'AI Assistant';
     return (
         '<div class="chat-welcome">' +
-        '<div class="chat-welcome-icon"><i class="bi bi-stars"></i></div>' +
-        '<h5>Selamat datang di ' + escapeHtml(String(name)) + '</h5></div>'
+        '<div class="chat-welcome-icon"><i class="bi bi-chat-square-text"></i></div>' +
+        '<h5>Selamat datang di ' + escapeHtml(String(name)) + '</h5>' +
+        '<p>Ajukan pertanyaan — AI menjawab dari knowledge base (reader only).</p></div>'
     );
 }
 

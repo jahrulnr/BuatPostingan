@@ -1,35 +1,6 @@
-/* Ported from mockup webchat-mock.css — do not add scenario chips in Blade. */
-/* BuatPostingan webchat mock — industrial instrument panel inside CMS shell */
+/* Chat bubbles / composer — tokens from shell.css via html[data-theme] (--wm-* aliases). */
 
 :root {
-    --wm-font: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
-    --wm-mono: "IBM Plex Mono", ui-monospace, monospace;
-
-    --wm-bg: oklch(97.5% 0.008 250);
-    --wm-surface: oklch(100% 0 0);
-    --wm-ink: oklch(28% 0.03 255);
-    --wm-muted: oklch(55% 0.02 255);
-    --wm-border: oklch(90% 0.012 255);
-    --wm-border-strong: oklch(84% 0.015 255);
-
-    --wm-accent: oklch(52% 0.16 250);
-    --wm-accent-soft: oklch(94% 0.035 250);
-    --wm-user: oklch(93% 0.04 250);
-
-    --wm-think: oklch(48% 0.06 80);
-    --wm-think-bg: oklch(97% 0.015 85);
-    --wm-think-border: oklch(88% 0.03 85);
-
-    --wm-tool: oklch(42% 0.08 175);
-    --wm-tool-bg: oklch(97% 0.02 175);
-    --wm-tool-border: oklch(88% 0.03 175);
-    --wm-ok: oklch(48% 0.12 155);
-    --wm-fail: oklch(50% 0.17 25);
-    --wm-fail-bg: oklch(96% 0.03 25);
-    --wm-fail-border: oklch(86% 0.06 25);
-
-    --wm-radius: 0.85rem;
-    --wm-ease: cubic-bezier(0.16, 1, 0.3, 1);
     --wm-duration-fast: 120ms;
     --wm-duration-base: 220ms;
 }
@@ -47,11 +18,11 @@
     width: max-content;
     max-width: 12rem;
     padding: 0.35rem 0.5rem;
-    border: 1px solid oklch(46% 0.025 255);
+    border: 1px solid var(--wm-border-strong);
     border-radius: 0.4rem;
-    background: oklch(29% 0.025 255 / 0.97);
-    color: oklch(98% 0.006 250);
-    box-shadow: 0 0.45rem 1rem oklch(22% 0.03 255 / 0.2);
+    background: color-mix(in oklab, var(--wm-ink) 92%, transparent);
+    color: var(--wm-bg);
+    box-shadow: var(--bp-shadow, 0 0.45rem 1rem oklch(22% 0.03 255 / 0.2));
     font-family: var(--wm-font);
     font-size: 0.68rem;
     font-weight: 500;
@@ -72,7 +43,7 @@
 
 button:focus-visible,
 input:focus-visible {
-    outline: 3px solid oklch(60% 0.15 245 / 0.24);
+    outline: 2px solid color-mix(in oklab, var(--wm-accent) 55%, transparent);
     outline-offset: 2px;
 }
 
@@ -155,14 +126,14 @@ input:focus-visible {
 
 .webchat-card {
     border: 0;
-    border-radius: 1rem;
-    box-shadow: 0 0.35rem 1.25rem oklch(40% 0.02 255 / 0.08);
+    border-radius: 0;
+    box-shadow: none;
     overflow: hidden;
     height: 100%;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    background: var(--wm-surface);
+    background: var(--wm-bg);
     font-family: var(--wm-font);
 }
 
@@ -170,16 +141,13 @@ input:focus-visible {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
-    padding: 1.25rem 1.35rem;
+    padding: 1.1rem 1.25rem;
     display: flex;
     flex-direction: column;
-    gap: 0.9rem;
-    background:
-        radial-gradient(1200px 400px at 10% -10%, oklch(96% 0.03 250 / 0.7), transparent 60%),
-        radial-gradient(900px 300px at 90% 0%, oklch(97% 0.02 175 / 0.5), transparent 55%),
-        var(--wm-bg);
+    gap: 0.85rem;
+    background: var(--wm-bg);
     scrollbar-width: thin;
-    scrollbar-color: oklch(78% 0.035 250) transparent;
+    scrollbar-color: var(--bp-scroll-thumb, oklch(50% 0.02 255)) transparent;
 }
 
 .webchat-messages::-webkit-scrollbar,
@@ -190,7 +158,7 @@ input:focus-visible {
 .wc-rail__list::-webkit-scrollbar-thumb {
     border: 0.12rem solid transparent;
     border-radius: 999px;
-    background: oklch(78% 0.035 250);
+    background: var(--bp-scroll-thumb, oklch(50% 0.02 255));
     background-clip: padding-box;
 }
 
@@ -203,17 +171,23 @@ input:focus-visible {
 }
 
 .chat-welcome-icon {
-    font-size: 2.25rem;
-    background: linear-gradient(135deg in oklch, var(--wm-accent), oklch(60% 0.12 175));
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin-bottom: 0.4rem;
+    font-size: 1.85rem;
+    color: var(--wm-accent);
+    margin-bottom: 0.35rem;
 }
 
 .chat-welcome h5 {
+    margin: 0 0 0.35rem;
     color: var(--wm-ink);
     font-weight: 600;
+    font-size: 1rem;
+}
+
+.chat-welcome p {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--wm-muted);
 }
 
 /* ---- message shells ---- */
@@ -246,10 +220,9 @@ input:focus-visible {
 }
 
 .msg--assistant .msg__bubble {
-    background: var(--wm-surface);
+    background: var(--bp-surface-3, var(--wm-surface));
     border: 1px solid var(--wm-border);
     border-bottom-left-radius: 0.3rem;
-    box-shadow: 0 1px 0 oklch(90% 0.01 255 / 0.8);
     display: flex;
     flex-direction: column;
     gap: 0.55rem;
@@ -308,7 +281,7 @@ input:focus-visible {
 .disclosure {
     border: 1px solid var(--wm-border);
     border-radius: 0.65rem;
-    background: oklch(98.5% 0.005 255);
+    background: var(--bp-surface-2, var(--wm-surface));
     overflow: hidden;
 }
 
@@ -339,7 +312,7 @@ input:focus-visible {
 }
 
 .disclosure__toggle:hover {
-    background: oklch(100% 0 0 / 0.45);
+    background: color-mix(in oklab, var(--wm-ink) 4%, transparent);
 }
 
 .disclosure__toggle:focus-visible {
@@ -371,17 +344,6 @@ input:focus-visible {
     color: var(--wm-tool);
 }
 
-.disclosure__summary {
-    margin-left: auto;
-    font-weight: 400;
-    color: var(--wm-muted);
-    font-size: 0.75rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 45%;
-}
-
 .disclosure__body {
     display: none;
     padding: 0 0.75rem 0.7rem;
@@ -396,7 +358,7 @@ input:focus-visible {
 .think-list {
     margin: 0.55rem 0 0;
     padding-left: 1.1rem;
-    color: oklch(40% 0.03 85);
+    color: var(--wm-think);
     font-size: 0.8rem;
     line-height: 1.55;
 }
@@ -419,13 +381,13 @@ input:focus-visible {
     align-items: baseline;
     padding: 0.35rem 0.45rem;
     border-radius: 0.4rem;
-    background: oklch(100% 0 0 / 0.55);
+    background: color-mix(in oklab, var(--wm-surface) 70%, transparent);
 }
 
 .tool-row__call {
     font-family: var(--wm-mono);
     font-size: 0.74rem;
-    color: oklch(35% 0.04 255);
+    color: var(--wm-ink);
     overflow-wrap: anywhere;
 }
 
@@ -469,16 +431,17 @@ input:focus-visible {
 .msg-error__title {
     font-weight: 600;
     font-size: 0.85rem;
-    color: oklch(40% 0.14 25);
+    color: var(--wm-fail);
 }
 
 .msg-error__detail {
     font-family: var(--wm-mono);
     font-size: 0.72rem;
-    color: oklch(42% 0.08 25);
+    color: var(--wm-fail);
     margin-top: 0.2rem;
     white-space: pre-wrap;
     word-break: break-word;
+    opacity: 0.85;
 }
 
 .msg-error__actions {
@@ -495,7 +458,7 @@ input:focus-visible {
     border-radius: 0.5rem;
     padding: 0.4rem 0.85rem;
     background: var(--wm-fail);
-    color: oklch(99% 0 0);
+    color: var(--bp-accent-ink, oklch(99% 0 0));
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -524,7 +487,7 @@ input:focus-visible {
     border-radius: 0.5rem;
     padding: 0.4rem 0.75rem;
     background: transparent;
-    color: oklch(40% 0.1 25);
+    color: var(--wm-fail);
     cursor: pointer;
 }
 
@@ -569,17 +532,17 @@ input:focus-visible {
     flex: 0 0 auto;
     border-radius: 999px;
     background: var(--wm-muted);
-    box-shadow: 0 0 0 0.2rem oklch(55% 0.02 255 / 0.1);
+    box-shadow: 0 0 0 0.2rem color-mix(in oklab, var(--wm-muted) 18%, transparent);
 }
 
 .webchat-status[data-state="ready"]::before {
     background: var(--wm-ok);
-    box-shadow: 0 0 0 0.2rem oklch(48% 0.12 155 / 0.12);
+    box-shadow: 0 0 0 0.2rem color-mix(in oklab, var(--wm-ok) 18%, transparent);
 }
 
 .webchat-status[data-state="danger"]::before {
     background: var(--wm-fail);
-    box-shadow: 0 0 0 0.2rem oklch(50% 0.17 25 / 0.12);
+    box-shadow: 0 0 0 0.2rem color-mix(in oklab, var(--wm-fail) 18%, transparent);
 }
 
 .webchat-status[data-state="busy"]::before {
@@ -588,8 +551,8 @@ input:focus-visible {
 }
 
 .webchat-composer {
-    padding: 0.85rem 1.15rem 1.05rem;
-    background: var(--wm-surface);
+    padding: 0.75rem 1rem 0.9rem;
+    background: var(--bp-surface, var(--wm-surface));
     border-top: 1px solid var(--wm-border);
 }
 
@@ -617,35 +580,35 @@ input:focus-visible {
 .composer-input {
     flex: 1;
     border: 1px solid var(--wm-border-strong);
-    border-radius: 0.75rem;
-    padding: 0.7rem 0.95rem;
+    border-radius: 0.65rem;
+    padding: 0.65rem 0.9rem;
     font-family: var(--wm-font);
-    font-size: 0.9375rem;
+    font-size: 0.9rem;
     color: var(--wm-ink);
-    background: oklch(99% 0.003 255);
+    background: var(--bp-bg, var(--wm-bg));
     outline: none;
     transition: border-color 0.2s var(--wm-ease), box-shadow 0.2s var(--wm-ease);
 }
 
 .composer-input:focus {
-    border-color: color-mix(in oklab, var(--wm-accent) 55%, white);
-    box-shadow: 0 0 0 3px oklch(52% 0.16 250 / 0.15);
+    border-color: color-mix(in oklab, var(--wm-accent) 55%, var(--wm-border));
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--wm-accent) 18%, transparent);
 }
 
 .composer-input:disabled {
     color: var(--wm-muted);
-    background: oklch(96.5% 0.006 255);
+    background: var(--bp-surface-2, var(--wm-surface));
     border-color: var(--wm-border);
     cursor: not-allowed;
 }
 
 .composer-send {
-    width: 2.75rem;
-    height: 2.75rem;
+    width: 2.55rem;
+    height: 2.55rem;
     border: 0;
-    border-radius: 999px;
-    background: linear-gradient(145deg in oklch, var(--wm-accent), oklch(48% 0.12 230));
-    color: white;
+    border-radius: 0.55rem;
+    background: var(--wm-accent);
+    color: var(--bp-accent-ink, white);
     cursor: pointer;
     display: grid;
     place-items: center;
@@ -667,15 +630,15 @@ input:focus-visible {
 }
 
 .composer-stop {
-    height: 2.75rem;
-    min-width: 2.75rem;
-    padding: 0 0.85rem;
-    border: 1px solid oklch(80% 0.08 25);
-    border-radius: 999px;
-    background: oklch(97% 0.02 25);
-    color: oklch(45% 0.16 25);
+    height: 2.55rem;
+    min-width: 2.55rem;
+    padding: 0 0.75rem;
+    border: 1px solid var(--wm-fail-border);
+    border-radius: 0.55rem;
+    background: var(--wm-fail-bg);
+    color: var(--wm-fail);
     font-family: var(--wm-font);
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 600;
     cursor: pointer;
     display: inline-flex;
@@ -686,7 +649,7 @@ input:focus-visible {
 }
 
 .composer-stop:hover:not(:disabled) {
-    background: oklch(94% 0.04 25);
+    filter: brightness(1.05);
 }
 
 .composer-stop:disabled {
@@ -707,8 +670,8 @@ input:focus-visible {
 }
 
 .msg--user.is-peer .msg__bubble {
-    background: oklch(96% 0.02 200);
-    border-color: oklch(88% 0.03 200);
+    background: color-mix(in oklab, var(--wm-tool-bg) 80%, var(--wm-surface));
+    border: 1px solid var(--wm-tool-border);
 }
 
 .msg--user.is-peer .msg__meta {
@@ -718,25 +681,24 @@ input:focus-visible {
 .wc-floor-banner {
     margin: 0.5rem 0.85rem 0;
     padding: 0.45rem 0.75rem;
-    border-radius: 0.55rem;
+    border-radius: 0.5rem;
     font-size: 0.78rem;
     font-family: var(--wm-font);
-    color: oklch(38% 0.08 70);
-    background:
-        linear-gradient(90deg in oklch, oklch(97% 0.03 85), oklch(96% 0.02 55));
-    border: 1px solid oklch(88% 0.05 80);
+    color: var(--wm-think);
+    background: var(--wm-think-bg);
+    border: 1px solid var(--wm-think-border);
     animation: wm-reveal 0.35s var(--wm-ease);
 }
 
 .wc-index-banner {
     margin: 0.5rem 0.85rem 0;
     padding: 0.5rem 0.75rem;
-    border-radius: 0.55rem;
+    border-radius: 0.5rem;
     font-size: 0.78rem;
     font-family: var(--wm-font);
-    color: oklch(35% 0.06 250);
-    background: oklch(96% 0.025 250);
-    border: 1px solid oklch(86% 0.04 250);
+    color: var(--wm-accent);
+    background: var(--wm-accent-soft);
+    border: 1px solid color-mix(in oklab, var(--wm-accent) 30%, var(--wm-border));
 }
 
 .wc-floor-banner strong {
@@ -752,12 +714,12 @@ input:focus-visible {
     z-index: 5;
     max-width: 90%;
     padding: 0.45rem 0.85rem;
-    border-radius: 0.55rem;
+    border-radius: 0.5rem;
     font-family: var(--wm-mono);
     font-size: 0.72rem;
-    color: oklch(98% 0.01 250);
-    background: oklch(32% 0.04 255 / 0.92);
-    box-shadow: 0 0.4rem 1rem oklch(25% 0.03 255 / 0.25);
+    color: var(--wm-bg);
+    background: color-mix(in oklab, var(--wm-ink) 90%, transparent);
+    box-shadow: var(--bp-shadow);
     transition: opacity 180ms ease, transform 220ms var(--wm-ease);
 }
 
@@ -786,8 +748,8 @@ input:focus-visible {
 }
 
 @keyframes wm-status-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 oklch(52% 0.16 250 / 0.25); }
-    50% { box-shadow: 0 0 0 0.28rem oklch(52% 0.16 250 / 0); }
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--wm-accent) 28%, transparent); }
+    50% { box-shadow: 0 0 0 0.28rem transparent; }
 }
 
 .msg__text {
@@ -826,7 +788,7 @@ input:focus-visible {
     margin: 0.55rem 0;
     padding: 0.65rem 0.75rem;
     border-radius: 0.55rem;
-    background: oklch(97% 0.01 255);
+    background: var(--bp-surface-2, var(--wm-surface));
     border: 1px solid var(--wm-border);
     overflow-x: auto;
     white-space: pre;
@@ -890,7 +852,7 @@ input:focus-visible {
 }
 
 .msg__text th {
-    background: oklch(97% 0.015 240);
+    background: var(--bp-surface-2, var(--wm-surface));
     color: var(--wm-ink);
     font-weight: 700;
 }
@@ -924,7 +886,6 @@ input:focus-visible {
 
 @media (max-width: 576px) {
     .msg { max-width: 94%; }
-    .disclosure__summary { max-width: 38%; }
     .tool-row { grid-template-columns: 1fr; gap: 0.15rem; }
     .tool-row__result { white-space: normal; }
 }

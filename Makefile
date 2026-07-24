@@ -29,12 +29,17 @@ vet:
 tidy:
 	go mod tidy
 
-# --- frontend (static; default real → :8080 API) ---
+# --- frontend (static + livereload; default real → :8080 API) ---
+# Needs Node.js (npx). No committed node_modules — live-server via npx --yes.
 
 run-fe fe:
-	@echo "FE → http://localhost:$(FE_PORT)/  (real default → :8080 API; needs make be)"
-	@echo "Mock: ?mock=1  |  Go-served: make be + http://localhost:8080/"
-	cd $(WEB_DIR) && python3 -m http.server $(FE_PORT)
+	@command -v npx >/dev/null 2>&1 || { \
+		echo "make fe requires Node.js (npx). Install Node, or use make be + http://localhost:8080/ (no FE livereload)."; \
+		exit 1; \
+	}
+	@echo "FE → http://localhost:$(FE_PORT)/  (live-reload; real default → :8080 API; needs make be)"
+	@echo "Mock: ?mock=1  |  Go-served (no FE livereload): make be + http://localhost:8080/"
+	cd $(WEB_DIR) && npx --yes live-server --port=$(FE_PORT) --no-browser
 
 # --- docker ---
 

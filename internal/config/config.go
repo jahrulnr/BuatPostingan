@@ -8,9 +8,7 @@ import (
 	"strings"
 )
 
-// Config is env-based runtime config.
-// Prefer WEBCHAT_* when embedding this AI kit in another product.
-// BP_* is the BuatPostingan product alias (checked first in this repo).
+// Config is env-based runtime config (BP_* product env only).
 type Config struct {
 	HTTPAddr    string
 	WebRoot     string
@@ -27,6 +25,7 @@ type Config struct {
 	TurnJobTimeoutSec   int
 
 	LLMStub                    bool
+	LLMStream                  bool // request stream=true (default); false → JSON non-stream
 	LLMStrategy                string
 	LLMActiveProvider          string
 	LLMTotalAttemptBudget      int
@@ -75,9 +74,9 @@ func Load() Config {
 		}
 	}
 
-	stub := getenvBoolFirst([]string{"BP_LLM_STUB", "WEBCHAT_LLM_STUB"}, !anyKey)
+	stub := getenvBoolFirst([]string{"BP_LLM_STUB"}, !anyKey)
 
-	active := strings.ToUpper(strings.TrimSpace(getenvFirst("BP_LLM_ACTIVE_PROVIDER", "WEBCHAT_LLM_ACTIVE_PROVIDER", "")))
+	active := strings.ToUpper(strings.TrimSpace(getenvFirst("BP_LLM_ACTIVE_PROVIDER", "")))
 	if active == "" {
 		ids := make([]string, 0, len(providers))
 		for id := range providers {
@@ -93,39 +92,40 @@ func Load() Config {
 	}
 
 	cfg := Config{
-		HTTPAddr:    getenvFirst("BP_HTTP_ADDR", "WEBCHAT_HTTP_ADDR", ":8080"),
-		WebRoot:     getenvFirst("BP_WEB_ROOT", "WEBCHAT_WEB_ROOT", "web"),
-		StorageRoot: getenvFirst("BP_STORAGE_ROOT", "WEBCHAT_STORAGE_ROOT", "storage/webchat"),
-		DocsRoot:    getenvFirst("BP_DOCS_ROOT", "WEBCHAT_DOCS_ROOT", "docs/webchat"),
-		PromptsRoot: getenvFirst("BP_PROMPTS_ROOT", "WEBCHAT_PROMPTS_ROOT", "resources/webchat/prompts"),
-		ToolsRoot:   getenvFirst("BP_TOOLS_ROOT", "WEBCHAT_TOOLS_ROOT", "resources/webchat/tools"),
+		HTTPAddr:    getenvFirst("BP_HTTP_ADDR", ":8080"),
+		WebRoot:     getenvFirst("BP_WEB_ROOT", "web"),
+		StorageRoot: getenvFirst("BP_STORAGE_ROOT", "storage/webchat"),
+		DocsRoot:    getenvFirst("BP_DOCS_ROOT", "docs/webchat"),
+		PromptsRoot: getenvFirst("BP_PROMPTS_ROOT", "resources/webchat/prompts"),
+		ToolsRoot:   getenvFirst("BP_TOOLS_ROOT", "resources/webchat/tools"),
 
 		WriteEnabled:        false, // hard false — reader/instructor only
-		MaxToolRounds:       getenvIntFirst([]string{"BP_MAX_TOOL_ROUNDS", "WEBCHAT_MAX_TOOL_ROUNDS"}, 8),
-		SpeakFloorTTL:       getenvIntFirst([]string{"BP_SPEAK_FLOOR_TTL_SEC", "WEBCHAT_SPEAK_FLOOR_TTL_SEC"}, 600),
-		LockTTL:             getenvIntFirst([]string{"BP_LOCK_TTL_SEC", "WEBCHAT_LOCK_TTL_SEC"}, 300),
-		TurnRateLimitPerMin: getenvIntFirst([]string{"BP_TURN_RATE_LIMIT_PER_MIN", "WEBCHAT_TURN_RATE_LIMIT_PER_MIN"}, 10),
-		TurnJobTimeoutSec:   getenvIntFirst([]string{"BP_TURN_JOB_TIMEOUT_SEC", "WEBCHAT_TURN_JOB_TIMEOUT_SEC"}, 120),
+		MaxToolRounds:       getenvIntFirst([]string{"BP_MAX_TOOL_ROUNDS"}, 8),
+		SpeakFloorTTL:       getenvIntFirst([]string{"BP_SPEAK_FLOOR_TTL_SEC"}, 600),
+		LockTTL:             getenvIntFirst([]string{"BP_LOCK_TTL_SEC"}, 300),
+		TurnRateLimitPerMin: getenvIntFirst([]string{"BP_TURN_RATE_LIMIT_PER_MIN"}, 10),
+		TurnJobTimeoutSec:   getenvIntFirst([]string{"BP_TURN_JOB_TIMEOUT_SEC"}, 120),
 
 		LLMStub:                    stub,
-		LLMStrategy:                strings.ToLower(getenvFirst("BP_LLM_STRATEGY", "WEBCHAT_LLM_STRATEGY", "failover")),
+		LLMStream:                  getenvBoolFirst([]string{"BP_LLM_STREAM"}, true),
+		LLMStrategy:                strings.ToLower(getenvFirst("BP_LLM_STRATEGY", "failover")),
 		LLMActiveProvider:          active,
-		LLMTotalAttemptBudget:      getenvIntFirst([]string{"BP_LLM_TOTAL_ATTEMPT_BUDGET", "WEBCHAT_LLM_TOTAL_ATTEMPT_BUDGET"}, 4),
-		LLMCircuitFailureThreshold: getenvIntFirst([]string{"BP_LLM_CIRCUIT_FAILURE_THRESHOLD", "WEBCHAT_LLM_CIRCUIT_FAILURE_THRESHOLD"}, 3),
-		LLMCircuitCooldownSec:      getenvIntFirst([]string{"BP_LLM_CIRCUIT_COOLDOWN_SEC", "WEBCHAT_LLM_CIRCUIT_COOLDOWN_SEC"}, 60),
-		LLMRetryStatuses:           parseIntList(getenvFirst("BP_LLM_RETRY_STATUSES", "WEBCHAT_LLM_RETRY_STATUSES", "408,409,413,425,429,500,502,503,504")),
+		LLMTotalAttemptBudget:      getenvIntFirst([]string{"BP_LLM_TOTAL_ATTEMPT_BUDGET"}, 4),
+		LLMCircuitFailureThreshold: getenvIntFirst([]string{"BP_LLM_CIRCUIT_FAILURE_THRESHOLD"}, 3),
+		LLMCircuitCooldownSec:      getenvIntFirst([]string{"BP_LLM_CIRCUIT_COOLDOWN_SEC"}, 60),
+		LLMRetryStatuses:           parseIntList(getenvFirst("BP_LLM_RETRY_STATUSES", "408,409,413,425,429,500,502,503,504")),
 		LLMProviders:               providers,
 
-		ContextCompactionEnabled: getenvBoolFirst([]string{"BP_CONTEXT_COMPACTION_ENABLED", "WEBCHAT_CONTEXT_COMPACTION_ENABLED"}, false),
-		ContextMaxInputTokens:    getenvIntFirst([]string{"BP_CONTEXT_MAX_INPUT_TOKENS", "WEBCHAT_CONTEXT_MAX_INPUT_TOKENS"}, 12000),
-		ContextReserveTokens:     getenvIntFirst([]string{"BP_CONTEXT_RESERVE_TOKENS", "WEBCHAT_CONTEXT_RESERVE_TOKENS"}, 3000),
-		ContextRecentTurns:       getenvIntFirst([]string{"BP_CONTEXT_RECENT_TURNS", "WEBCHAT_CONTEXT_RECENT_TURNS"}, 4),
-		ContextSummaryMaxChars:   getenvIntFirst([]string{"BP_CONTEXT_SUMMARY_MAX_CHARS", "WEBCHAT_CONTEXT_SUMMARY_MAX_CHARS"}, 12000),
+		ContextCompactionEnabled: getenvBoolFirst([]string{"BP_CONTEXT_COMPACTION_ENABLED"}, false),
+		ContextMaxInputTokens:    getenvIntFirst([]string{"BP_CONTEXT_MAX_INPUT_TOKENS"}, 12000),
+		ContextReserveTokens:     getenvIntFirst([]string{"BP_CONTEXT_RESERVE_TOKENS"}, 3000),
+		ContextRecentTurns:       getenvIntFirst([]string{"BP_CONTEXT_RECENT_TURNS"}, 4),
+		ContextSummaryMaxChars:   getenvIntFirst([]string{"BP_CONTEXT_SUMMARY_MAX_CHARS"}, 12000),
 
-		DocsTopK:         getenvIntFirst([]string{"BP_DOCS_TOP_K", "WEBCHAT_DOCS_TOP_K"}, 5),
-		DocsMinScore:     getenvFloatFirst([]string{"BP_DOCS_MIN_SCORE", "WEBCHAT_DOCS_MIN_SCORE"}, 0.5),
-		DocsFuzzyEnabled: getenvBoolFirst([]string{"BP_DOCS_FUZZY_ENABLED", "WEBCHAT_DOCS_FUZZY_ENABLED"}, true),
-		DocsAppID:        getenvFirst("BP_DOCS_APP_ID", "WEBCHAT_DOCS_APP_ID", "buatpostingan"),
+		DocsTopK:         getenvIntFirst([]string{"BP_DOCS_TOP_K"}, 5),
+		DocsMinScore:     getenvFloatFirst([]string{"BP_DOCS_MIN_SCORE"}, 0.5),
+		DocsFuzzyEnabled: getenvBoolFirst([]string{"BP_DOCS_FUZZY_ENABLED"}, true),
+		DocsAppID:        getenvFirst("BP_DOCS_APP_ID", "buatpostingan"),
 	}
 
 	switch cfg.LLMStrategy {
@@ -137,7 +137,7 @@ func Load() Config {
 }
 
 func loadProviders() map[string]LLMProvider {
-	raw := getenvFirst("BP_LLM_PROVIDERS", "WEBCHAT_LLM_PROVIDERS", "OPENROUTER")
+	raw := getenvFirst("BP_LLM_PROVIDERS", "OPENROUTER")
 	ids := strings.Split(raw, ",")
 	out := make(map[string]LLMProvider, len(ids))
 	for _, rawID := range ids {
@@ -145,21 +145,20 @@ func loadProviders() map[string]LLMProvider {
 		if id == "" {
 			continue
 		}
-		prefixBP := "BP_LLM_" + id + "_"
-		prefixWC := "WEBCHAT_LLM_" + id + "_"
+		prefix := "BP_LLM_" + id + "_"
 		p := LLMProvider{
 			ID:              id,
-			BaseURL:         strings.TrimRight(getenvFirst(prefixBP+"BASE_URL", prefixWC+"BASE_URL", ""), "/"),
-			APIKey:          getenvFirst(prefixBP+"API_KEY", prefixWC+"API_KEY", ""),
-			Model:           getenvFirst(prefixBP+"MODEL", prefixWC+"MODEL", ""),
-			API:             strings.ToLower(getenvFirst(prefixBP+"API", prefixWC+"API", "responses")),
-			TimeoutSec:      getenvIntFirst([]string{prefixBP + "TIMEOUT_SEC", prefixWC + "TIMEOUT_SEC", "BP_LLM_TIMEOUT_SEC", "WEBCHAT_LLM_TIMEOUT_SEC"}, 60),
-			MaxAttempts:     getenvIntFirst([]string{prefixBP + "MAX_ATTEMPTS", prefixWC + "MAX_ATTEMPTS"}, 1),
-			Weight:          getenvIntFirst([]string{prefixBP + "WEIGHT", prefixWC + "WEIGHT"}, 1),
-			ContextWindow:   getenvIntFirst([]string{prefixBP + "CONTEXT_WINDOW", prefixWC + "CONTEXT_WINDOW", "BP_LLM_CONTEXT_WINDOW", "WEBCHAT_LLM_CONTEXT_WINDOW"}, 131072),
-			MaxOutputTokens: getenvIntFirst([]string{prefixBP + "MAX_OUTPUT_TOKENS", prefixWC + "MAX_OUTPUT_TOKENS", "BP_LLM_MAX_OUTPUT_TOKENS", "WEBCHAT_LLM_MAX_OUTPUT_TOKENS"}, 4096),
-			MaxInputTokens:  getenvIntFirst([]string{prefixBP + "MAX_INPUT_TOKENS", prefixWC + "MAX_INPUT_TOKENS", "BP_CONTEXT_MAX_INPUT_TOKENS", "WEBCHAT_CONTEXT_MAX_INPUT_TOKENS"}, 12000),
-			Enabled:         getenvBoolFirst([]string{prefixBP + "ENABLED", prefixWC + "ENABLED"}, true),
+			BaseURL:         strings.TrimRight(getenvFirst(prefix+"BASE_URL", ""), "/"),
+			APIKey:          getenvFirst(prefix+"API_KEY", ""),
+			Model:           getenvFirst(prefix+"MODEL", ""),
+			API:             strings.ToLower(getenvFirst(prefix+"API", "responses")),
+			TimeoutSec:      getenvIntFirst([]string{prefix + "TIMEOUT_SEC", "BP_LLM_TIMEOUT_SEC"}, 60),
+			MaxAttempts:     getenvIntFirst([]string{prefix + "MAX_ATTEMPTS"}, 1),
+			Weight:          getenvIntFirst([]string{prefix + "WEIGHT"}, 1),
+			ContextWindow:   getenvIntFirst([]string{prefix + "CONTEXT_WINDOW", "BP_LLM_CONTEXT_WINDOW"}, 131072),
+			MaxOutputTokens: getenvIntFirst([]string{prefix + "MAX_OUTPUT_TOKENS", "BP_LLM_MAX_OUTPUT_TOKENS"}, 4096),
+			MaxInputTokens:  getenvIntFirst([]string{prefix + "MAX_INPUT_TOKENS", "BP_CONTEXT_MAX_INPUT_TOKENS"}, 12000),
+			Enabled:         getenvBoolFirst([]string{prefix + "ENABLED"}, true),
 		}
 		if p.API != "chat" && p.API != "responses" {
 			p.API = "responses"

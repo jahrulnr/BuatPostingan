@@ -21,7 +21,7 @@ Related: [Architecture](README.md) · [Turn loop](turn-loop.md) · [LLM provider
 | `internal/infrastructure/sse/` | EventStreamer (JSONL seq → SSE) |
 | `internal/infrastructure/stub/` | Optional 501 stubs for tests |
 | `internal/pkg/apperr`, `idgen`, `redact` | Shared kitchen helpers |
-| `internal/config/` | Env loader (`WEBCHAT_*` portable; `BP_*` product alias) |
+| `internal/config/` | Env loader (`BP_*` only in this repo) |
 | `delivery/http/webchat_handler.go` (+ helpers used by it) | Thin `/api/webchat` adapter |
 | `delivery/presenter/` | Contract-stable JSON/SSE shapes |
 | `resources/webchat/prompts/` | system / developer / user templates *(edit product voice)* |
@@ -50,9 +50,9 @@ Optional FE widget kit (same API, no product chrome):
 
 1. **Go module rename** — replace import prefix `buatpostingan/...` (or use `replace` / go.work later).
 2. **DI entry** — mirror `cmd/app/main.go`: mkdir storage subs, `docs.NewIndex` + Reindex, `tools.NewRegistry`, `llm` client/router, `worker.New`, `sse.NewStreamer`, `webchat.NewService`, then mount HTTP.
-3. **Config** — set roots via env (prefer portable `WEBCHAT_*`; `BP_*` also works here):
-   - `WEBCHAT_STORAGE_ROOT`, `WEBCHAT_DOCS_ROOT`, `WEBCHAT_PROMPTS_ROOT`, `WEBCHAT_TOOLS_ROOT`
-   - LLM: `WEBCHAT_LLM_*` / provider keys; stub when no key
+3. **Config** — set roots via env (`BP_*` in this repo). After copy, either keep `BP_*` or rename the prefix in `internal/config` to your product:
+   - `BP_STORAGE_ROOT`, `BP_DOCS_ROOT`, `BP_PROMPTS_ROOT`, `BP_TOOLS_ROOT`
+   - LLM: `BP_LLM_*` / provider keys; stub when no key
 4. **Knowledge** — consumer’s own Markdown under docs root (not BuatPostingan writing guides unless wanted).
 5. **HTTP mount** — call `httpdelivery.MountWebchatAPI(mux, uc)` (+ optional `MountHealthz` / `MountStaticWeb`). Do not require product `web/` static files.
 6. **FE shell or widget** — either embed full page, or a floating host that includes the required DOM ids and calls `bootChat({ root })` against the same `/api/webchat`.
@@ -62,7 +62,7 @@ Optional FE widget kit (same API, no product chrome):
 | Coupling | Severity | Mitigation |
 |---|---|---|
 | Module path `buatpostingan/...` | High | sed / go mod rename on copy |
-| `BP_*` env names | Low | `WEBCHAT_*` aliases already accepted |
+| `BP_*` env names | Low | Keep `BP_*` or sed-rename prefix in `config.Load` after copy |
 | Product prompts / docs content | Medium | Replace after copy |
 | FE shell branding | Medium | Leave shell; copy api + ui only |
 | Static FE served from `NewServer` | Low | Use `MountWebchatAPI` alone |

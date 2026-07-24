@@ -1,27 +1,27 @@
-/* Conversation rail — reusable chat rooms mock */
+/* Conversation rail + preview pane — Cursor-like 3-column IDE */
 
 .wc-shell {
-    display: grid;
-    grid-template-columns: minmax(15rem, 17.5rem) minmax(0, 1fr);
-    gap: 0.85rem;
-    align-items: stretch;
-    min-height: 0;
-    height: 100%;
+    /* legacy class kept for embeds; full-page uses .bp-workspace */
+    display: contents;
 }
 
 .wc-rail {
     display: flex;
     flex-direction: column;
-    border-radius: 1rem;
-    background: oklch(99% 0.006 250);
-    color: var(--wm-ink, oklch(28% 0.03 255));
-    border: 1px solid var(--wm-border, oklch(90% 0.012 255));
+    min-height: 0;
+    height: 100%;
     overflow: hidden;
-    box-shadow: 0 0.5rem 1.4rem oklch(35% 0.03 255 / 0.08);
+    background: var(--bp-surface);
+    color: var(--bp-ink);
+    border-right: 1px solid var(--bp-border);
 }
 
 .wc-rail__top {
-    padding: 1rem 0.9rem 0.65rem;
+    flex-shrink: 0;
+    padding: 0.75rem 0.7rem 0.55rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
 }
 
 .wc-rail__heading {
@@ -29,38 +29,39 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.1rem 0.15rem 0.9rem;
+    padding: 0.05rem 0.15rem;
 }
 
 .wc-rail__heading strong {
     display: block;
-    color: var(--wm-ink, oklch(28% 0.03 255));
-    font-size: 0.95rem;
+    color: var(--bp-ink);
+    font-size: 0.88rem;
     letter-spacing: -0.01em;
+    font-weight: 650;
 }
 
 .wc-rail__eyebrow {
     display: block;
-    margin-bottom: 0.15rem;
-    color: var(--wm-muted, oklch(55% 0.02 255));
-    font-family: var(--wm-mono, ui-monospace, monospace);
-    font-size: 0.6rem;
-    letter-spacing: 0.09em;
+    margin-bottom: 0.1rem;
+    color: var(--bp-faint);
+    font-family: var(--bp-mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
 }
 
 .wc-rail__count {
     display: grid;
-    min-width: 1.65rem;
-    height: 1.65rem;
-    padding: 0 0.35rem;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 0.3rem;
     place-items: center;
-    border: 1px solid color-mix(in oklab, var(--wm-accent, oklch(52% 0.16 250)) 20%, white);
-    border-radius: 0.55rem;
-    background: var(--wm-accent-soft, oklch(94% 0.035 250));
-    color: var(--wm-accent, oklch(52% 0.16 250));
-    font-family: var(--wm-mono, ui-monospace, monospace);
-    font-size: 0.65rem;
+    border: 1px solid var(--bp-border);
+    border-radius: 0.4rem;
+    background: var(--bp-surface-2);
+    color: var(--bp-muted);
+    font-family: var(--bp-mono);
+    font-size: 0.62rem;
     font-weight: 600;
 }
 
@@ -70,78 +71,111 @@
     align-items: center;
     justify-content: center;
     gap: 0.4rem;
-    border: 0;
-    border-radius: 0.65rem;
-    padding: 0.55rem 0.75rem;
-    font-family: var(--wm-font, "IBM Plex Sans", system-ui, sans-serif);
-    font-size: 0.85rem;
+    border: 1px solid var(--bp-border-strong);
+    border-radius: var(--bp-radius);
+    padding: 0.48rem 0.65rem;
+    font-family: var(--bp-font);
+    font-size: 0.8rem;
     font-weight: 600;
-    color: oklch(99% 0 0);
-    background: linear-gradient(135deg in oklch, oklch(55% 0.16 250), oklch(48% 0.12 205));
-    box-shadow: 0 0.35rem 0.8rem oklch(52% 0.13 235 / 0.2);
+    color: var(--bp-ink);
+    background: var(--bp-surface-2);
     cursor: pointer;
-    transition: filter 0.15s ease, transform 0.15s ease;
+    transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .wc-rail__new:hover {
-    filter: brightness(1.06);
+    background: var(--bp-accent-soft);
+    border-color: color-mix(in oklab, var(--bp-accent) 40%, var(--bp-border));
+    color: var(--bp-accent);
 }
 
 .wc-rail__new:active {
-    transform: scale(0.98);
+    transform: scale(0.985);
 }
 
-.wc-rail__hk {
-    margin: 0 0.85rem 0.55rem;
-    padding: 0.45rem 0.55rem;
-    border-radius: 0.5rem;
-    font-size: 0.68rem;
-    line-height: 1.35;
-    color: oklch(39% 0.06 230);
-    background: oklch(96% 0.025 230);
-    border: 1px solid oklch(88% 0.045 230);
+.wc-rail__search {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.55rem;
+    border: 1px solid var(--bp-border);
+    border-radius: var(--bp-radius);
+    background: var(--bp-bg);
+    color: var(--bp-faint);
 }
 
-.wc-rail__hk i {
-    margin-right: 0.25rem;
+.wc-rail__search i {
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+
+.wc-rail__search input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--bp-ink);
+    font-family: var(--bp-font);
+    font-size: 0.78rem;
+    outline: none;
+}
+
+.wc-rail__search input::placeholder {
+    color: var(--bp-faint);
 }
 
 .wc-rail__list {
     list-style: none;
     margin: 0;
-    padding: 0.25rem 0.5rem 0.85rem;
+    padding: 0.2rem 0.45rem 0.65rem;
     overflow-y: auto;
-    flex: 1;
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.15rem;
     scrollbar-width: thin;
-    scrollbar-color: oklch(78% 0.035 250) transparent;
+    scrollbar-color: var(--bp-scroll-thumb) transparent;
+    overscroll-behavior: contain;
+}
+
+.wc-rail__foot {
+    flex-shrink: 0;
+    padding: 0.45rem 0.75rem;
+    border-top: 1px solid var(--bp-border);
+    background: var(--bp-surface);
+}
+
+.wc-rail__hint {
+    font-family: var(--bp-mono);
+    font-size: 0.6rem;
+    color: var(--bp-faint);
+    letter-spacing: 0.02em;
 }
 
 .wc-conv {
     border: 0;
     width: 100%;
     text-align: left;
-    border-radius: 0.55rem;
-    padding: 0.55rem 0.6rem;
+    border-radius: 0.4rem;
+    padding: 0.5rem 0.55rem;
     background: transparent;
     color: inherit;
     cursor: pointer;
     display: grid;
     grid-template-columns: 1fr auto;
-    gap: 0.35rem 0.5rem;
-    font-family: var(--wm-font, "IBM Plex Sans", system-ui, sans-serif);
-    transition: background 0.15s ease;
+    gap: 0.25rem 0.4rem;
+    font-family: var(--bp-font);
+    transition: background 0.12s ease;
 }
 
 .wc-conv:hover {
-    background: oklch(96.5% 0.012 250);
+    background: var(--bp-surface-2);
 }
 
 .wc-conv.is-active {
-    background: var(--wm-accent-soft, oklch(94% 0.035 250));
-    box-shadow: inset 3px 0 0 var(--wm-accent, oklch(52% 0.16 250));
+    background: var(--bp-accent-soft);
+    box-shadow: inset 2px 0 0 var(--bp-accent);
 }
 
 .wc-conv.is-stale {
@@ -149,10 +183,10 @@
 }
 
 .wc-conv__title {
-    font-size: 0.8rem;
-    font-weight: 560;
+    font-size: 0.78rem;
+    font-weight: 550;
     line-height: 1.3;
-    color: var(--wm-ink, oklch(28% 0.03 255));
+    color: var(--bp-ink);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -160,7 +194,7 @@
 
 .wc-conv__title.is-pending {
     font-style: italic;
-    color: var(--wm-muted, oklch(55% 0.02 255));
+    color: var(--bp-muted);
     font-weight: 450;
 }
 
@@ -169,8 +203,8 @@
     display: flex;
     align-items: center;
     gap: 0.35rem;
-    font-size: 0.65rem;
-    color: var(--wm-muted, oklch(55% 0.02 255));
+    font-size: 0.62rem;
+    color: var(--bp-faint);
 }
 
 .wc-conv__by {
@@ -178,45 +212,48 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: oklch(43% 0.08 220);
+    color: var(--bp-muted);
 }
 
 .wc-pill {
-    font-family: var(--wm-mono, "IBM Plex Mono", monospace);
-    font-size: 0.6rem;
-    padding: 0.1rem 0.35rem;
+    font-family: var(--bp-mono);
+    font-size: 0.55rem;
+    padding: 0.08rem 0.3rem;
     border-radius: 999px;
     letter-spacing: 0.02em;
+    border: 1px solid var(--bp-border);
+    background: var(--bp-surface-2);
+    color: var(--bp-muted);
 }
 
 .wc-pill--auto {
-    background: oklch(92% 0.05 175);
-    color: oklch(36% 0.08 165);
-    border: 1px solid oklch(83% 0.07 175);
+    border-color: color-mix(in oklab, var(--bp-ok) 35%, var(--bp-border));
+    color: var(--bp-ok);
+    background: color-mix(in oklab, var(--bp-ok) 12%, transparent);
 }
 
 .wc-pill--manual {
-    background: oklch(92% 0.04 250);
-    color: oklch(38% 0.1 250);
-    border: 1px solid oklch(84% 0.06 250);
+    border-color: color-mix(in oklab, var(--bp-accent) 35%, var(--bp-border));
+    color: var(--bp-accent);
+    background: var(--bp-accent-soft);
 }
 
 .wc-pill--pending {
-    background: oklch(94% 0.045 85);
-    color: oklch(42% 0.09 75);
-    border: 1px solid oklch(85% 0.065 85);
+    border-color: color-mix(in oklab, var(--bp-think) 35%, var(--bp-border));
+    color: var(--bp-think);
+    background: var(--bp-think-bg);
 }
 
 .wc-pill--stale {
-    background: oklch(94% 0.04 25);
-    color: oklch(43% 0.12 25);
-    border: 1px solid oklch(85% 0.07 25);
+    border-color: color-mix(in oklab, var(--bp-fail) 35%, var(--bp-border));
+    color: var(--bp-fail);
+    background: var(--bp-fail-bg);
 }
 
 .wc-conv__del {
     border: 0;
     background: transparent;
-    color: var(--wm-muted, oklch(55% 0.02 255));
+    color: var(--bp-faint);
     padding: 0.1rem;
     border-radius: 0.3rem;
     cursor: pointer;
@@ -224,43 +261,56 @@
 }
 
 .wc-conv__del:hover {
-    color: oklch(70% 0.14 25);
-    background: oklch(94% 0.03 25);
+    color: var(--bp-fail);
+    background: var(--bp-fail-bg);
 }
 
+/* —— Center column —— */
 .wc-main {
     min-width: 0;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
+    background: var(--bp-bg);
 }
 
-.wc-main [data-webchat-mock] {
-    flex: 1;
+.wc-main .webchat-root,
+.wc-main > .webchat-root {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
     display: flex;
     flex-direction: column;
-    min-height: 0;
+    overflow: hidden;
 }
 
 .wc-main .webchat-card {
     flex: 1 1 auto;
-    height: auto;
     min-height: 0;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: none;
+    border: 0;
+    background: var(--bp-bg);
 }
 
 .wc-room-head {
     display: flex;
     align-items: center;
     gap: 0.55rem;
-    padding: 0.65rem 1rem;
-    border-bottom: 1px solid var(--wm-border, oklch(90% 0.012 255));
-    background: oklch(99% 0.003 255);
+    padding: 0.55rem 1rem;
+    border-bottom: 1px solid var(--bp-border);
+    background: var(--bp-surface);
 }
 
 .wc-room-head__title {
-    font-family: var(--wm-font, "IBM Plex Sans", system-ui, sans-serif);
+    font-family: var(--bp-font);
     font-weight: 650;
-    font-size: 0.95rem;
-    color: var(--wm-ink, oklch(28% 0.03 255));
+    font-size: 0.88rem;
+    color: var(--bp-ink);
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -269,34 +319,127 @@
 
 .wc-room-head__meta {
     margin-left: auto;
-    font-family: var(--wm-mono, "IBM Plex Mono", monospace);
-    font-size: 0.65rem;
-    color: var(--wm-muted, oklch(55% 0.02 255));
+    font-family: var(--bp-mono);
+    font-size: 0.62rem;
+    color: var(--bp-faint);
 }
 
 .wc-room-head__edit {
-    border: 1px solid var(--wm-border, oklch(90% 0.012 255));
+    border: 1px solid var(--bp-border);
     background: transparent;
-    border-radius: 0.45rem;
-    width: 2rem;
-    height: 2rem;
+    border-radius: 0.4rem;
+    width: 1.85rem;
+    height: 1.85rem;
     display: grid;
     place-items: center;
-    color: var(--wm-muted, oklch(55% 0.02 255));
+    color: var(--bp-muted);
     cursor: pointer;
-    transition: color 120ms ease, border-color 120ms ease, background 120ms ease, transform 120ms var(--wm-ease, ease);
+    transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
 }
 
 .wc-room-head__edit:hover {
-    color: var(--wm-accent, oklch(52% 0.16 250));
-    border-color: color-mix(in oklab, var(--wm-accent, oklch(52% 0.16 250)) 40%, white);
-    background: var(--wm-accent-soft, oklch(94% 0.035 250));
-    transform: translateY(-1px);
+    color: var(--bp-accent);
+    border-color: color-mix(in oklab, var(--bp-accent) 40%, var(--bp-border));
+    background: var(--bp-accent-soft);
 }
 
-.wc-room-head__edit:active { transform: scale(0.96); }
+/* —— Right preview (empty wrapper) —— */
+.wc-preview {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bp-surface);
+    border-left: 1px solid var(--bp-border);
+}
 
-/* Branded modal surface; replaces browser prompt/confirm chrome. */
+.wc-preview__tabs {
+    flex-shrink: 0;
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    padding: 0 0.35rem;
+    border-bottom: 1px solid var(--bp-border);
+    background: var(--bp-surface);
+    min-height: 2.35rem;
+}
+
+.wc-preview__tab {
+    appearance: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    padding: 0.55rem 0.75rem;
+    background: transparent;
+    color: var(--bp-muted);
+    font-family: var(--bp-font);
+    font-size: 0.74rem;
+    font-weight: 550;
+    cursor: pointer;
+    transition: color 120ms ease, border-color 120ms ease;
+}
+
+.wc-preview__tab:hover {
+    color: var(--bp-ink);
+}
+
+.wc-preview__tab.is-active {
+    color: var(--bp-ink);
+    border-bottom-color: var(--bp-accent);
+}
+
+.wc-preview__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.wc-preview__panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    display: none;
+    padding: 1rem;
+}
+
+.wc-preview__panel.is-active {
+    display: flex;
+    flex-direction: column;
+}
+
+.wc-preview__empty {
+    margin: auto;
+    max-width: 14rem;
+    text-align: center;
+    color: var(--bp-faint);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.wc-preview__empty i {
+    font-size: 1.75rem;
+    margin-bottom: 0.35rem;
+    opacity: 0.7;
+}
+
+.wc-preview__empty strong {
+    color: var(--bp-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.wc-preview__empty p {
+    margin: 0;
+    font-size: 0.72rem;
+    line-height: 1.45;
+}
+
+/* —— Dialog (theme-aware) —— */
 .wc-dialog {
     position: fixed;
     inset: 0;
@@ -304,7 +447,7 @@
     display: grid;
     place-items: center;
     padding: 1rem;
-    font-family: var(--wm-font, "IBM Plex Sans", system-ui, sans-serif);
+    font-family: var(--bp-font);
 }
 
 .wc-dialog[hidden] { display: none; }
@@ -312,9 +455,7 @@
 .wc-dialog__backdrop {
     position: absolute;
     inset: 0;
-    background:
-        radial-gradient(circle at 50% 42%, oklch(45% 0.045 245 / 0.16), transparent 42%),
-        oklch(22% 0.035 255 / 0.58);
+    background: var(--bp-scrim);
     opacity: 0;
     transition: opacity 180ms ease;
 }
@@ -323,16 +464,14 @@
     position: relative;
     width: min(29rem, 100%);
     overflow: hidden;
-    border: 1px solid oklch(87% 0.02 250);
-    border-radius: 1rem;
-    background: oklch(99.5% 0.004 250);
-    box-shadow:
-        0 1.6rem 4rem oklch(20% 0.04 255 / 0.26),
-        0 0 0 1px oklch(100% 0 0 / 0.7) inset;
+    border: 1px solid var(--bp-border-strong);
+    border-radius: var(--bp-radius-lg);
+    background: var(--bp-surface-3);
+    box-shadow: var(--bp-shadow);
     opacity: 0;
     transform: translateY(0.75rem) scale(0.97);
     transform-origin: 50% 45%;
-    transition: opacity 180ms ease, transform 280ms var(--wm-ease, cubic-bezier(0.16, 1, 0.3, 1));
+    transition: opacity 180ms ease, transform 280ms var(--bp-ease);
 }
 
 .wc-dialog.is-open .wc-dialog__backdrop { opacity: 1; }
@@ -342,8 +481,8 @@
 }
 
 .wc-dialog__accent {
-    height: 0.22rem;
-    background: linear-gradient(90deg in oklch, var(--wm-accent), oklch(62% 0.13 195));
+    height: 0.18rem;
+    background: var(--bp-accent);
 }
 
 .wc-dialog__header {
@@ -359,18 +498,18 @@
     height: 2.35rem;
     place-items: center;
     flex: 0 0 auto;
-    border: 1px solid color-mix(in oklab, var(--wm-accent) 18%, white);
-    border-radius: 0.7rem;
-    background: var(--wm-accent-soft);
-    color: var(--wm-accent);
+    border: 1px solid var(--bp-border);
+    border-radius: 0.6rem;
+    background: var(--bp-accent-soft);
+    color: var(--bp-accent);
     font-size: 1rem;
 }
 
 .wc-dialog__eyebrow {
     display: block;
     margin-bottom: 0.08rem;
-    color: var(--wm-muted);
-    font-family: var(--wm-mono, ui-monospace, monospace);
+    color: var(--bp-faint);
+    font-family: var(--bp-mono);
     font-size: 0.58rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -378,9 +517,9 @@
 
 .wc-dialog__header h5 {
     margin: 0;
-    color: var(--wm-ink);
+    color: var(--bp-ink);
     font-size: 1rem;
-    font-weight: 680;
+    font-weight: 650;
     letter-spacing: -0.015em;
 }
 
@@ -391,59 +530,55 @@
     margin-left: auto;
     place-items: center;
     border: 0;
-    border-radius: 0.5rem;
+    border-radius: 0.45rem;
     background: transparent;
-    color: var(--wm-muted);
+    color: var(--bp-muted);
     cursor: pointer;
-    transition: color 120ms ease, background 120ms ease, transform 120ms ease;
 }
 
 .wc-dialog__close:hover {
-    color: var(--wm-ink);
-    background: oklch(94.5% 0.01 250);
+    color: var(--bp-ink);
+    background: var(--bp-surface-2);
 }
-
-.wc-dialog__close:active { transform: scale(0.94); }
 
 .wc-dialog__form { padding: 0.45rem 1.1rem 1.1rem; }
 
 .wc-dialog__form label {
     display: block;
     margin-bottom: 0.4rem;
-    color: var(--wm-ink);
+    color: var(--bp-ink);
     font-size: 0.78rem;
-    font-weight: 620;
+    font-weight: 600;
 }
 
 .wc-dialog__field { position: relative; }
 
 .wc-dialog__field input {
     width: 100%;
-    min-height: 3rem;
+    min-height: 2.85rem;
     box-sizing: border-box;
-    padding: 0.75rem 4rem 0.75rem 0.85rem;
-    border: 1px solid var(--wm-border-strong);
-    border-radius: 0.7rem;
+    padding: 0.7rem 4rem 0.7rem 0.85rem;
+    border: 1px solid var(--bp-border-strong);
+    border-radius: 0.55rem;
     outline: 0;
-    background: var(--wm-surface);
-    color: var(--wm-ink);
-    font-family: var(--wm-font);
-    font-size: 0.92rem;
-    transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    background: var(--bp-bg);
+    color: var(--bp-ink);
+    font-family: var(--bp-font);
+    font-size: 0.9rem;
 }
 
 .wc-dialog__field input:focus {
-    border-color: color-mix(in oklab, var(--wm-accent) 58%, white);
-    box-shadow: 0 0 0 0.22rem oklch(52% 0.16 250 / 0.12);
+    border-color: color-mix(in oklab, var(--bp-accent) 55%, var(--bp-border));
+    box-shadow: 0 0 0 0.2rem color-mix(in oklab, var(--bp-accent) 18%, transparent);
 }
 
 .wc-dialog__count {
     position: absolute;
     right: 0.7rem;
     top: 50%;
-    color: var(--wm-muted);
-    font-family: var(--wm-mono);
-    font-size: 0.63rem;
+    color: var(--bp-faint);
+    font-family: var(--bp-mono);
+    font-size: 0.62rem;
     transform: translateY(-50%);
 }
 
@@ -454,12 +589,12 @@
     line-height: 1.45;
 }
 
-.wc-dialog__help { color: var(--wm-muted); }
-.wc-dialog__error { color: var(--wm-fail); font-weight: 550; }
+.wc-dialog__help { color: var(--bp-muted); }
+.wc-dialog__error { color: var(--bp-fail); font-weight: 550; }
 
 .wc-dialog.has-error .wc-dialog__field input {
-    border-color: var(--wm-fail);
-    background: var(--wm-fail-bg);
+    border-color: var(--bp-fail);
+    background: var(--bp-fail-bg);
     animation: wc-dialog-shake 320ms ease-in-out;
 }
 
@@ -469,18 +604,18 @@
     gap: 0.55rem;
     margin-top: 1.15rem;
     padding-top: 0.85rem;
-    border-top: 1px solid var(--wm-border);
+    border-top: 1px solid var(--bp-border);
 }
 
 .wc-dialog__button {
     display: inline-flex;
-    min-height: 2.5rem;
+    min-height: 2.4rem;
     align-items: center;
     justify-content: center;
     gap: 0.45rem;
-    padding: 0.55rem 0.85rem;
-    border-radius: 0.6rem;
-    font-family: var(--wm-font);
+    padding: 0.5rem 0.85rem;
+    border-radius: 0.5rem;
+    font-family: var(--bp-font);
     font-size: 0.78rem;
     font-weight: 650;
     cursor: pointer;
@@ -488,85 +623,64 @@
 }
 
 .wc-dialog__button--ghost {
-    border: 1px solid var(--wm-border);
-    background: var(--wm-surface);
-    color: var(--wm-muted);
+    border: 1px solid var(--bp-border);
+    background: var(--bp-surface);
+    color: var(--bp-muted);
 }
 
 .wc-dialog__button--ghost:hover {
-    border-color: var(--wm-border-strong);
-    background: oklch(97% 0.007 250);
-    color: var(--wm-ink);
+    border-color: var(--bp-border-strong);
+    background: var(--bp-surface-2);
+    color: var(--bp-ink);
 }
 
 .wc-dialog__button--primary {
     min-width: 7.3rem;
     border: 0;
-    background: linear-gradient(135deg in oklch, var(--wm-accent), oklch(49% 0.12 210));
-    color: white;
-    box-shadow: 0 0.35rem 0.8rem oklch(48% 0.12 235 / 0.2);
+    background: var(--bp-accent);
+    color: var(--bp-accent-ink);
 }
 
-.wc-dialog__button--primary:hover { filter: brightness(1.07); }
+.wc-dialog__button--primary:hover { filter: brightness(1.06); }
 .wc-dialog__button:active { transform: scale(0.97); }
 .wc-dialog__button:disabled { opacity: 0.65; cursor: wait; }
 
 .wc-dialog__button.is-loading i {
     width: 0.85rem;
     height: 0.85rem;
-    border: 2px solid oklch(100% 0 0 / 0.45);
-    border-top-color: white;
+    border: 2px solid color-mix(in oklab, var(--bp-accent-ink) 45%, transparent);
+    border-top-color: var(--bp-accent-ink);
     border-radius: 999px;
     animation: wc-dialog-spin 650ms linear infinite;
 }
 
 @keyframes wc-dialog-shake {
     0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-0.28rem); }
+    25% { transform: translateY(0) translateX(-0.28rem); }
     55% { transform: translateX(0.22rem); }
     80% { transform: translateX(-0.1rem); }
 }
 
 @keyframes wc-dialog-spin { to { transform: rotate(360deg); } }
 
-@media (max-width: 480px) {
-    .wc-dialog { align-items: end; padding: 0.65rem; }
-    .wc-dialog__panel { border-radius: 1rem; }
-    .wc-dialog__actions { display: grid; grid-template-columns: 1fr 1.25fr; }
-}
-
-@media (max-width: 900px) {
-    .wc-shell {
-        grid-template-columns: 1fr;
-    }
-
-    .wc-rail {
-        max-height: 14rem;
-    }
-}
-
-/* Full-page webchat: viewport shell; scroll only rail list + messages */
+/* Sticky panes on full-page shell */
 body.page-webchat .wc-rail,
-body.page-webchat .wc-main {
+body.page-webchat .wc-main,
+body.page-webchat .wc-preview {
     min-height: 0;
     height: 100%;
     overflow: hidden;
 }
 
-body.page-webchat .wc-rail {
-    display: flex;
-    flex-direction: column;
-}
-
-body.page-webchat .wc-rail__top {
+body.page-webchat .wc-rail__top,
+body.page-webchat .wc-rail__foot,
+body.page-webchat .wc-preview__tabs,
+body.page-webchat .wc-room-head,
+body.page-webchat .wc-floor-banner,
+body.page-webchat .wc-index-banner,
+body.page-webchat .webchat-status,
+body.page-webchat .webchat-composer {
     flex-shrink: 0;
-}
-
-body.page-webchat .wc-main .webchat-card {
-    flex: 1 1 auto;
-    min-height: 0;
-    height: 100%;
-    max-height: none;
 }
 
 body.page-webchat .wc-rail__list,
@@ -576,31 +690,91 @@ body.page-webchat .webchat-messages {
     min-height: 0;
 }
 
-body.page-webchat .wc-room-head,
-body.page-webchat .wc-floor-banner,
-body.page-webchat .wc-index-banner,
-body.page-webchat .webchat-status,
-body.page-webchat .webchat-composer {
-    flex-shrink: 0;
-}
-
-@media (max-width: 900px) {
-    body.page-webchat .wc-shell {
-        grid-template-rows: minmax(9rem, 28%) minmax(0, 1fr);
+/* —— Mobile / tablet: drawers —— */
+@media (max-width: 1100px) {
+    .bp-workspace {
+        grid-template-columns: minmax(0, 1fr);
     }
 
-    body.page-webchat .wc-rail {
-        max-height: none;
-        min-height: 0;
+    .bp-split--preview {
+        display: none;
+    }
+
+    .wc-rail,
+    .wc-preview {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        z-index: 40;
+        width: min(var(--bp-rail-w), 88vw);
+        max-width: 20rem;
+        transform: translateX(-105%);
+        transition: transform 220ms var(--bp-ease);
+        box-shadow: var(--bp-shadow);
+    }
+
+    .wc-preview {
+        right: 0;
+        left: auto;
+        width: min(var(--bp-preview-w), 90vw);
+        transform: translateX(105%);
+        border-left: 1px solid var(--bp-border);
+        border-right: 0;
+    }
+
+    .wc-rail {
+        left: 0;
+        border-right: 1px solid var(--bp-border);
+    }
+
+    .bp-shell.is-rail-open .wc-rail {
+        transform: none;
+    }
+
+    .bp-shell.is-preview-open .wc-preview {
+        transform: none;
+    }
+
+    .bp-scrim {
+        display: block;
+        position: absolute;
+        inset: 0;
+        z-index: 30;
+        background: var(--bp-scrim);
+        border: 0;
+        padding: 0;
+        cursor: pointer;
+    }
+
+    .bp-scrim[hidden] {
+        display: none;
     }
 }
 
-body.page-webchat .wc-main > .webchat-root,
-body.page-webchat .wc-main .webchat-root {
-    flex: 1 1 auto;
-    min-height: 0;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+@media (max-width: 640px) {
+    .bp-chrome {
+        grid-template-columns: auto 1fr auto;
+        gap: 0.4rem;
+    }
+
+    .bp-chrome__center {
+        display: none;
+    }
+
+    .bp-mode {
+        display: none;
+    }
+
+    .bp-theme [data-theme-label] {
+        display: none;
+    }
+
+    .bp-brand__name {
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .wc-dialog { align-items: end; padding: 0.65rem; }
+    .wc-dialog__actions { display: grid; grid-template-columns: 1fr 1.25fr; }
 }

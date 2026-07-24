@@ -45,6 +45,7 @@ export function bootChat(options) {
     const toastEl = byId('chatToast');
     const listEl = byId('conversationList');
     const conversationCountEl = byId('conversationCount');
+    const conversationSearchEl = byId('conversationSearch');
     const roomTitleEl = byId('roomTitle');
     const roomMetaEl = byId('roomMeta');
     const renameBtn = byId('btnRename');
@@ -56,6 +57,7 @@ export function bootChat(options) {
     const renameError = byId('renameDialogError');
     const renameSubmit = byId('renameSubmit');
     let renameReturnFocus = null;
+    let conversationQuery = '';
 
     if (!messagesEl || !inputEl || !sendBtn || !statusEl) {
         return null;
@@ -452,7 +454,13 @@ export function bootChat(options) {
         if (!listEl) return;
         if (conversationCountEl) conversationCountEl.textContent = String(conversations.length);
         listEl.innerHTML = '';
-        conversations.forEach(function (c) {
+        const q = conversationQuery.trim().toLowerCase();
+        const visible = !q
+            ? conversations
+            : conversations.filter(function (c) {
+                return displayTitle(c).toLowerCase().indexOf(q) !== -1;
+            });
+        visible.forEach(function (c) {
             const li = document.createElement('li');
             const btn = document.createElement('button');
             btn.type = 'button';
@@ -472,6 +480,13 @@ export function bootChat(options) {
             });
             li.appendChild(btn);
             listEl.appendChild(li);
+        });
+    }
+
+    if (conversationSearchEl) {
+        conversationSearchEl.addEventListener('input', function () {
+            conversationQuery = conversationSearchEl.value || '';
+            renderConversationList();
         });
     }
 

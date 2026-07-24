@@ -19,7 +19,7 @@ AI assistant for drafting posts — webchat UI + Go Clean Architecture backend.
 ## Frontend
 
 ```bash
-make fe                 # http://localhost:5173/  (default real → :8080 API)
+make fe                 # http://localhost:5173/  (live-reload; needs Node/npx; default real → :8080 API)
 # FE_PORT=3000 make fe
 ```
 
@@ -29,7 +29,7 @@ make fe                 # http://localhost:5173/  (default real → :8080 API)
 | Real from `make fe` | `make be` + http://localhost:5173/ — API auto-targets `http://localhost:8080/api/webchat` (override with `?api=http://host:port`) |
 | Mock | `?mock=1` — no Go required |
 
-> Python `http.server` on `:5173` cannot handle `POST /api/*` (HTTP 501). Real mode never posts to that process; it calls the Go backend (CORS enabled).
+> `make fe` uses `npx live-server` (auto-refresh on HTML/CSS/JS edits). Static `:5173` cannot handle `POST /api/*` — real mode calls the Go backend (CORS enabled). Go-served UI at `:8080` has no FE livereload (edit via `make fe` for that).
 
 ## Backend
 
@@ -48,6 +48,7 @@ BP_LLM_OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 BP_LLM_OPENROUTER_API_KEY=sk-or-...
 BP_LLM_OPENROUTER_MODEL=openai/gpt-4o-mini
 BP_LLM_OPENROUTER_API=responses   # or chat; SSE streaming is supported for both
+# BP_LLM_STREAM=true              # default; set false to force non-stream JSON
 ```
 
 | Var | Default |
@@ -59,5 +60,6 @@ BP_LLM_OPENROUTER_API=responses   # or chat; SSE streaming is supported for both
 | `BP_PROMPTS_ROOT` | `resources/webchat/prompts` |
 | `BP_TOOLS_ROOT` | `resources/webchat/tools` |
 | `BP_LLM_STUB` | `true` if no provider API key |
+| `BP_LLM_STREAM` | `true` (SSE; auto-fallback to JSON if unsupported) |
 
 See [`.env.example`](.env.example), [`docs/operations/runbook.md`](docs/operations/runbook.md), and [`docs/architecture/llm-providers.md`](docs/architecture/llm-providers.md).

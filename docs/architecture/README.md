@@ -24,7 +24,7 @@ delivery/
   http/                          net/http handlers (thin)
   presenter/                     JSON / SSE DTO helpers
 internal/                        resep dapur (private)
-  config/                        env loader (BP_* / WEBCHAT_*)
+  config/                        env loader (BP_* only)
   usecase/webchat/               orchestration
   domain/
     entity/ valueobject/ enum/
@@ -96,7 +96,7 @@ Allowlist (hardcoded in `tools.Allowlist`; schemas from disk):
 | `read_file` | Read file under sandbox |
 | `grep` | Regex search; prefers host `rg` (`--json`, no shell); Go RE2 fallback |
 
-- Schemas: `resources/webchat/tools/{name}.tool.json` (`BP_TOOLS_ROOT` / `WEBCHAT_TOOLS_ROOT`)  
+- Schemas: `resources/webchat/tools/{name}.tool.json` (`BP_TOOLS_ROOT`)  
 - Sandbox root = `BP_DOCS_ROOT` (default `docs/webchat`) — absolute/`..` rejected  
 - No mutation / admin-route tools  
 - Multi `tool_calls` in one LLM response: **sequential** Execute; all results feed the next round  
@@ -126,7 +126,7 @@ interrupt/{thread}/{turn}.flag
 - UI (`web/js/ui/*`) must not call `fetch` / `EventSource` — only api exports  
 - Mount: `bootChat({ root })` (full page or widget host with required DOM ids)  
 - Bubbles: **thinking / tools / message** are separate articles — never merge reasoning + tool + agent_message into one turn card (`ensureActionBubble` by kind)  
-- `make fe` on `:5173` auto-targets Go API on `:8080` (override `?api=`)  
+- `make fe` on `:5173` (npx live-server, auto-refresh) auto-targets Go API on `:8080` (override `?api=`); Go-served `:8080` has no FE livereload  
 
 ## AI core vs product shell
 

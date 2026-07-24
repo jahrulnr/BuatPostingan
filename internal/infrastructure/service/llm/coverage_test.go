@@ -21,9 +21,17 @@ func TestFromAppAndErrorUnwrap(t *testing.T) {
 		StorageRoot: "/tmp/x", LLMStrategy: "failover", LLMActiveProvider: "A",
 		LLMTotalAttemptBudget: 3, LLMCircuitFailureThreshold: 2, LLMCircuitCooldownSec: 10,
 		LLMRetryStatuses: []int{429}, LLMProviders: map[string]config.LLMProvider{"A": {ID: "A"}},
+		LLMStream: true,
 	})
 	if cfg.StorageRoot != "/tmp/x" || cfg.Strategy != "failover" || cfg.ActiveProvider != "A" {
 		t.Fatalf("%#v", cfg)
+	}
+	if cfg.Stream == nil || !*cfg.Stream {
+		t.Fatal("Stream should be true from FromApp")
+	}
+	cfgOff := FromApp(config.Config{LLMStream: false})
+	if cfgOff.Stream == nil || *cfgOff.Stream {
+		t.Fatal("Stream should be false from FromApp")
 	}
 	cause := errors.New("root")
 	err := &Error{Provider: "P", Msg: "fail", Cause: cause}
@@ -346,7 +354,7 @@ func TestToResponsesRequestSystemAndAssistant(t *testing.T) {
 		{"role": "developer", "content": "dev"},
 		{"role": "assistant", "content": "hi"},
 		{"role": "user", "content": "u"},
-	}, []map[string]any{{"function": map[string]any{"name": "t"}}})
+	}, []map[string]any{{"function": map[string]any{"name": "t"}}}, true)
 	if !strings.Contains(body["instructions"].(string), "sys") {
 		t.Fatalf("%#v", body["instructions"])
 	}

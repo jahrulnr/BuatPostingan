@@ -1,8 +1,133 @@
-/* Standalone page chrome for BuatPostingan (no Bootstrap layout). */
+/* BuatPostingan IDE shell — charcoal/neutral, dark + light via data-theme */
+
 *,
 *::before,
 *::after {
     box-sizing: border-box;
+}
+
+:root {
+    --bp-font: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --bp-mono: "IBM Plex Mono", ui-monospace, monospace;
+    --bp-ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --bp-rail-w: 16.5rem;
+    --bp-preview-w: 20rem;
+    --bp-chrome-h: 2.75rem;
+    --bp-radius: 0.5rem;
+    --bp-radius-lg: 0.75rem;
+}
+
+/* —— Light scheme —— */
+html[data-theme="light"] {
+    --bp-bg: oklch(94% 0.006 255);
+    --bp-surface: oklch(98.5% 0.003 255);
+    --bp-surface-2: oklch(96.5% 0.005 255);
+    --bp-surface-3: oklch(100% 0 0);
+    --bp-ink: oklch(24% 0.02 255);
+    --bp-muted: oklch(48% 0.015 255);
+    --bp-faint: oklch(62% 0.012 255);
+    --bp-border: oklch(88% 0.01 255);
+    --bp-border-strong: oklch(80% 0.014 255);
+    --bp-accent: oklch(48% 0.1 230);
+    --bp-accent-soft: oklch(94% 0.03 230);
+    --bp-accent-ink: oklch(99% 0 0);
+    --bp-user: oklch(93% 0.03 230);
+    --bp-ok: oklch(45% 0.11 155);
+    --bp-fail: oklch(48% 0.16 25);
+    --bp-fail-bg: oklch(96% 0.025 25);
+    --bp-fail-border: oklch(86% 0.05 25);
+    --bp-think: oklch(45% 0.06 80);
+    --bp-think-bg: oklch(97% 0.015 85);
+    --bp-think-border: oklch(88% 0.03 85);
+    --bp-tool: oklch(40% 0.07 175);
+    --bp-tool-bg: oklch(97% 0.015 175);
+    --bp-tool-border: oklch(88% 0.025 175);
+    --bp-shadow: 0 0.5rem 1.25rem oklch(30% 0.02 255 / 0.08);
+    --bp-scrim: oklch(20% 0.02 255 / 0.45);
+    --bp-scroll-thumb: oklch(78% 0.02 255);
+
+    /* Legacy aliases consumed by webchat.css */
+    --wm-font: var(--bp-font);
+    --wm-mono: var(--bp-mono);
+    --wm-bg: var(--bp-bg);
+    --wm-surface: var(--bp-surface-3);
+    --wm-ink: var(--bp-ink);
+    --wm-muted: var(--bp-muted);
+    --wm-border: var(--bp-border);
+    --wm-border-strong: var(--bp-border-strong);
+    --wm-accent: var(--bp-accent);
+    --wm-accent-soft: var(--bp-accent-soft);
+    --wm-user: var(--bp-user);
+    --wm-think: var(--bp-think);
+    --wm-think-bg: var(--bp-think-bg);
+    --wm-think-border: var(--bp-think-border);
+    --wm-tool: var(--bp-tool);
+    --wm-tool-bg: var(--bp-tool-bg);
+    --wm-tool-border: var(--bp-tool-border);
+    --wm-ok: var(--bp-ok);
+    --wm-fail: var(--bp-fail);
+    --wm-fail-bg: var(--bp-fail-bg);
+    --wm-fail-border: var(--bp-fail-border);
+    --wm-radius: var(--bp-radius-lg);
+    --wm-ease: var(--bp-ease);
+    --wm-duration-fast: 120ms;
+    --wm-duration-base: 220ms;
+}
+
+/* —— Dark scheme (Cursor-like charcoal) —— */
+html[data-theme="dark"] {
+    --bp-bg: oklch(16% 0.01 255);
+    --bp-surface: oklch(20% 0.012 255);
+    --bp-surface-2: oklch(23% 0.012 255);
+    --bp-surface-3: oklch(25% 0.012 255);
+    --bp-ink: oklch(92% 0.008 255);
+    --bp-muted: oklch(68% 0.012 255);
+    --bp-faint: oklch(52% 0.012 255);
+    --bp-border: oklch(32% 0.012 255);
+    --bp-border-strong: oklch(40% 0.014 255);
+    --bp-accent: oklch(72% 0.09 230);
+    --bp-accent-soft: oklch(28% 0.04 230);
+    --bp-accent-ink: oklch(16% 0.02 255);
+    --bp-user: oklch(30% 0.04 230);
+    --bp-ok: oklch(70% 0.12 155);
+    --bp-fail: oklch(68% 0.15 25);
+    --bp-fail-bg: oklch(28% 0.04 25);
+    --bp-fail-border: oklch(42% 0.08 25);
+    --bp-think: oklch(78% 0.06 85);
+    --bp-think-bg: oklch(24% 0.02 85);
+    --bp-think-border: oklch(36% 0.03 85);
+    --bp-tool: oklch(74% 0.07 175);
+    --bp-tool-bg: oklch(24% 0.025 175);
+    --bp-tool-border: oklch(36% 0.035 175);
+    --bp-shadow: 0 0.5rem 1.5rem oklch(8% 0.02 255 / 0.45);
+    --bp-scrim: oklch(8% 0.02 255 / 0.55);
+    --bp-scroll-thumb: oklch(40% 0.015 255);
+
+    --wm-font: var(--bp-font);
+    --wm-mono: var(--bp-mono);
+    --wm-bg: var(--bp-bg);
+    --wm-surface: var(--bp-surface-3);
+    --wm-ink: var(--bp-ink);
+    --wm-muted: var(--bp-muted);
+    --wm-border: var(--bp-border);
+    --wm-border-strong: var(--bp-border-strong);
+    --wm-accent: var(--bp-accent);
+    --wm-accent-soft: var(--bp-accent-soft);
+    --wm-user: var(--bp-user);
+    --wm-think: var(--bp-think);
+    --wm-think-bg: var(--bp-think-bg);
+    --wm-think-border: var(--bp-think-border);
+    --wm-tool: var(--bp-tool);
+    --wm-tool-bg: var(--bp-tool-bg);
+    --wm-tool-border: var(--bp-tool-border);
+    --wm-ok: var(--bp-ok);
+    --wm-fail: var(--bp-fail);
+    --wm-fail-bg: var(--bp-fail-bg);
+    --wm-fail-border: var(--bp-fail-border);
+    --wm-radius: var(--bp-radius-lg);
+    --wm-ease: var(--bp-ease);
+    --wm-duration-fast: 120ms;
+    --wm-duration-base: 220ms;
 }
 
 html,
@@ -22,113 +147,233 @@ body.page-webchat {
     height: 100%;
     max-height: 100dvh;
     overflow: hidden;
-    font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
-    background:
-        radial-gradient(1200px 600px at 10% -10%, oklch(94% 0.04 250), transparent 60%),
-        radial-gradient(900px 500px at 100% 0%, oklch(95% 0.03 200), transparent 55%),
-        oklch(97.5% 0.008 250);
-    color: oklch(28% 0.03 255);
+    font-family: var(--bp-font);
+    background: var(--bp-bg);
+    color: var(--bp-ink);
 }
 
-.bp-topbar {
+/* —— Full-bleed IDE shell —— */
+.bp-shell {
     display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    max-height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--bp-bg);
+}
+
+.bp-chrome {
     flex-shrink: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.85rem 1.25rem;
-    border-bottom: 1px solid oklch(90% 0.012 255);
-    background: oklch(100% 0 0 / 0.85);
-    backdrop-filter: blur(8px);
-    z-index: 40;
+    gap: 0.75rem;
+    height: var(--bp-chrome-h);
+    padding: 0 0.65rem;
+    border-bottom: 1px solid var(--bp-border);
+    background: var(--bp-surface);
+    z-index: 50;
+}
+
+.bp-chrome__left,
+.bp-chrome__right {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.bp-chrome__right {
+    justify-content: flex-end;
+}
+
+.bp-chrome__center {
+    display: flex;
+    justify-content: center;
+    min-width: 0;
+    max-width: 28rem;
+}
+
+.bp-chrome__room {
+    font-size: 0.78rem;
+    font-weight: 550;
+    color: var(--bp-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .bp-brand {
-    display: flex;
-    align-items: baseline;
-    gap: 0.55rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
     text-decoration: none;
     color: inherit;
+    min-width: 0;
+}
+
+.bp-brand__mark {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 0.12rem;
+    background: var(--bp-accent);
+    box-shadow: 0 0 0 0.18rem color-mix(in oklab, var(--bp-accent) 28%, transparent);
+    flex-shrink: 0;
 }
 
 .bp-brand__name {
-    font-weight: 700;
-    font-size: 1.05rem;
+    font-weight: 650;
+    font-size: 0.88rem;
     letter-spacing: -0.02em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.bp-brand__tag {
-    font-family: "IBM Plex Mono", ui-monospace, monospace;
-    font-size: 0.7rem;
-    color: oklch(55% 0.02 255);
+.bp-icon-btn {
+    display: grid;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border: 1px solid transparent;
+    border-radius: 0.4rem;
+    background: transparent;
+    color: var(--bp-muted);
+    cursor: pointer;
+    transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+
+.bp-icon-btn:hover {
+    color: var(--bp-ink);
+    background: var(--bp-surface-2);
+    border-color: var(--bp-border);
+}
+
+.bp-icon-btn[aria-expanded="true"] {
+    color: var(--bp-accent);
+    background: var(--bp-accent-soft);
+    border-color: color-mix(in oklab, var(--bp-accent) 35%, var(--bp-border));
+}
+
+.bp-theme {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    height: 1.85rem;
+    padding: 0 0.55rem;
+    border: 1px solid var(--bp-border);
+    border-radius: 0.4rem;
+    background: var(--bp-surface-2);
+    color: var(--bp-ink);
+    font-family: var(--bp-mono);
+    font-size: 0.68rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 120ms ease, background 120ms ease;
+}
+
+.bp-theme:hover {
+    border-color: var(--bp-border-strong);
+    background: var(--bp-surface-3);
+}
+
+.bp-theme i {
+    font-size: 0.78rem;
+    color: var(--bp-muted);
 }
 
 .bp-mode {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    font-family: "IBM Plex Mono", ui-monospace, monospace;
-    font-size: 0.72rem;
-    padding: 0.3rem 0.55rem;
-    border-radius: 999px;
-    border: 1px solid oklch(88% 0.02 255);
-    background: oklch(98% 0.01 250);
+    font-family: var(--bp-mono);
+    font-size: 0.65rem;
+    padding: 0.22rem 0.45rem;
+    border-radius: 0.35rem;
+    border: 1px solid var(--bp-border);
+    background: var(--bp-surface-2);
+    color: var(--bp-muted);
+    white-space: nowrap;
 }
 
 .bp-mode[data-mode="mock"] {
-    border-color: oklch(80% 0.08 85);
-    background: oklch(97% 0.03 85);
-    color: oklch(42% 0.08 80);
+    border-color: color-mix(in oklab, oklch(70% 0.1 85) 45%, var(--bp-border));
+    color: oklch(70% 0.1 85);
+}
+
+html[data-theme="light"] .bp-mode[data-mode="mock"] {
+    color: oklch(42% 0.09 80);
 }
 
 .bp-mode[data-mode="real"] {
-    border-color: oklch(80% 0.08 175);
-    background: oklch(97% 0.025 175);
-    color: oklch(38% 0.08 175);
+    border-color: color-mix(in oklab, var(--bp-ok) 40%, var(--bp-border));
+    color: var(--bp-ok);
 }
 
-.bp-page {
+/* —— 3-column workspace (+ splitter) —— */
+.bp-workspace {
     flex: 1 1 auto;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    width: 100%;
-    max-width: 1280px;
-    margin: 0 auto;
-    padding: 0.75rem 1.25rem 1rem;
-    overflow: hidden;
-    box-sizing: border-box;
-}
-
-.bp-page__intro {
-    margin-bottom: 0.85rem;
-}
-
-.bp-page__intro h1 {
-    margin: 0 0 0.25rem;
-    font-size: 1.25rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-}
-
-.bp-page__intro p {
-    margin: 0;
-    color: oklch(55% 0.02 255);
-    font-size: 0.875rem;
-}
-
-.bp-page__intro a {
-    color: oklch(45% 0.14 250);
-}
-
-body.page-webchat .wc-shell {
-    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: var(--bp-rail-w) minmax(0, 1fr) var(--bp-split-w, 5px) var(--bp-preview-w);
     min-height: 0;
     height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.bp-split {
+    position: relative;
+    z-index: 5;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: var(--bp-border);
+    cursor: col-resize;
+    touch-action: none;
+    user-select: none;
+}
+
+.bp-split::after {
+    content: '';
+    position: absolute;
+    inset: 0 -3px;
+    /* widen hit target without stealing layout */
+}
+
+.bp-split:hover,
+.bp-split:focus-visible,
+.bp-split.is-active {
+    background: var(--bp-accent);
+}
+
+.bp-split:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--bp-accent) 55%, transparent);
+    outline-offset: -2px;
+}
+
+html.is-resizing-preview,
+html.is-resizing-preview * {
+    cursor: col-resize !important;
+    user-select: none !important;
+}
+
+.bp-scrim {
+    display: none;
+}
+
+/* Desktop: hide mobile-only toggles when space allows — keep available for keyboard a11y */
+@media (min-width: 1101px) {
+    .bp-chrome__rail-toggle,
+    .bp-chrome__preview-toggle {
+        display: none;
+    }
 }
 
 .text-muted {
-    color: oklch(55% 0.02 255) !important;
+    color: var(--bp-muted) !important;
 }
 
 .small {
@@ -137,4 +382,21 @@ body.page-webchat .wc-shell {
 
 .mb-0 {
     margin-bottom: 0 !important;
+}
+
+button:focus-visible,
+input:focus-visible,
+.bp-theme:focus-visible,
+.bp-icon-btn:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--bp-accent) 55%, transparent);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
 }

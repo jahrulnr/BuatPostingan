@@ -1,27 +1,64 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" data-theme-pref="auto" data-theme="dark">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>BuatPostingan · AI Webchat</title>
+    <script>
+        /* FOUC guard: resolve bp.theme before CSS paint */
+        (function () {
+            var KEY = 'bp.theme';
+            var pref = 'auto';
+            try {
+                var raw = localStorage.getItem(KEY);
+                if (raw === 'light' || raw === 'dark' || raw === 'auto') pref = raw;
+            } catch (e) {}
+            var dark = false;
+            try { dark = window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e2) {}
+            var scheme = pref === 'light' ? 'light' : (pref === 'dark' ? 'dark' : (dark ? 'dark' : 'light'));
+            document.documentElement.dataset.themePref = pref;
+            document.documentElement.dataset.theme = scheme;
+            document.documentElement.style.colorScheme = scheme;
+        })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./vendor/bootstrap-icons/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="./css/shell.css">
-    <link rel="stylesheet" href="./css/webchat.css?v=20260724-bubbles1">
-    <link rel="stylesheet" href="./css/webchat-conversations.css">
+    <link rel="stylesheet" href="./css/shell.css?v=20260724-ide2">
+    <link rel="stylesheet" href="./css/webchat.css?v=20260724-ide2">
+    <link rel="stylesheet" href="./css/webchat-conversations.css?v=20260724-ide2">
 </head>
 <body class="page-webchat">
-    <header class="bp-topbar">
-        <a class="bp-brand" href="./index.html">
-            <span class="bp-brand__name">BuatPostingan</span>
-        </a>
-    </header>
+    <div class="bp-shell" id="bpShell">
+        <header class="bp-chrome" role="banner">
+            <div class="bp-chrome__left">
+                <button type="button" class="bp-icon-btn bp-chrome__rail-toggle" id="btnToggleRail" aria-label="Toggle conversations" aria-controls="wcRail" aria-expanded="false">
+                    <i class="bi bi-layout-sidebar"></i>
+                </button>
+                <a class="bp-brand" href="./index.html">
+                    <span class="bp-brand__mark" aria-hidden="true"></span>
+                    <span class="bp-brand__name">BuatPostingan</span>
+                </a>
+            </div>
+            <div class="bp-chrome__center">
+                <span class="bp-chrome__room" id="chromeRoomTitle">New chat</span>
+            </div>
+            <div class="bp-chrome__right">
+                <button type="button" class="bp-theme" id="bpThemeToggle" aria-label="Theme: Auto (click to cycle)">
+                    <i class="bi bi-circle-half" data-theme-icon></i>
+                    <span data-theme-label>Auto</span>
+                </button>
+                <button type="button" class="bp-icon-btn bp-chrome__preview-toggle" id="btnTogglePreview" aria-label="Toggle preview" aria-controls="wcPreview" aria-expanded="false">
+                    <i class="bi bi-layout-sidebar-reverse"></i>
+                </button>
+            </div>
+        </header>
 
-    <main class="bp-page">
-        <div class="wc-shell">
-            <aside class="wc-rail" aria-label="Shared conversation list">
+        <div class="bp-workspace" id="bpWorkspace">
+            <div class="bp-scrim" id="bpScrim" hidden></div>
+
+            <aside class="wc-rail" id="wcRail" aria-label="Conversations">
                 <div class="wc-rail__top">
                     <div class="wc-rail__heading">
                         <div>
@@ -33,11 +70,18 @@
                     <button type="button" class="wc-rail__new" id="btnNewChat">
                         <i class="bi bi-plus-lg"></i> New chat
                     </button>
+                    <label class="wc-rail__search">
+                        <i class="bi bi-search" aria-hidden="true"></i>
+                        <input type="search" id="conversationSearch" placeholder="Cari percakapan…" autocomplete="off" spellcheck="false">
+                    </label>
                 </div>
                 <ul class="wc-rail__list" id="conversationList"></ul>
+                <footer class="wc-rail__foot">
+                    <span class="wc-rail__hint">Reader / instructor</span>
+                </footer>
             </aside>
 
-            <div class="wc-main">
+            <main class="wc-main" aria-label="Active conversation">
                 <div class="webchat-root" id="webchatRoot">
                     <div class="card webchat-card" id="webchat">
                         <div class="wc-room-head" id="roomHead">
@@ -52,14 +96,15 @@
                         <div class="wc-toast" id="chatToast" role="status" aria-live="polite" hidden></div>
                         <div class="webchat-messages" id="chatMessages" role="log" aria-live="polite">
                             <div class="chat-welcome">
-                                <div class="chat-welcome-icon"><i class="bi bi-stars"></i></div>
+                                <div class="chat-welcome-icon"><i class="bi bi-chat-square-text"></i></div>
                                 <h5>Selamat datang di BuatPostingan</h5>
+                                <p>Ajukan pertanyaan — AI menjawab dari knowledge base (reader only).</p>
                             </div>
                         </div>
                         <div class="webchat-status" id="chatStatus" data-state="ready">Ready</div>
                         <div class="webchat-composer">
                             <div class="composer-row">
-                                <input type="text" class="composer-input" id="chatInput" placeholder="Ketik pertanyaan..." autocomplete="off">
+                                <input type="text" class="composer-input" id="chatInput" placeholder="Ketik pertanyaan…" autocomplete="off">
                                 <button class="composer-send" id="chatSend" type="button" aria-label="Kirim">
                                     <i class="bi bi-send-fill"></i>
                                 </button>
@@ -70,9 +115,47 @@
                         </div>
                     </div>
                 </div>
-            </div>
+            </main>
+
+            <div
+                class="bp-split bp-split--preview"
+                id="bpPreviewSplit"
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize preview panel"
+                aria-controls="wcPreview"
+                title="Drag to resize · double-click to reset"
+                tabindex="0"
+            ></div>
+
+            <aside class="wc-preview" id="wcPreview" aria-label="AI work preview">
+                <div class="wc-preview__tabs" role="tablist" aria-label="Preview panels">
+                    <button type="button" class="wc-preview__tab is-active" role="tab" id="tabPreview" aria-selected="true" aria-controls="panelPreview" data-preview-tab="preview">
+                        Preview
+                    </button>
+                    <button type="button" class="wc-preview__tab" role="tab" id="tabBrowser" aria-selected="false" aria-controls="panelBrowser" data-preview-tab="browser">
+                        Browser
+                    </button>
+                </div>
+                <div class="wc-preview__body">
+                    <div class="wc-preview__panel is-active" role="tabpanel" id="panelPreview" aria-labelledby="tabPreview" data-preview-panel="preview">
+                        <div class="wc-preview__empty">
+                            <i class="bi bi-window-desktop" aria-hidden="true"></i>
+                            <strong>Kosong</strong>
+                            <p>Akan diisi nanti — wrapper preview kerja AI.</p>
+                        </div>
+                    </div>
+                    <div class="wc-preview__panel" role="tabpanel" id="panelBrowser" aria-labelledby="tabBrowser" data-preview-panel="browser" hidden>
+                        <div class="wc-preview__empty">
+                            <i class="bi bi-globe2" aria-hidden="true"></i>
+                            <strong>Kosong</strong>
+                            <p>Akan diisi nanti — tidak ada mock content.</p>
+                        </div>
+                    </div>
+                </div>
+            </aside>
         </div>
-    </main>
+    </div>
 
     <div class="wc-dialog" id="renameDialog" hidden>
         <div class="wc-dialog__backdrop" data-rename-close></div>
@@ -117,6 +200,6 @@
     </script>
     <script src="./vendor/marked/marked.umd.js"></script>
     <script src="./vendor/dompurify/purify.min.js"></script>
-    <script type="module" src="./js/app.js?v=20260724-bubbles1"></script>
+    <script type="module" src="./js/app.js?v=20260724-ide2"></script>
 </body>
 </html>
