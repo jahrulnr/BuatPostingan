@@ -1,0 +1,3 @@
+module buatpostingan
+
+go 1.26.5

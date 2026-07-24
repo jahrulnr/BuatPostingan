@@ -1,0 +1,8 @@
+.DS_Store
+*.log
+node_modules/
+web/.cache/
+bin/
+storage/webchat/**
+!storage/webchat/.gitkeep
+*.exe

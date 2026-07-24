@@ -1,0 +1,122 @@
+/* Standalone page chrome for BuatPostingan (no Bootstrap layout). */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    min-height: 100%;
+}
+
+body.page-webchat {
+    font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    background:
+        radial-gradient(1200px 600px at 10% -10%, oklch(94% 0.04 250), transparent 60%),
+        radial-gradient(900px 500px at 100% 0%, oklch(95% 0.03 200), transparent 55%),
+        oklch(97.5% 0.008 250);
+    color: oklch(28% 0.03 255);
+}
+
+.bp-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 1.25rem;
+    border-bottom: 1px solid oklch(90% 0.012 255);
+    background: oklch(100% 0 0 / 0.85);
+    backdrop-filter: blur(8px);
+    position: sticky;
+    top: 0;
+    z-index: 40;
+}
+
+.bp-brand {
+    display: flex;
+    align-items: baseline;
+    gap: 0.55rem;
+    text-decoration: none;
+    color: inherit;
+}
+
+.bp-brand__name {
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: -0.02em;
+}
+
+.bp-brand__tag {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.7rem;
+    color: oklch(55% 0.02 255);
+}
+
+.bp-mode {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    padding: 0.3rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid oklch(88% 0.02 255);
+    background: oklch(98% 0.01 250);
+}
+
+.bp-mode[data-mode="mock"] {
+    border-color: oklch(80% 0.08 85);
+    background: oklch(97% 0.03 85);
+    color: oklch(42% 0.08 80);
+}
+
+.bp-mode[data-mode="real"] {
+    border-color: oklch(80% 0.08 175);
+    background: oklch(97% 0.025 175);
+    color: oklch(38% 0.08 175);
+}
+
+.bp-page {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 1rem 1.25rem 1.5rem;
+}
+
+.bp-page__intro {
+    margin-bottom: 0.85rem;
+}
+
+.bp-page__intro h1 {
+    margin: 0 0 0.25rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.bp-page__intro p {
+    margin: 0;
+    color: oklch(55% 0.02 255);
+    font-size: 0.875rem;
+}
+
+.bp-page__intro a {
+    color: oklch(45% 0.14 250);
+}
+
+body.page-webchat .wc-shell {
+    min-height: calc(100vh - 7.5rem);
+}
+
+.text-muted {
+    color: oklch(55% 0.02 255) !important;
+}
+
+.small {
+    font-size: 0.875em;
+}
+
+.mb-0 {
+    margin-bottom: 0 !important;
+}

@@ -1,0 +1,9 @@
+services:
+  app:
+    image: buatpostingan
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    external: true
