@@ -6,3 +6,4 @@ bin/
 storage/webchat/**
 !storage/webchat/.gitkeep
 *.exe
+.env

@@ -1,27 +1,96 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
+	"path/filepath"
 
-	webchatusecase "buatpostingan/internal/application/usecase/webchat"
-	"buatpostingan/internal/config"
 	httpdelivery "buatpostingan/delivery/http"
-	"buatpostingan/internal/infrastructure/stub"
+	webchatusecase "buatpostingan/internal/usecase/webchat"
+	"buatpostingan/internal/config"
+	"buatpostingan/internal/infrastructure/ratelimit"
+	"buatpostingan/internal/infrastructure/repository/jsonl"
+	"buatpostingan/internal/infrastructure/service/docs"
+	"buatpostingan/internal/infrastructure/service/llm"
+	"buatpostingan/internal/infrastructure/service/tools"
+	"buatpostingan/internal/infrastructure/sse"
+	"buatpostingan/internal/infrastructure/worker"
+	"buatpostingan/internal/pkg/redact"
 )
 
 func main() {
 	cfg := config.Load()
+	ctx := context.Background()
 
-	uc := webchatusecase.New(
-		stub.ThreadStore{},
-		stub.ThreadLock{},
-		stub.InterruptFlag{},
-		stub.SpeakFloor{},
-		stub.TurnRateLimit{},
-		stub.DocsIndex{},
-		stub.TurnWorker{},
-	)
+	if err := os.MkdirAll(cfg.StorageRoot, 0o775); err != nil {
+		log.Fatalf("storage root: %v", err)
+	}
+	for _, sub := range []string{"threads", "interrupt", "rl", "llm"} {
+		_ = os.MkdirAll(filepath.Join(cfg.StorageRoot, sub), 0o775)
+	}
+
+	store := jsonl.NewStore(cfg.StorageRoot)
+	locks := jsonl.NewLock(cfg.StorageRoot, cfg.LockTTL)
+	intr := jsonl.NewInterrupt(cfg.StorageRoot)
+	floor := jsonl.NewSpeakFloor(store, cfg.SpeakFloorTTL)
+	rl := ratelimit.NewTurnLimiter(cfg.StorageRoot, cfg.TurnRateLimitPerMin)
+	red := redact.New()
+
+	docsIndex, err := docs.NewIndex(cfg.DocsRoot, cfg.StorageRoot, docs.Options{
+		AppID:        cfg.DocsAppID,
+		TopK:         cfg.DocsTopK,
+		MinScore:     cfg.DocsMinScore,
+		DisableFuzzy: !cfg.DocsFuzzyEnabled,
+	})
+	if err != nil {
+		log.Fatalf("docs index: %v", err)
+	}
+	if err := docsIndex.Reindex(ctx); err != nil {
+		log.Printf("docs reindex warning: %v", err)
+	}
+	gate, gerr := docsIndex.Gate(ctx)
+	if gerr != nil {
+		log.Printf("docs gate error: %v", gerr)
+	} else {
+		log.Printf("docs gate: usable=%v status=%s docs=%d msg=%s",
+			gate.Usable, gate.Status, gate.DocumentCount, gate.Message)
+	}
+
+	reg, err := tools.NewRegistry(cfg.ToolsRoot, cfg.DocsRoot, docsIndex, tools.Options{TopK: cfg.DocsTopK})
+	if err != nil {
+		log.Fatalf("tools registry: %v", err)
+	}
+
+	llmCfg := llm.FromApp(cfg)
+	llmClient := llm.NewClient(llmCfg)
+	llmRouter := llm.NewRouter(llmCfg, llmClient)
+
+	tw := worker.New(worker.Deps{
+		Config:    cfg,
+		Store:     store,
+		Locks:     locks,
+		Interrupt: intr,
+		Tools:     reg,
+		Docs:      docsIndex,
+		LLM:       llmRouter,
+	})
+	events := sse.NewStreamer(store)
+
+	log.Printf("webchat ready: llm_stub=%v strategy=%s active=%s providers=%d",
+		cfg.LLMStub, cfg.LLMStrategy, cfg.LLMActiveProvider, len(cfg.LLMProviders))
+
+	uc := webchatusecase.NewService(webchatusecase.Deps{
+		Threads:   store,
+		Locks:     locks,
+		Interrupt: intr,
+		Floor:     floor,
+		RateLimit: rl,
+		Redactor:  red,
+		Docs:      docsIndex,
+		Events:    events,
+		Worker:    tw,
+	})
 
 	srv := httpdelivery.NewServer(cfg, uc)
 	if err := httpdelivery.ListenAndServe(srv); err != nil {

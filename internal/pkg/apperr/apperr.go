@@ -9,16 +9,19 @@ import (
 type Code string
 
 const (
-	CodeNotImplemented     Code = "not_implemented"
-	CodeThreadNotFound     Code = "thread_not_found"
-	CodeThreadBusy         Code = "thread_busy"
-	CodeFloorLocked        Code = "floor_locked"
-	CodeRateLimited        Code = "rate_limited"
-	CodeDocsIndexNotReady  Code = "docs_index_not_ready"
-	CodeForbidden          Code = "forbidden"
-	CodeValidation         Code = "validation"
-	CodeNotRetryable       Code = "not_retryable"
-	CodeInternal           Code = "internal"
+	CodeNotImplemented    Code = "not_implemented"
+	CodeThreadNotFound    Code = "thread_not_found"
+	CodeNotFound          Code = "not_found"
+	CodeThreadBusy        Code = "thread_busy"
+	CodeFloorLocked       Code = "floor_locked"
+	CodeRateLimited       Code = "rate_limited"
+	CodeDocsIndexNotReady Code = "docs_index_not_ready"
+	CodeForbidden         Code = "forbidden"
+	CodeNotInitiator      Code = "not_initiator"
+	CodeValidation        Code = "validation"
+	CodeEmpty             Code = "empty"
+	CodeNotRetryable      Code = "not_retryable"
+	CodeInternal          Code = "internal"
 )
 
 // Error is the application boundary error (usecase → delivery).

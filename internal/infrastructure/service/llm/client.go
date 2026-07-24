@@ -1,0 +1,563 @@
+package llm
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"buatpostingan/internal/config"
+	"buatpostingan/internal/domain/service"
+	"buatpostingan/internal/pkg/idgen"
+)
+
+// Client talks to OpenAI-compatible chat/completions (and responses).
+type Client struct {
+	cfg    Config
+	http   *http.Client
+	retry  map[int]struct{}
+}
+
+func NewClient(cfg Config) *Client {
+	retry := make(map[int]struct{}, len(cfg.RetryStatuses)+1)
+	for _, s := range cfg.RetryStatuses {
+		retry[s] = struct{}{}
+	}
+	retry[413] = struct{}{}
+	return &Client{
+		cfg:   cfg,
+		http:  &http.Client{},
+		retry: retry,
+	}
+}
+
+func (c *Client) Chat(ctx context.Context, messages []map[string]any, tools []map[string]any) (service.LLMResult, error) {
+	return c.ChatWithProvider(ctx, c.cfg.ActiveProvider, messages, tools)
+}
+
+func (c *Client) ChatWithProvider(ctx context.Context, providerID string, messages []map[string]any, tools []map[string]any) (service.LLMResult, error) {
+	p, ok := c.cfg.Providers[providerID]
+	if !ok {
+		return service.LLMResult{}, &Error{Provider: providerID, Msg: "provider missing", Transient: false}
+	}
+	if strings.TrimSpace(p.APIKey) == "" {
+		return service.LLMResult{}, &Error{Provider: providerID, Msg: "API key missing", Transient: false}
+	}
+	if p.API == "responses" {
+		return c.chatViaResponses(ctx, p, messages, tools)
+	}
+	return c.chatViaCompletions(ctx, p, messages, tools)
+}
+
+func (c *Client) chatViaCompletions(ctx context.Context, p config.LLMProvider, messages []map[string]any, tools []map[string]any) (service.LLMResult, error) {
+	body := map[string]any{
+		"model":       p.Model,
+		"messages":    messages,
+		"tool_choice": "auto",
+		"max_tokens":  p.MaxOutputTokens,
+		"stream":      true,
+	}
+	if len(tools) > 0 {
+		body["tools"] = normalizeChatTools(tools)
+	}
+	payload, err := c.postJSON(ctx, p, "chat/completions", body)
+	if err != nil {
+		return service.LLMResult{}, err
+	}
+	return parseChatCompletionPayload(p, payload), nil
+}
+
+func (c *Client) chatViaResponses(ctx context.Context, p config.LLMProvider, messages []map[string]any, tools []map[string]any) (service.LLMResult, error) {
+	body := toResponsesRequest(p, messages, tools)
+	payload, err := c.postJSON(ctx, p, "responses", body)
+	if err != nil {
+		return service.LLMResult{}, err
+	}
+	// Some proxies may still return chat.completion JSON (e.g. stream=false path).
+	if looksLikeChatCompletion(payload) {
+		return parseChatCompletionPayload(p, payload), nil
+	}
+	return parseResponsesPayload(p, payload), nil
+}
+
+func parseResponsesPayload(p config.LLMProvider, payload map[string]any) service.LLMResult {
+	output, _ := payload["output"].([]any)
+	var toolCalls []service.ToolCall
+	var assistantText string
+	for _, raw := range output {
+		item, _ := raw.(map[string]any)
+		if item == nil {
+			continue
+		}
+		switch item["type"] {
+		case "function_call":
+			argsRaw := item["arguments"]
+			var args map[string]any
+			switch a := argsRaw.(type) {
+			case string:
+				_ = json.Unmarshal([]byte(a), &args)
+			case map[string]any:
+				args = a
+			}
+			if args == nil {
+				args = map[string]any{}
+			}
+			callID, _ := item["call_id"].(string)
+			if callID == "" {
+				callID, _ = item["id"].(string)
+			}
+			if callID == "" {
+				callID = idgen.New("call")
+			}
+			name, _ := item["name"].(string)
+			toolCalls = append(toolCalls, service.ToolCall{CallID: callID, Name: name, Arguments: args})
+		case "message":
+			content, _ := item["content"].([]any)
+			for _, b := range content {
+				block, _ := b.(map[string]any)
+				if block == nil {
+					continue
+				}
+				if block["type"] == "output_text" || block["type"] == "text" {
+					if t, ok := block["text"].(string); ok {
+						assistantText += t
+					}
+				}
+			}
+		}
+	}
+	if assistantText == "" {
+		if t, ok := payload["output_text"].(string); ok {
+			assistantText = t
+		}
+	}
+	usage, _ := payload["usage"].(map[string]any)
+	return service.LLMResult{
+		Text:       assistantText,
+		ToolCalls:  toolCalls,
+		Reasoning:  extractReasoningFromResponses(output),
+		Model:      modelRef(p),
+		Usage:      mapUsage(usage),
+		ProviderID: p.ID,
+	}
+}
+
+func (c *Client) postJSON(ctx context.Context, p config.LLMProvider, path string, body map[string]any) (map[string]any, error) {
+	// Prefer SSE streaming; many OpenAI-compatible proxies (incl. local) stream by default
+	// and only degrade Responses → chat.completion when stream=false.
+	if _, ok := body["stream"]; !ok {
+		body["stream"] = true
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return nil, &Error{Provider: p.ID, Msg: "marshal body", Cause: err}
+	}
+	base := strings.TrimRight(p.BaseURL, "/") + "/"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+path, bytes.NewReader(raw))
+	if err != nil {
+		return nil, &Error{Provider: p.ID, Msg: "build request", Cause: err, Transient: true}
+	}
+	req.Header.Set("Authorization", "Bearer "+p.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream, application/json")
+	// OpenRouter asks for these; harmless for other OpenAI-compatible proxies.
+	req.Header.Set("HTTP-Referer", "https://buatpostingan.local")
+	req.Header.Set("X-Title", "BuatPostingan")
+
+	timeout := time.Duration(p.TimeoutSec) * time.Second
+	if timeout <= 0 {
+		timeout = 60 * time.Second
+	}
+	client := c.http
+	if client.Timeout != timeout {
+		client = &http.Client{Timeout: timeout}
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, &Error{Provider: p.ID, Msg: "TIMEOUT/CONNECT", Cause: err, Transient: true}
+	}
+	defer resp.Body.Close()
+
+	ctype := resp.Header.Get("Content-Type")
+	br := bufio.NewReader(io.LimitReader(resp.Body, 8<<20))
+	prefix, _ := br.Peek(64)
+	snippet := truncateBody(prefix, 800)
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		rest, _ := io.ReadAll(br)
+		snippet = truncateBody(rest, 800)
+		transient := resp.StatusCode == 0 || c.isTransient(resp.StatusCode)
+		return nil, &Error{
+			Provider:  p.ID,
+			Status:    resp.StatusCode,
+			Transient: transient,
+			Msg:       fmt.Sprintf("status=%d content-type=%s body=%s", resp.StatusCode, ctype, snippet),
+		}
+	}
+
+	if looksLikeSSE(ctype, prefix) {
+		payload, err := parseSSEToPayload(br)
+		if err != nil {
+			return nil, &Error{
+				Provider: p.ID,
+				Status:   resp.StatusCode,
+				Cause:    err,
+				Msg:      fmt.Sprintf("BAD_BODY status=%d content-type=%s sse_parse=%v body=%s", resp.StatusCode, ctype, err, snippet),
+			}
+		}
+		return payload, nil
+	}
+
+	respBody, _ := io.ReadAll(br)
+	trimmed := bytes.TrimSpace(respBody)
+	if len(trimmed) == 0 {
+		return nil, &Error{
+			Provider: p.ID,
+			Status:   resp.StatusCode,
+			Msg:      fmt.Sprintf("BAD_BODY status=%d content-type=%s empty body", resp.StatusCode, ctype),
+		}
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(respBody, &payload); err != nil || payload == nil {
+		return nil, &Error{
+			Provider: p.ID,
+			Status:   resp.StatusCode,
+			Cause:    err,
+			Msg:      fmt.Sprintf("BAD_BODY status=%d content-type=%s body=%s", resp.StatusCode, ctype, truncateBody(respBody, 800)),
+		}
+	}
+	return payload, nil
+}
+
+func truncateBody(b []byte, max int) string {
+	s := strings.TrimSpace(string(b))
+	s = strings.ReplaceAll(s, "\n", " ")
+	if len(s) > max {
+		return s[:max]
+	}
+	return s
+}
+
+func looksLikeSSE(contentType string, body []byte) bool {
+	ct := strings.ToLower(contentType)
+	if strings.Contains(ct, "text/event-stream") {
+		return true
+	}
+	prefix := string(body)
+	if len(prefix) > 64 {
+		prefix = prefix[:64]
+	}
+	prefix = strings.TrimLeft(prefix, " \t\r\n")
+	return strings.HasPrefix(prefix, "event:") || strings.HasPrefix(prefix, "data:")
+}
+
+func looksLikeChatCompletion(payload map[string]any) bool {
+	if payload == nil {
+		return false
+	}
+	if obj, _ := payload["object"].(string); obj == "chat.completion" {
+		return true
+	}
+	_, hasChoices := payload["choices"]
+	_, hasOutput := payload["output"]
+	return hasChoices && !hasOutput
+}
+
+func parseChatCompletionPayload(p config.LLMProvider, payload map[string]any) service.LLMResult {
+	choices, _ := payload["choices"].([]any)
+	var choice map[string]any
+	if len(choices) > 0 {
+		choice, _ = choices[0].(map[string]any)
+	}
+	msg, _ := choice["message"].(map[string]any)
+	if msg == nil {
+		msg = map[string]any{}
+	}
+	toolCalls := parseChatToolCalls(msg)
+	text, _ := msg["content"].(string)
+	usage, _ := payload["usage"].(map[string]any)
+	return service.LLMResult{
+		Text:       text,
+		ToolCalls:  toolCalls,
+		Reasoning:  extractReasoningFromChat(msg),
+		Model:      modelRef(p),
+		Usage:      mapUsage(usage),
+		ProviderID: p.ID,
+	}
+}
+
+func (c *Client) isTransient(status int) bool {
+	_, ok := c.retry[status]
+	return ok
+}
+
+func modelRef(p config.LLMProvider) service.ModelRef {
+	return service.ModelRef{Provider: p.ID, ID: p.Model, API: p.API}
+}
+
+func parseChatToolCalls(msg map[string]any) []service.ToolCall {
+	raw, _ := msg["tool_calls"].([]any)
+	if len(raw) == 0 {
+		return nil
+	}
+	out := make([]service.ToolCall, 0, len(raw))
+	for _, r := range raw {
+		tc, _ := r.(map[string]any)
+		if tc == nil {
+			continue
+		}
+		fn, _ := tc["function"].(map[string]any)
+		id, _ := tc["id"].(string)
+		if id == "" {
+			id = idgen.New("call")
+		}
+		name, _ := fn["name"].(string)
+		argsStr, _ := fn["arguments"].(string)
+		var args map[string]any
+		_ = json.Unmarshal([]byte(argsStr), &args)
+		if args == nil {
+			args = map[string]any{}
+		}
+		out = append(out, service.ToolCall{CallID: id, Name: name, Arguments: args})
+	}
+	return out
+}
+
+func mapUsage(usage map[string]any) service.TokenUsage {
+	if usage == nil {
+		return service.TokenUsage{}
+	}
+	u := service.TokenUsage{
+		InputTokens:  asInt(usage["prompt_tokens"], usage["input_tokens"]),
+		OutputTokens: asInt(usage["completion_tokens"], usage["output_tokens"]),
+	}
+	if details, ok := usage["prompt_tokens_details"].(map[string]any); ok {
+		u.CachedInputTokens = asInt(details["cached_tokens"])
+		u.CacheWriteTokens = asInt(details["cache_write_tokens"])
+	}
+	if details, ok := usage["input_tokens_details"].(map[string]any); ok {
+		if u.CachedInputTokens == 0 {
+			u.CachedInputTokens = asInt(details["cached_tokens"])
+		}
+		if u.CacheWriteTokens == 0 {
+			u.CacheWriteTokens = asInt(details["cache_write_tokens"])
+		}
+	}
+	if details, ok := usage["output_tokens_details"].(map[string]any); ok {
+		u.ReasoningOutputTokens = asInt(details["reasoning_tokens"])
+	}
+	return u
+}
+
+func asInt(vals ...any) int {
+	for _, v := range vals {
+		switch n := v.(type) {
+		case float64:
+			return int(n)
+		case int:
+			return n
+		case int64:
+			return int(n)
+		case json.Number:
+			i, _ := n.Int64()
+			return int(i)
+		}
+	}
+	return 0
+}
+
+func extractReasoningFromChat(msg map[string]any) string {
+	for _, key := range []string{"reasoning_content", "reasoning", "thinking"} {
+		val := msg[key]
+		if s, ok := val.(string); ok && strings.TrimSpace(s) != "" {
+			return strings.TrimSpace(s)
+		}
+	}
+	return ""
+}
+
+func extractReasoningFromResponses(output []any) string {
+	var parts []string
+	for _, raw := range output {
+		item, _ := raw.(map[string]any)
+		if item == nil || item["type"] != "reasoning" {
+			continue
+		}
+		for _, key := range []string{"summary", "content"} {
+			blocks, _ := item[key].([]any)
+			for _, b := range blocks {
+				block, _ := b.(map[string]any)
+				if block == nil {
+					continue
+				}
+				if t, ok := block["text"].(string); ok && strings.TrimSpace(t) != "" {
+					parts = append(parts, strings.TrimSpace(t))
+				}
+			}
+		}
+		if t, ok := item["text"].(string); ok && strings.TrimSpace(t) != "" {
+			parts = append(parts, strings.TrimSpace(t))
+		}
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+func normalizeChatTools(tools []map[string]any) []map[string]any {
+	out := make([]map[string]any, 0, len(tools))
+	for _, tool := range tools {
+		fn, _ := tool["function"].(map[string]any)
+		if fn == nil {
+			fn = tool
+		}
+		params, _ := fn["parameters"].(map[string]any)
+		if params == nil {
+			params = map[string]any{"type": "object", "properties": map[string]any{}}
+		}
+		out = append(out, map[string]any{
+			"type": "function",
+			"function": map[string]any{
+				"name":        fn["name"],
+				"description": fn["description"],
+				"parameters":   normalizeParameters(params),
+				"strict":      false,
+			},
+		})
+	}
+	return out
+}
+
+func toResponsesRequest(p config.LLMProvider, messages []map[string]any, tools []map[string]any) map[string]any {
+	var instructions []string
+	var input []map[string]any
+	for _, msg := range messages {
+		role, _ := msg["role"].(string)
+		switch role {
+		case "system", "developer":
+			if content, ok := msg["content"].(string); ok && content != "" {
+				instructions = append(instructions, content)
+			}
+		case "user":
+			content, _ := msg["content"].(string)
+			input = append(input, map[string]any{"role": "user", "content": content})
+		case "assistant":
+			if tcs, ok := msg["tool_calls"].([]any); ok && len(tcs) > 0 {
+				for _, raw := range tcs {
+					tc, _ := raw.(map[string]any)
+					fn, _ := tc["function"].(map[string]any)
+					input = append(input, map[string]any{
+						"type":      "function_call",
+						"call_id":   tc["id"],
+						"name":      fn["name"],
+						"arguments": fn["arguments"],
+					})
+				}
+			} else if msg["content"] != nil {
+				input = append(input, map[string]any{"role": "assistant", "content": fmt.Sprint(msg["content"])})
+			}
+		case "tool":
+			input = append(input, map[string]any{
+				"type":    "function_call_output",
+				"call_id": msg["tool_call_id"],
+				"output":  msg["content"],
+			})
+		}
+	}
+	body := map[string]any{
+		"model":             p.Model,
+		"input":             input,
+		"tool_choice":       "auto",
+		"max_output_tokens": p.MaxOutputTokens,
+		"stream":            true,
+	}
+	if len(instructions) > 0 {
+		body["instructions"] = strings.Join(instructions, "\n\n")
+	}
+	if len(tools) > 0 {
+		body["tools"] = toResponsesTools(tools)
+	}
+	return body
+}
+
+func toResponsesTools(tools []map[string]any) []map[string]any {
+	out := make([]map[string]any, 0, len(tools))
+	for _, tool := range tools {
+		fn, _ := tool["function"].(map[string]any)
+		if fn == nil {
+			fn = tool
+		}
+		params, _ := fn["parameters"].(map[string]any)
+		if params == nil {
+			params = map[string]any{"type": "object", "properties": map[string]any{}}
+		}
+		out = append(out, map[string]any{
+			"type":        "function",
+			"name":        fn["name"],
+			"description": fn["description"],
+			"parameters":   normalizeParameters(params),
+		})
+	}
+	return out
+}
+
+func normalizeParameters(parameters map[string]any) map[string]any {
+	props, _ := parameters["properties"].(map[string]any)
+	if props == nil {
+		props = map[string]any{}
+	}
+	required, _ := parameters["required"].([]any)
+	reqSet := map[string]struct{}{}
+	for _, r := range required {
+		if s, ok := r.(string); ok {
+			reqSet[s] = struct{}{}
+		}
+	}
+	allKeys := make([]string, 0, len(props))
+	normalized := make(map[string]any, len(props))
+	for key, schema := range props {
+		allKeys = append(allKeys, key)
+		sm, ok := schema.(map[string]any)
+		if !ok {
+			normalized[key] = schema
+			continue
+		}
+		if _, req := reqSet[key]; !req {
+			if t, ok := sm["type"].(string); ok {
+				sm["type"] = tolerantOptionalTypes([]string{t})
+			}
+		}
+		normalized[key] = sm
+	}
+	out := map[string]any{
+		"type":                 "object",
+		"properties":           normalized,
+		"required":             allKeys,
+		"additionalProperties": false,
+	}
+	return out
+}
+
+func tolerantOptionalTypes(types []string) []any {
+	seen := map[string]struct{}{}
+	var out []any
+	add := func(t string) {
+		if _, ok := seen[t]; ok {
+			return
+		}
+		seen[t] = struct{}{}
+		out = append(out, t)
+	}
+	for _, t := range types {
+		add(t)
+		if t == "integer" || t == "number" || t == "boolean" {
+			add("string")
+		}
+	}
+	add("null")
+	return out
+}

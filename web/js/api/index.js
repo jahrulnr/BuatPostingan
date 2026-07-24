@@ -1,12 +1,15 @@
 import * as mock from './mock/driver.js';
 import * as real from './real/driver.js';
 
+const DEFAULT_API_BASE = '/api/webchat';
+const DEFAULT_BE_ORIGIN = 'http://localhost:8080';
+
 /**
  * Resolve mockMode:
  * 1. ?mock=0|1|true|false
  * 2. window.__BP_MOCK__
  * 3. localStorage bp.mockMode
- * 4. default true
+ * 4. default false (real BE) — use ?mock=1 for mock driver
  */
 export function resolveMockMode() {
     try {
@@ -27,10 +30,58 @@ export function resolveMockMode() {
         if (stored === '1' || stored === 'true') return true;
     } catch (e) { /* ignore */ }
 
-    return true;
+    return false;
+}
+
+function stripTrailingSlash(url) {
+    return String(url || '').replace(/\/+$/, '') || DEFAULT_API_BASE;
+}
+
+/**
+ * Resolve API base for the real driver:
+ * 1. ?api=http://host:8080/api/webchat (or bare origin)
+ * 2. absolute window.__BP_API_BASE__
+ * 3. real mode on non-BE static host (make fe :5173) → http://localhost:8080/api/webchat
+ *    (Python http.server returns 501 on POST to relative /api)
+ * 4. relative /api/webchat (same-origin when FE is served by Go on :8080)
+ */
+export function resolveApiBase(mockMode) {
+    try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('api')) {
+            const raw = String(params.get('api') || '').trim();
+            if (raw) {
+                if (/^https?:\/\//i.test(raw)) {
+                    return stripTrailingSlash(raw.endsWith('/api/webchat') ? raw : raw.replace(/\/+$/, '') + '/api/webchat');
+                }
+                return stripTrailingSlash(raw);
+            }
+        }
+    } catch (e) { /* ignore */ }
+
+    const configured = typeof window.__BP_API_BASE__ === 'string' ? window.__BP_API_BASE__.trim() : '';
+    if (/^https?:\/\//i.test(configured)) {
+        return stripTrailingSlash(configured);
+    }
+
+    if (!mockMode) {
+        try {
+            const port = String(window.location.port || '');
+            // Go default BP_HTTP_ADDR=:8080; make fe uses FE_PORT=5173 (python -m http.server).
+            if (port && port !== '8080') {
+                const host = window.location.hostname || 'localhost';
+                return stripTrailingSlash(`${window.location.protocol}//${host}:8080${DEFAULT_API_BASE}`);
+            }
+        } catch (e) {
+            return stripTrailingSlash(DEFAULT_BE_ORIGIN + DEFAULT_API_BASE);
+        }
+    }
+
+    return stripTrailingSlash(configured || DEFAULT_API_BASE);
 }
 
 const mockMode = resolveMockMode();
+const baseUrl = resolveApiBase(mockMode);
 
 export const listConversations = mockMode
     ? mock.listConversationsMock
@@ -66,7 +117,7 @@ export const subscribeEvents = mockMode
 
 /** @type {import('./types.js').ApiContext} */
 export const api = {
-    baseUrl: window.__BP_API_BASE__ || '/api/webchat',
+    baseUrl: baseUrl,
     mockMode: mockMode,
     adminUserId: Number(window.__BP_ADMIN_USER_ID__ || 1),
     adminDisplayName: String(window.__BP_ADMIN_DISPLAY_NAME__ || 'Admin User'),

@@ -20,17 +20,19 @@ type TranscriptItem struct {
 	At      time.Time
 }
 
-// ConversationMeta is session-index row (sidebar).
+// ConversationMeta is session-index row (sidebar + floor/active-turn state).
 type ConversationMeta struct {
-	ThreadID              valueobject.ThreadID
-	Title                 *valueobject.Title
-	TitleSource           enum.TitleSource
-	Status                enum.ConversationStatus
-	CreatedByAdminUserID  int64
-	UpdatedAt             time.Time
-	LastActivityAt        time.Time
-	FloorHolderAdminID    *int64
-	FloorLastTurnAt       *time.Time
+	ThreadID                   valueobject.ThreadID
+	Title                      *valueobject.Title
+	TitleSource                enum.TitleSource
+	Status                     enum.ConversationStatus
+	CreatedByAdminUserID       int64
+	UpdatedAt                  time.Time
+	LastActivityAt             time.Time
+	FloorHolderAdminID         *int64
+	FloorLastTurnAt            *time.Time
+	ActiveTurnID               *valueobject.TurnID
+	ActiveTurnInitiatorAdminID *int64
 }
 
 // ThreadSnapshot is hydrate payload for GET /threads/{id}.

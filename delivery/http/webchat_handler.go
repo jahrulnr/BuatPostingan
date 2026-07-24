@@ -3,19 +3,20 @@ package httpdelivery
 import (
 	"net/http"
 	"strconv"
+	"time"
 
-	"buatpostingan/internal/application/usecase/webchat"
 	"buatpostingan/delivery/presenter"
+	"buatpostingan/internal/usecase/webchat"
 	"buatpostingan/internal/domain/valueobject"
 	"buatpostingan/internal/pkg/apperr"
 )
 
-// WebchatHandler is the thin HTTP adapter for /api/webchat.
+// WebchatHandler is the thin HTTP adapter for /api/webchat (FE real driver).
 type WebchatHandler struct {
-	UC *webchat.Usecase
+	UC webchat.Usecase
 }
 
-func NewWebchatHandler(uc *webchat.Usecase) *WebchatHandler {
+func NewWebchatHandler(uc webchat.Usecase) *WebchatHandler {
 	return &WebchatHandler{UC: uc}
 }
 
@@ -36,27 +37,20 @@ func (h *WebchatHandler) ListConversations(w http.ResponseWriter, r *http.Reques
 		presenter.WriteAppError(w, err)
 		return
 	}
-	presenter.WriteJSON(w, http.StatusOK, map[string]any{
-		"conversations": out.Conversations,
-		"docs_index":    out.DocsIndex,
-	})
+	presenter.WriteJSON(w, http.StatusOK, presenter.ListConversations(out))
 }
 
 func (h *WebchatHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
-	snap, err := h.UC.CreateThread(r.Context(), adminUserID(r))
+	out, err := h.UC.CreateThread(r.Context(), adminUserID(r))
 	if err != nil {
 		presenter.WriteAppError(w, err)
 		return
 	}
-	presenter.WriteJSON(w, http.StatusCreated, map[string]any{
-		"thread_id":                 snap.ThreadID.String(),
-		"seq_head":                  snap.SeqHead,
-		"created_by_admin_user_id":  adminUserID(r),
-	})
+	presenter.WriteJSON(w, http.StatusCreated, presenter.CreateThread(out))
 }
 
 func (h *WebchatHandler) GetThread(w http.ResponseWriter, r *http.Request) {
-	tid, err := valueobject.NewThreadID(r.PathValue("threadID"))
+	tid, err := parseThreadID(r.PathValue("threadID"))
 	if err != nil {
 		presenter.WriteAppError(w, err)
 		return
@@ -67,11 +61,11 @@ func (h *WebchatHandler) GetThread(w http.ResponseWriter, r *http.Request) {
 		presenter.WriteAppError(w, err)
 		return
 	}
-	presenter.WriteJSON(w, http.StatusOK, snap)
+	presenter.WriteJSON(w, http.StatusOK, presenter.ThreadSnapshot(snap))
 }
 
 func (h *WebchatHandler) RenameThread(w http.ResponseWriter, r *http.Request) {
-	tid, err := valueobject.NewThreadID(r.PathValue("threadID"))
+	tid, err := parseThreadID(r.PathValue("threadID"))
 	if err != nil {
 		presenter.WriteAppError(w, err)
 		return
@@ -85,21 +79,19 @@ func (h *WebchatHandler) RenameThread(w http.ResponseWriter, r *http.Request) {
 	}
 	title, err := valueobject.NewTitle(body.Title)
 	if err != nil {
+		presenter.WriteValidationError(w, "title required (max 60)")
+		return
+	}
+	out, err := h.UC.RenameThread(r.Context(), tid, title)
+	if err != nil {
 		presenter.WriteAppError(w, err)
 		return
 	}
-	if err := h.UC.RenameThread(r.Context(), tid, title); err != nil {
-		presenter.WriteAppError(w, err)
-		return
-	}
-	presenter.WriteJSON(w, http.StatusOK, map[string]any{
-		"thread_id": tid.String(),
-		"title":     title.String(),
-	})
+	presenter.WriteJSON(w, http.StatusOK, presenter.RenameThread(out))
 }
 
 func (h *WebchatHandler) StartTurn(w http.ResponseWriter, r *http.Request) {
-	tid, err := valueobject.NewThreadID(r.PathValue("threadID"))
+	tid, err := parseThreadID(r.PathValue("threadID"))
 	if err != nil {
 		presenter.WriteAppError(w, err)
 		return
@@ -109,6 +101,10 @@ func (h *WebchatHandler) StartTurn(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		presenter.WriteAppError(w, err)
+		return
+	}
+	if body.Message == "" {
+		presenter.WriteValidationError(w, "message empty")
 		return
 	}
 	out, err := h.UC.StartTurn(r.Context(), webchat.StartTurnInput{
@@ -121,18 +117,11 @@ func (h *WebchatHandler) StartTurn(w http.ResponseWriter, r *http.Request) {
 		presenter.WriteAppError(w, err)
 		return
 	}
-	presenter.WriteJSON(w, http.StatusAccepted, map[string]any{
-		"thread_id":              out.ThreadID.String(),
-		"turn_id":                out.TurnID.String(),
-		"seq_head":               out.SeqHead,
-		"status":                 out.Status,
-		"floor_holder_admin_id":  out.FloorHolderAdminID,
-		"floor_remaining_sec":    out.FloorRemainingSec,
-	})
+	presenter.WriteJSON(w, http.StatusAccepted, presenter.StartTurn(out))
 }
 
 func (h *WebchatHandler) RetryTurn(w http.ResponseWriter, r *http.Request) {
-	tid, err := valueobject.NewThreadID(r.PathValue("threadID"))
+	tid, err := parseThreadID(r.PathValue("threadID"))
 	if err != nil {
 		presenter.WriteAppError(w, err)
 		return
@@ -144,7 +133,7 @@ func (h *WebchatHandler) RetryTurn(w http.ResponseWriter, r *http.Request) {
 		presenter.WriteAppError(w, err)
 		return
 	}
-	turnID, err := valueobject.NewTurnID(body.TurnID)
+	turnID, err := parseTurnID(body.TurnID)
 	if err != nil {
 		presenter.WriteAppError(w, err)
 		return
@@ -154,16 +143,11 @@ func (h *WebchatHandler) RetryTurn(w http.ResponseWriter, r *http.Request) {
 		presenter.WriteAppError(w, err)
 		return
 	}
-	presenter.WriteJSON(w, http.StatusAccepted, map[string]any{
-		"thread_id": out.ThreadID.String(),
-		"turn_id":   out.TurnID.String(),
-		"seq_head":  out.SeqHead,
-		"status":    out.Status,
-	})
+	presenter.WriteJSON(w, http.StatusAccepted, presenter.StartTurn(out))
 }
 
 func (h *WebchatHandler) InterruptTurn(w http.ResponseWriter, r *http.Request) {
-	tid, err := valueobject.NewThreadID(r.PathValue("threadID"))
+	tid, err := parseThreadID(r.PathValue("threadID"))
 	if err != nil {
 		presenter.WriteAppError(w, err)
 		return
@@ -175,7 +159,7 @@ func (h *WebchatHandler) InterruptTurn(w http.ResponseWriter, r *http.Request) {
 		presenter.WriteAppError(w, err)
 		return
 	}
-	turnID, err := valueobject.NewTurnID(body.TurnID)
+	turnID, err := parseTurnID(body.TurnID)
 	if err != nil {
 		presenter.WriteAppError(w, err)
 		return
@@ -191,6 +175,87 @@ func (h *WebchatHandler) InterruptTurn(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WebchatHandler) Events(w http.ResponseWriter, r *http.Request) {
-	_ = r.PathValue("threadID")
-	presenter.WriteAppError(w, apperr.NotImplemented("SSE EventStreamer"))
+	tid, err := parseThreadID(r.PathValue("threadID"))
+	if err != nil {
+		presenter.WriteAppError(w, err)
+		return
+	}
+	afterSeq := parseAfterSeq(r)
+
+	flusher, ok := presenter.WriteSSEHeaders(w)
+	if !ok {
+		presenter.WriteAppError(w, apperr.New(http.StatusInternalServerError, apperr.CodeInternal, "streaming unsupported"))
+		return
+	}
+
+	ctx := r.Context()
+	pingEvery := 15 * time.Second
+	ping := time.NewTicker(pingEvery)
+	defer ping.Stop()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- h.UC.SubscribeEvents(ctx, tid, afterSeq, func(eventName string, payload map[string]any) error {
+			var seq uint64
+			if v, ok := payload["seq"]; ok {
+				switch n := v.(type) {
+				case uint64:
+					seq = n
+				case float64:
+					seq = uint64(n)
+				case int:
+					seq = uint64(n)
+				case int64:
+					seq = uint64(n)
+				}
+			}
+			return presenter.WriteSSEEvent(w, flusher, eventName, seq, payload)
+		})
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case err := <-errCh:
+			if err != nil && ctx.Err() == nil {
+				// Stream already opened — cannot switch to JSON error.
+				_ = presenter.WriteSSEEvent(w, flusher, "turn.failed", 0, map[string]any{
+					"type":  "turn.failed",
+					"error": map[string]any{"code": "internal", "message": err.Error()},
+				})
+			}
+			return
+		case <-ping.C:
+			if err := presenter.WriteSSEComment(w, flusher, "ping"); err != nil {
+				return
+			}
+		}
+	}
+}
+
+func parseAfterSeq(r *http.Request) uint64 {
+	after, _ := strconv.ParseUint(r.URL.Query().Get("after_seq"), 10, 64)
+	if last := r.Header.Get("Last-Event-ID"); last != "" {
+		if n, err := strconv.ParseUint(last, 10, 64); err == nil && n > after {
+			after = n
+		}
+	}
+	return after
+}
+
+func parseThreadID(raw string) (valueobject.ThreadID, error) {
+	id, err := valueobject.NewThreadID(raw)
+	if err != nil {
+		return "", apperr.New(http.StatusUnprocessableEntity, apperr.CodeValidation, "thread_id required")
+	}
+	return id, nil
+}
+
+func parseTurnID(raw string) (valueobject.TurnID, error) {
+	id, err := valueobject.NewTurnID(raw)
+	if err != nil {
+		return "", apperr.New(http.StatusUnprocessableEntity, apperr.CodeValidation, "turn_id required")
+	}
+	return id, nil
 }

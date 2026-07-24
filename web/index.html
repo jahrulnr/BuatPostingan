@@ -9,27 +9,17 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./vendor/bootstrap-icons/font/bootstrap-icons.css">
     <link rel="stylesheet" href="./css/shell.css">
-    <link rel="stylesheet" href="./css/webchat.css">
+    <link rel="stylesheet" href="./css/webchat.css?v=20260724-bubbles1">
     <link rel="stylesheet" href="./css/webchat-conversations.css">
 </head>
 <body class="page-webchat">
     <header class="bp-topbar">
         <a class="bp-brand" href="./index.html">
             <span class="bp-brand__name">BuatPostingan</span>
-            <span class="bp-brand__tag">AI Webchat</span>
         </a>
-        <span class="bp-mode" id="bpModeBadge" data-mode="mock">mode: mock</span>
     </header>
 
     <main class="bp-page">
-        <div class="bp-page__intro">
-            <h1>AI Webchat</h1>
-            <p>
-                Shared M-rw · speak-floor · lazy create.
-                Toggle driver: <code>?mock=1</code> (default) atau <code>?mock=0</code> untuk real API.
-            </p>
-        </div>
-
         <div class="wc-shell">
             <aside class="wc-rail" aria-label="Shared conversation list">
                 <div class="wc-rail__top">
@@ -43,10 +33,6 @@
                     <button type="button" class="wc-rail__new" id="btnNewChat">
                         <i class="bi bi-plus-lg"></i> New chat
                     </button>
-                </div>
-                <div class="wc-rail__hk">
-                    <i class="bi bi-people"></i>
-                    Shared · mock/real dual driver
                 </div>
                 <ul class="wc-rail__list" id="conversationList"></ul>
             </aside>
@@ -68,7 +54,6 @@
                             <div class="chat-welcome">
                                 <div class="chat-welcome-icon"><i class="bi bi-stars"></i></div>
                                 <h5>Selamat datang di BuatPostingan</h5>
-                                <p class="text-muted small mb-0">Shared room · lazy create on send · Stop hanya initiator.</p>
                             </div>
                         </div>
                         <div class="webchat-status" id="chatStatus" data-state="ready">Ready</div>
@@ -123,12 +108,15 @@
     </div>
 
     <script>
+        window.__WC_PRODUCT_NAME__ = 'BuatPostingan';
         window.__BP_ADMIN_USER_ID__ = 1;
         window.__BP_ADMIN_DISPLAY_NAME__ = 'Admin User';
+        // Same-origin default when FE is served by Go (:8080). Real mode from
+        // make fe (:5173) is rewritten in js/api/index.js → :8080 (or ?api=).
         window.__BP_API_BASE__ = '/api/webchat';
     </script>
     <script src="./vendor/marked/marked.umd.js"></script>
     <script src="./vendor/dompurify/purify.min.js"></script>
-    <script type="module" src="./js/app.js"></script>
+    <script type="module" src="./js/app.js?v=20260724-bubbles1"></script>
 </body>
 </html>

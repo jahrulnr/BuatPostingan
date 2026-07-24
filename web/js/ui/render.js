@@ -45,7 +45,26 @@ export function summarizeToolResult(envelope) {
         const trunc = envelope.meta && envelope.meta.truncated ? ' · truncated' : '';
         return n + ' hit' + (n === 1 ? '' : 's') + trunc;
     }
+    if (Array.isArray(data.entries)) {
+        const total = typeof data.total === 'number' ? data.total : data.entries.length;
+        if (total === 0) {
+            return 'empty (ls . ..)';
+        }
+        const names = data.entries.slice(0, 3).map(function (e) {
+            const n = e && e.name != null ? String(e.name) : '';
+            return e && e.type === 'directory' ? n + '/' : n;
+        }).filter(Boolean);
+        const more = total > names.length ? ' +' + (total - names.length) : '';
+        return total + ' entr' + (total === 1 ? 'y' : 'ies') + (names.length ? ': ' + names.join(', ') + more : '');
+    }
+    if (typeof data.listing === 'string' && data.listing.trim()) {
+        const lines = data.listing.trim().split('\n');
+        return lines[0] + (lines.length > 1 ? ' · ' + (lines.length - 1) + ' lines' : '');
+    }
     if (typeof data.count === 'number') return data.count + ' hits';
+    if (envelope.meta && typeof envelope.meta.count === 'number') {
+        return envelope.meta.count + ' items';
+    }
     return 'ok';
 }
 
@@ -53,6 +72,10 @@ export function formatToolCall(name, args) {
     const a = args && typeof args === 'object' ? args : {};
     if (a.query != null && String(a.query) !== '') {
         return String(name || 'tool') + '(' + JSON.stringify(String(a.query)) + ')';
+    }
+    if (name === 'list_dir' || name === 'read_file' || name === 'grep') {
+        const path = a.path != null ? String(a.path) : '';
+        return String(name || 'tool') + '(' + JSON.stringify(path) + ')';
     }
     return String(name || 'tool') + '()';
 }
@@ -107,37 +130,50 @@ export function disclosureHtml(kind, block) {
     );
 }
 
-export function welcomeHtml() {
+export function welcomeHtml(productName) {
+    const name = productName
+        || (typeof window !== 'undefined' && window.__WC_PRODUCT_NAME__)
+        || 'AI Assistant';
     return (
         '<div class="chat-welcome">' +
         '<div class="chat-welcome-icon"><i class="bi bi-stars"></i></div>' +
-        '<h5>Selamat datang di BuatPostingan</h5>' +
-        '<p class="text-muted small mb-0">Shared room · lazy create on send · Stop hanya initiator.</p></div>'
+        '<h5>Selamat datang di ' + escapeHtml(String(name)) + '</h5></div>'
     );
 }
 
-export function paintTurnBubble(messagesEl, state) {
-    const inner =
-        disclosureHtml('think', {
-            open: false,
+/** Paint one action bubble (think | tools | message) — never merge kinds. */
+export function paintActionBubble(messagesEl, state) {
+    const bubble = state.art && state.art.querySelector('.msg__bubble');
+    if (!bubble) return;
+
+    let inner = '';
+    if (state.kind === 'think') {
+        const thinkSteps = state.thinkingSteps || [];
+        const thinkPreview = thinkSteps.length
+            ? (thinkSteps[0].length > 72 ? thinkSteps[0].slice(0, 69) + '…' : thinkSteps[0])
+            : 'Reasoning hidden';
+        inner = disclosureHtml('think', {
+            open: thinkSteps.length > 0,
             model: state.thinkingModel,
-            summary: state.thinkingSteps.length
-                ? (state.thinkingSteps.length + ' step' + (state.thinkingSteps.length === 1 ? '' : 's'))
+            summary: thinkSteps.length
+                ? (thinkSteps.length + ' step' + (thinkSteps.length === 1 ? '' : 's') + ' · ' + thinkPreview)
                 : 'Reasoning hidden',
-            steps: state.thinkingSteps,
-        }) +
-        disclosureHtml('tools', {
+            steps: thinkSteps,
+        });
+    } else if (state.kind === 'tools') {
+        const tools = state.tools || [];
+        inner = disclosureHtml('tools', {
             open: true,
-            summary: state.tools.length + ' tool call' + (state.tools.length === 1 ? '' : 's'),
-            items: state.tools,
-        }) +
-        (state.text
+            summary: tools.length + ' tool call' + (tools.length === 1 ? '' : 's'),
+            items: tools,
+        });
+    } else if (state.kind === 'message') {
+        inner = state.text
             ? modelBadge(state.responseModel) + '<div class="msg__text">' + formatMarkdown(state.text) + '</div>'
-            : '');
-    const bubble = state.art.querySelector('.msg__bubble');
-    if (bubble) {
-        bubble.innerHTML = inner || '<div class="typing" aria-label="Thinking"><span></span><span></span><span></span></div>';
+            : '';
     }
+
+    bubble.innerHTML = inner || '<div class="typing" aria-label="Thinking"><span></span><span></span><span></span></div>';
     messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 

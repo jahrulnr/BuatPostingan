@@ -14,39 +14,56 @@ import {
     formatToolCall,
     summarizeToolResult,
     welcomeHtml,
-    paintTurnBubble,
+    paintActionBubble,
     appendUserMessage,
     appendError,
 } from './render.js';
 
-export function bootChat() {
-    const messagesEl = document.getElementById('chatMessages');
-    const inputEl = document.getElementById('chatInput');
-    const sendBtn = document.getElementById('chatSend');
-    const stopBtn = document.getElementById('chatStop');
-    const statusEl = document.getElementById('chatStatus');
-    const floorEl = document.getElementById('chatFloor');
-    const indexBannerEl = document.getElementById('chatIndexBanner');
-    const newBtn = document.getElementById('btnNewChat') || document.getElementById('chatNew');
-    const toastEl = document.getElementById('chatToast');
-    const listEl = document.getElementById('conversationList');
-    const conversationCountEl = document.getElementById('conversationCount');
-    const roomTitleEl = document.getElementById('roomTitle');
-    const roomMetaEl = document.getElementById('roomMeta');
-    const renameBtn = document.getElementById('btnRename');
-    const renameDialog = document.getElementById('renameDialog');
+/**
+ * Mount webchat UI. Pass { root } to scope lookups inside a widget host
+ * (floating panel, embed). Omit root → document (full-page shell).
+ * Required ids: chatMessages, chatInput, chatSend, chatStatus.
+ * Optional rail/rename ids work when present.
+ */
+export function bootChat(options) {
+    const opts = options || {};
+    const root = opts.root || document;
+    const byId = function (id) {
+        if (!id) return null;
+        if (root.nodeType === 9) return root.getElementById(id);
+        return root.querySelector('#' + id);
+    };
+
+    const messagesEl = byId('chatMessages');
+    const inputEl = byId('chatInput');
+    const sendBtn = byId('chatSend');
+    const stopBtn = byId('chatStop');
+    const statusEl = byId('chatStatus');
+    const floorEl = byId('chatFloor');
+    const indexBannerEl = byId('chatIndexBanner');
+    const newBtn = byId('btnNewChat') || byId('chatNew');
+    const toastEl = byId('chatToast');
+    const listEl = byId('conversationList');
+    const conversationCountEl = byId('conversationCount');
+    const roomTitleEl = byId('roomTitle');
+    const roomMetaEl = byId('roomMeta');
+    const renameBtn = byId('btnRename');
+    const renameDialog = byId('renameDialog');
     const renamePanel = renameDialog ? renameDialog.querySelector('.wc-dialog__panel') : null;
-    const renameForm = document.getElementById('renameForm');
-    const renameInput = document.getElementById('renameInput');
-    const renameCount = document.getElementById('renameCount');
-    const renameError = document.getElementById('renameDialogError');
-    const renameSubmit = document.getElementById('renameSubmit');
+    const renameForm = byId('renameForm');
+    const renameInput = byId('renameInput');
+    const renameCount = byId('renameCount');
+    const renameError = byId('renameDialogError');
+    const renameSubmit = byId('renameSubmit');
     let renameReturnFocus = null;
 
     if (!messagesEl || !inputEl || !sendBtn || !statusEl) {
         return null;
     }
 
+    const productName = opts.productName
+        || (typeof window !== 'undefined' && window.__WC_PRODUCT_NAME__)
+        || 'AI Assistant';
     const adminUserId = Number(api.adminUserId || 1);
     const adminDisplayName = String(api.adminDisplayName || 'Admin User');
     const storageKey = 'bp.webchat.thread_id.' + adminUserId;
@@ -196,7 +213,7 @@ export function bootChat() {
         seenItemIds = {};
         pendingOptimisticEl = null;
         turnUi = {};
-        messagesEl.innerHTML = welcome ? welcomeHtml() : '';
+        messagesEl.innerHTML = welcome ? welcomeHtml(productName) : '';
     }
 
     function clearTurnErrors(id) {
@@ -205,78 +222,129 @@ export function bootChat() {
         });
     }
 
-    function ensureTurnUi(id) {
+    /**
+     * Per-turn action stream: one bubble per discrete phase.
+     * Same kind while consecutive updates the current bubble;
+     * kind change (think ↔ tools ↔ message) starts a new bubble.
+     * agent_message always gets its own bubble.
+     */
+    function getTurnStream(id) {
         const key = id || '_anon';
-        if (turnUi[key]) return turnUi[key];
+        if (!turnUi[key]) {
+            turnUi[key] = { kind: null, current: null, toolRows: {} };
+        }
+        return turnUi[key];
+    }
+
+    function startActionBubble(turnId, kind) {
+        const key = turnId || '_anon';
+        const stream = getTurnStream(key);
         const welcome = messagesEl.querySelector('.chat-welcome');
         if (welcome) welcome.remove();
         const art = document.createElement('article');
-        art.className = 'msg msg--assistant';
+        art.className = 'msg msg--assistant msg--' + kind;
         art.dataset.turnId = key;
+        art.dataset.kind = kind;
         art.innerHTML = '<div class="msg__bubble"></div>';
         messagesEl.appendChild(art);
-        turnUi[key] = { art: art, thinkingSteps: [], thinkingModel: null, tools: [], responseModel: null, text: '' };
-        paintTurnBubble(messagesEl, turnUi[key]);
-        return turnUi[key];
+        const state = {
+            art: art,
+            kind: kind,
+            thinkingSteps: [],
+            thinkingModel: null,
+            tools: [],
+            responseModel: null,
+            text: '',
+        };
+        stream.kind = kind;
+        stream.current = state;
+        paintActionBubble(messagesEl, state);
+        return state;
+    }
+
+    function ensureActionBubble(turnId, kind) {
+        const stream = getTurnStream(turnId);
+        // Messages never merge — each agent_message is its own bubble.
+        if (kind === 'message') {
+            return startActionBubble(turnId, kind);
+        }
+        if (stream.current && stream.kind === kind) {
+            return stream.current;
+        }
+        return startActionBubble(turnId, kind);
     }
 
     function applyReasoning(item) {
         const text = String(item.text || '').trim();
         if (!text) return;
-        const state = ensureTurnUi(item.turn_id);
+        // One JSONL reasoning item → one think bubble (phase change from tools/message).
+        // Consecutive reasoning items without an intervening tool/message still share a bubble.
+        const state = ensureActionBubble(item.turn_id, 'think');
         const chunks = text.split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
         state.thinkingSteps = state.thinkingSteps.concat(chunks.length ? chunks : [text]);
         state.thinkingModel = item.model || state.thinkingModel;
-        paintTurnBubble(messagesEl, state);
+        if (item.id) state.art.dataset.id = item.id;
+        paintActionBubble(messagesEl, state);
     }
 
     function applyToolCall(item) {
-        const state = ensureTurnUi(item.turn_id);
+        const state = ensureActionBubble(item.turn_id, 'tools');
+        const stream = getTurnStream(item.turn_id);
         const callId = item.call_id || item.id || ('call_' + state.tools.length);
         const displayModel = item.model || (item.origin === 'host_preflight'
-            ? { provider: 'BuatPostingan', id: 'docs preflight' }
+            ? { provider: productName, id: 'docs preflight' }
             : null);
-        const existing = state.tools.find(function (t) { return t.callId === callId; });
-        if (existing) {
-            existing.call = formatToolCall(item.name, item.arguments || {});
-            existing.model = displayModel || existing.model || null;
+        let row = stream.toolRows[callId];
+        if (row) {
+            row.call = formatToolCall(item.name, item.arguments || {});
+            row.model = displayModel || row.model || null;
+            row._state = state;
         } else {
-            state.tools.push({
+            row = {
                 callId: callId,
                 call: formatToolCall(item.name, item.arguments || {}),
                 result: '…',
                 ok: true,
                 model: displayModel,
-            });
+                _state: state,
+            };
+            state.tools.push(row);
+            stream.toolRows[callId] = row;
         }
-        paintTurnBubble(messagesEl, state);
+        if (item.id) state.art.dataset.id = item.id;
+        paintActionBubble(messagesEl, state);
     }
 
     function applyToolResult(item) {
-        const state = ensureTurnUi(item.turn_id);
+        const stream = getTurnStream(item.turn_id);
         const callId = item.call_id || '';
         const envelope = item.envelope || {};
-        let row = state.tools.find(function (t) { return t.callId === callId; });
+        let row = callId ? stream.toolRows[callId] : null;
         if (!row) {
+            const state = ensureActionBubble(item.turn_id, 'tools');
             row = {
                 callId: callId || ('res_' + state.tools.length),
                 call: 'tool',
                 result: '—',
                 ok: true,
+                _state: state,
             };
             state.tools.push(row);
+            if (row.callId) stream.toolRows[row.callId] = row;
         }
         row.ok = !!envelope.ok;
         row.result = summarizeToolResult(envelope);
-        paintTurnBubble(messagesEl, state);
+        const paintTarget = row._state
+            || (stream.current && stream.kind === 'tools' ? stream.current : null);
+        if (paintTarget) paintActionBubble(messagesEl, paintTarget);
     }
 
     function applyAgentMessage(item) {
-        const state = ensureTurnUi(item.turn_id);
+        const state = ensureActionBubble(item.turn_id, 'message');
         state.text = item.text || '';
         state.responseModel = item.model || null;
         if (item.id) state.art.dataset.id = item.id;
-        paintTurnBubble(messagesEl, state);
+        paintActionBubble(messagesEl, state);
     }
 
     function renderItem(item) {
@@ -560,7 +628,7 @@ export function bootChat() {
         threadId = null;
         clearMessages(true);
         updateRoomHead({ title: null, title_source: 'pending' });
-        setStatus('Ready · kirim untuk lazy create');
+        setStatus('Ready');
         updateComposer();
         renderConversationList();
     }
