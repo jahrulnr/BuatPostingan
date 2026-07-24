@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "users": [
+    {
+      "id": "usr_owner",
+      "name": "Owner",
+      "role": "owner"
+    }
+  ],
+  "llm": {
+    "strategy": "failover",
+    "active_provider": "",
+    "stub": null,
+    "providers": []
+  }
+}

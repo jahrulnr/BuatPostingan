@@ -8,18 +8,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"buatpostingan/internal/config"
 	"buatpostingan/internal/domain/service"
 	"buatpostingan/internal/pkg/idgen"
+	"buatpostingan/internal/pkg/logging"
 )
 
 // Client talks to OpenAI-compatible chat/completions (and responses).
 type Client struct {
+	mu     sync.RWMutex
 	cfg    Config
 	http   *http.Client
 	retry  map[int]struct{}
@@ -40,12 +42,31 @@ func NewClient(cfg Config) *Client {
 	}
 }
 
+// Reload swaps provider config after settings save (hot path).
+func (c *Client) Reload(cfg Config) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	retry := make(map[int]struct{}, len(cfg.RetryStatuses)+1)
+	for _, s := range cfg.RetryStatuses {
+		retry[s] = struct{}{}
+	}
+	retry[413] = struct{}{}
+	c.cfg = cfg
+	c.retry = retry
+	c.effort = NewEffortPolicy(cfg)
+}
+
 func (c *Client) Chat(ctx context.Context, messages []map[string]any, tools []map[string]any) (service.LLMResult, error) {
-	return c.ChatWithProvider(ctx, c.cfg.ActiveProvider, messages, tools)
+	c.mu.RLock()
+	active := c.cfg.ActiveProvider
+	c.mu.RUnlock()
+	return c.ChatWithProvider(ctx, active, messages, tools)
 }
 
 func (c *Client) ChatWithProvider(ctx context.Context, providerID string, messages []map[string]any, tools []map[string]any) (service.LLMResult, error) {
+	c.mu.RLock()
 	p, ok := c.cfg.Providers[providerID]
+	c.mu.RUnlock()
 	if !ok {
 		return service.LLMResult{}, &Error{Provider: providerID, Msg: "provider missing", Transient: false}
 	}
@@ -59,6 +80,8 @@ func (c *Client) ChatWithProvider(ctx context.Context, providerID string, messag
 }
 
 func (c *Client) wantStream() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	if c.cfg.Stream == nil {
 		return true
 	}
@@ -99,14 +122,17 @@ func (c *Client) chatViaResponses(ctx context.Context, p config.LLMProvider, mes
 }
 
 func (c *Client) applyEffort(ctx context.Context, p config.LLMProvider, body map[string]any) {
-	if c == nil || c.effort == nil || body == nil {
+	c.mu.RLock()
+	effort := c.effort
+	c.mu.RUnlock()
+	if c == nil || effort == nil || body == nil {
 		return
 	}
 	if mode, ok := EffortModeFromContext(ctx); ok {
-		ApplyEffort(body, p.API, c.effort.ResolveWithMode(ctx, p, mode))
+		ApplyEffort(body, p.API, effort.ResolveWithMode(ctx, p, mode))
 		return
 	}
-	ApplyEffort(body, p.API, c.effort.ResolveFor(ctx, p))
+	ApplyEffort(body, p.API, effort.ResolveFor(ctx, p))
 }
 
 func parseResponsesPayload(p config.LLMProvider, payload map[string]any) service.LLMResult {
@@ -228,8 +254,8 @@ func (c *Client) postJSONStream(ctx context.Context, p config.LLMProvider, path 
 			Msg:       fmt.Sprintf("status=%d content-type=%s body=%s", resp.StatusCode, ctype, snippet),
 		}
 		if stream && allowFallback && isStreamUnsupported(httpErr) {
-			log.Printf("webchat.llm stream_fallback provider=%s path=%s status=%d body=%s",
-				p.ID, path, resp.StatusCode, snippet)
+			logging.Warn(ctx, "webchat.llm.stream_fallback",
+				"provider", p.ID, "path", path, "status", resp.StatusCode, "body", snippet)
 			return c.postJSONStream(ctx, p, path, body, false, false)
 		}
 		return nil, httpErr
@@ -257,8 +283,8 @@ func (c *Client) postJSONStream(ctx context.Context, p config.LLMProvider, path 
 			Msg:      fmt.Sprintf("BAD_BODY status=%d content-type=%s empty body", resp.StatusCode, ctype),
 		}
 		if stream && allowFallback && isStreamUnsupported(emptyErr) {
-			log.Printf("webchat.llm stream_fallback provider=%s path=%s status=%d reason=empty_non_sse",
-				p.ID, path, resp.StatusCode)
+			logging.Warn(ctx, "webchat.llm.stream_fallback",
+				"provider", p.ID, "path", path, "status", resp.StatusCode, "reason", "empty_non_sse")
 			return c.postJSONStream(ctx, p, path, body, false, false)
 		}
 		return nil, emptyErr
@@ -272,8 +298,8 @@ func (c *Client) postJSONStream(ctx context.Context, p config.LLMProvider, path 
 			Msg:      fmt.Sprintf("BAD_BODY status=%d content-type=%s body=%s", resp.StatusCode, ctype, truncateBody(respBody, 800)),
 		}
 		if stream && allowFallback && isStreamUnsupported(badErr) {
-			log.Printf("webchat.llm stream_fallback provider=%s path=%s status=%d body=%s",
-				p.ID, path, resp.StatusCode, truncateBody(respBody, 200))
+			logging.Warn(ctx, "webchat.llm.stream_fallback",
+				"provider", p.ID, "path", path, "status", resp.StatusCode, "body", truncateBody(respBody, 200))
 			return c.postJSONStream(ctx, p, path, body, false, false)
 		}
 		return nil, badErr
@@ -281,8 +307,8 @@ func (c *Client) postJSONStream(ctx context.Context, p config.LLMProvider, path 
 	// Some proxies return 200 + JSON error object when streaming is rejected.
 	if stream && allowFallback && looksLikeJSONStreamReject(payload) {
 		msg := truncateBody(respBody, 800)
-		log.Printf("webchat.llm stream_fallback provider=%s path=%s status=%d body=%s",
-			p.ID, path, resp.StatusCode, msg)
+		logging.Warn(ctx, "webchat.llm.stream_fallback",
+			"provider", p.ID, "path", path, "status", resp.StatusCode, "body", msg)
 		return c.postJSONStream(ctx, p, path, body, false, false)
 	}
 	return payload, nil

@@ -15,17 +15,19 @@ import (
 	"buatpostingan/internal/domain/enum"
 	"buatpostingan/internal/domain/service"
 	"buatpostingan/internal/domain/valueobject"
+	"buatpostingan/internal/pkg/logging"
 )
 
 type fakeStore struct {
-	mu       sync.Mutex
-	items    []entity.TranscriptItem
-	meta     map[string]entity.ConversationMeta
-	appendFn func(entity.TranscriptItem) error
-	getErr   error
-	metaErr  error
-	cleared  int
-	released int
+	mu          sync.Mutex
+	items       []entity.TranscriptItem
+	meta        map[string]entity.ConversationMeta
+	appendFn    func(entity.TranscriptItem) error
+	getErr      error
+	metaErr     error
+	cleared     int
+	released    int
+	lastTraceID string
 }
 
 func (f *fakeStore) CreateThread(context.Context, int64) (entity.ThreadSnapshot, error) {
@@ -45,9 +47,12 @@ func (f *fakeStore) GetThread(_ context.Context, tid valueobject.ThreadID, after
 	}
 	return entity.ThreadSnapshot{ThreadID: tid, Items: out}, nil
 }
-func (f *fakeStore) AppendItem(_ context.Context, tid valueobject.ThreadID, item entity.TranscriptItem) (entity.TranscriptItem, error) {
+func (f *fakeStore) AppendItem(ctx context.Context, tid valueobject.ThreadID, item entity.TranscriptItem) (entity.TranscriptItem, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if id := logging.TraceID(ctx); id != "" {
+		f.lastTraceID = id
+	}
 	if f.appendFn != nil {
 		if err := f.appendFn(item); err != nil {
 			return entity.TranscriptItem{}, err
@@ -375,12 +380,57 @@ func TestNewAndEnqueueStub(t *testing.T) {
 	}
 	store.mu.Lock()
 	meta := store.meta[job.ThreadID.String()]
+	trace := store.lastTraceID
 	store.mu.Unlock()
 	if meta.Title == nil || meta.TitleSource != enum.TitleAuto {
 		t.Fatalf("auto title %#v", meta)
 	}
 	if lock.released[0] != "lock-1" {
 		t.Fatalf("released=%v", lock.released)
+	}
+	if trace != logging.TraceSystem {
+		t.Fatalf("background enqueue without ctx trace want system got %q", trace)
+	}
+}
+
+func TestEnqueuePropagatesHTTPTraceID(t *testing.T) {
+	store := &fakeStore{}
+	lock := &fakeLock{}
+	w := New(Deps{
+		Config: config.Config{LLMStub: true, TurnJobTimeoutSec: 1},
+		Store:  store, Locks: lock, Interrupt: &fakeInterrupt{},
+	})
+	ctx := logging.WithTraceID(context.Background(), "tr_http_request")
+	if err := w.Enqueue(ctx, sampleJob()); err != nil {
+		t.Fatal(err)
+	}
+	waitDone(t, store, lock)
+	store.mu.Lock()
+	got := store.lastTraceID
+	store.mu.Unlock()
+	if got != "tr_http_request" {
+		t.Fatalf("trace=%q", got)
+	}
+}
+
+func TestEnqueueUsesJobTraceID(t *testing.T) {
+	store := &fakeStore{}
+	lock := &fakeLock{}
+	w := New(Deps{
+		Config: config.Config{LLMStub: true, TurnJobTimeoutSec: 1},
+		Store:  store, Locks: lock, Interrupt: &fakeInterrupt{},
+	})
+	job := sampleJob()
+	job.TraceID = "tr_on_job"
+	if err := w.Enqueue(context.Background(), job); err != nil {
+		t.Fatal(err)
+	}
+	waitDone(t, store, lock)
+	store.mu.Lock()
+	got := store.lastTraceID
+	store.mu.Unlock()
+	if got != "tr_on_job" {
+		t.Fatalf("trace=%q", got)
 	}
 }
 

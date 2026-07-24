@@ -73,6 +73,24 @@ func NewEffortPolicy(cfg Config) *EffortPolicy {
 	}
 }
 
+// Reload updates providers after settings change (clears capability cache).
+func (p *EffortPolicy) Reload(cfg Config) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	raw := strings.TrimSpace(cfg.Effort)
+	mode := ""
+	if raw != "" {
+		mode = config.ParseEffortMode(raw)
+	}
+	p.mode = mode
+	p.providers = cfg.Providers
+	p.active = cfg.ActiveProvider
+	p.cache = map[string]modelEffortInfo{}
+}
+
 // Mode returns the normalized effort config mode (auto when unset/nil).
 func (p *EffortPolicy) Mode() string {
 	if p == nil || p.mode == "" {

@@ -42,6 +42,19 @@ func NewVisionPolicy(cfg Config) *VisionPolicy {
 	}
 }
 
+// Reload updates providers after settings change (clears capability cache).
+func (p *VisionPolicy) Reload(cfg Config) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.mode = config.ParseVisionMode(cfg.Vision)
+	p.providers = cfg.Providers
+	p.active = cfg.ActiveProvider
+	p.cache = map[string]bool{}
+}
+
 // AllowPixels reports whether multimodal image parts should be injected.
 func (p *VisionPolicy) AllowPixels(ctx context.Context) bool {
 	if p == nil {

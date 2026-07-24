@@ -12,6 +12,8 @@ Human + agent documentation grounded in **current code**. Start here, then dive 
 | [LLM vision](architecture/llm-vision.md) | Multimodal image parts, `BP_LLM_VISION`, capability gate |
 | [LLM effort](architecture/llm-effort.md) | Reasoning effort (`BP_LLM_EFFORT`), catalog probe, request shapes |
 | [LLM model picker](architecture/llm-model-picker.md) | Composer model + effort UI, `GET /models`, StartTurn overrides |
+| [Settings + JSON config](architecture/settings-config.md) | UI settings, `storage/config.json`, env merge, `/api/settings` |
+| [Observability](architecture/observability.md) | `trace_id` middleware, worker propagation, grep failing turns |
 | [Portable AI kit](architecture/portable-ai-kit.md) | What to copy vs leave when reusing the webchat stack |
 | [Runbook](operations/runbook.md) | `make be` / `make fe`, stub vs real LLM, `?mock=1` |
 | [API service notes](api-service/README.md) | Pointer to `/api/webchat` surface |

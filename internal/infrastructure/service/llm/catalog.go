@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"buatpostingan/internal/config"
 	"buatpostingan/internal/domain/entity"
@@ -14,47 +15,69 @@ import (
 
 // Catalog builds the model-picker list from configured providers (+ optional live enrich).
 type Catalog struct {
-	providers map[string]config.LLMProvider
-	active    string
-	effortCfg string
-	stub      bool
-	effort    *EffortPolicy
-	vision    *VisionPolicy
+	mu         sync.RWMutex
+	providers  map[string]config.LLMProvider
+	modelLists map[string][]string
+	active     string
+	effortCfg  string
+	stub       bool
+	effort     *EffortPolicy
+	vision     *VisionPolicy
 }
 
 // NewCatalog wires picker listing. stub=true returns a canned list (no API keys exposed).
 func NewCatalog(app config.Config, vision *VisionPolicy, effort *EffortPolicy) *Catalog {
 	return &Catalog{
-		providers: app.LLMProviders,
-		active:    app.LLMActiveProvider,
-		effortCfg: config.ParseEffortMode(app.LLMEffort),
-		stub:      app.LLMStub,
-		effort:    effort,
-		vision:    vision,
+		providers:  app.LLMProviders,
+		modelLists: app.LLMModelLists,
+		active:     app.LLMActiveProvider,
+		effortCfg:  config.ParseEffortMode(app.LLMEffort),
+		stub:       app.LLMStub,
+		effort:     effort,
+		vision:     vision,
 	}
+}
+
+// Reload swaps runtime provider data after settings save.
+func (c *Catalog) Reload(app config.Config) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.providers = app.LLMProviders
+	c.modelLists = app.LLMModelLists
+	c.active = app.LLMActiveProvider
+	c.effortCfg = config.ParseEffortMode(app.LLMEffort)
+	c.stub = app.LLMStub
 }
 
 var _ service.ModelCatalog = (*Catalog)(nil)
 
 func (c *Catalog) ListModels(ctx context.Context) (entity.ModelsCatalog, error) {
+	c.mu.RLock()
+	providers := c.providers
+	modelLists := c.modelLists
+	active := c.active
+	effortCfg := c.effortCfg
+	stub := c.stub
+	c.mu.RUnlock()
+
 	out := entity.ModelsCatalog{
-		EffortCurrent: c.effortCfg,
+		EffortCurrent: effortCfg,
 		EffortOptions: config.EffortPickerOptions(),
-		Stub:          c.stub,
+		Stub:          stub,
 		Models:        nil,
 	}
-	if c.stub {
+	if stub {
 		out.Models = stubModels()
 		out.DefaultModelID = out.Models[0].ID
 		return out, nil
 	}
 
-	ids := make([]string, 0, len(c.providers))
-	for id, p := range c.providers {
+	ids := make([]string, 0, len(providers))
+	for id, p := range providers {
 		if !p.Enabled {
 			continue
 		}
-		if strings.TrimSpace(p.Model) == "" && strings.TrimSpace(p.APIKey) == "" {
+		if strings.TrimSpace(p.Model) == "" && strings.TrimSpace(p.APIKey) == "" && len(modelLists[id]) == 0 {
 			continue
 		}
 		ids = append(ids, id)
@@ -62,47 +85,52 @@ func (c *Catalog) ListModels(ctx context.Context) (entity.ModelsCatalog, error) 
 	sort.Strings(ids)
 
 	for _, id := range ids {
-		p := c.providers[id]
-		modelID := strings.TrimSpace(p.Model)
-		if modelID == "" {
-			modelID = id
+		p := providers[id]
+		modelIDs := modelLists[id]
+		if len(modelIDs) == 0 {
+			modelID := strings.TrimSpace(p.Model)
+			if modelID == "" {
+				modelID = id
+			}
+			modelIDs = []string{modelID}
 		}
-		opt := entity.ModelOption{
-			ID:             modelID,
-			Label:          modelLabel(modelID, id),
-			Provider:       id,
-			DefaultEffort:  "auto",
-			SupportsVision: false,
-		}
-		if c.vision != nil {
-			opt.SupportsVision = c.vision.SupportsImageFor(ctx, p)
-		}
-		if c.effort != nil {
-			info := c.effort.lookup(ctx, p)
-			if info.Supports {
-				opt.SupportedEfforts = normalizeEffortList(info.SupportedEfforts)
-				if len(opt.SupportedEfforts) == 0 {
-					// Supports but no allowlist → all non-auto gateway levels.
-					opt.SupportedEfforts = []string{
-						EffortNone, EffortMinimal, EffortLow, EffortMedium,
-						EffortHigh, EffortXHigh, EffortMax,
+		for _, modelID := range modelIDs {
+			opt := entity.ModelOption{
+				ID:             modelID,
+				Label:          modelLabel(modelID, id),
+				Provider:       id,
+				DefaultEffort:  "auto",
+				SupportsVision: false,
+			}
+			if c.vision != nil {
+				opt.SupportsVision = c.vision.SupportsImageFor(ctx, p)
+			}
+			if c.effort != nil {
+				info := c.effort.lookup(ctx, p)
+				if info.Supports {
+					opt.SupportedEfforts = normalizeEffortList(info.SupportedEfforts)
+					if len(opt.SupportedEfforts) == 0 {
+						opt.SupportedEfforts = []string{
+							EffortNone, EffortMinimal, EffortLow, EffortMedium,
+							EffortHigh, EffortXHigh, EffortMax,
+						}
+					}
+					def := strings.TrimSpace(info.DefaultEffort)
+					if def != "" {
+						opt.DefaultEffort = config.ParseEffortMode(def)
+					} else {
+						opt.DefaultEffort = EffortMedium
 					}
 				}
-				def := strings.TrimSpace(info.DefaultEffort)
-				if def != "" {
-					opt.DefaultEffort = config.ParseEffortMode(def)
-				} else {
-					opt.DefaultEffort = EffortMedium
+			} else if HeuristicModelSupportsEffort(modelID) {
+				opt.SupportedEfforts = []string{
+					EffortNone, EffortMinimal, EffortLow, EffortMedium,
+					EffortHigh, EffortXHigh, EffortMax,
 				}
+				opt.DefaultEffort = EffortMedium
 			}
-		} else if HeuristicModelSupportsEffort(modelID) {
-			opt.SupportedEfforts = []string{
-				EffortNone, EffortMinimal, EffortLow, EffortMedium,
-				EffortHigh, EffortXHigh, EffortMax,
-			}
-			opt.DefaultEffort = EffortMedium
+			out.Models = append(out.Models, opt)
 		}
-		out.Models = append(out.Models, opt)
 	}
 
 	if len(out.Models) == 0 {
@@ -112,7 +140,7 @@ func (c *Catalog) ListModels(ctx context.Context) (entity.ModelsCatalog, error) 
 		return out, nil
 	}
 
-	out.DefaultModelID = defaultModelID(c.active, c.providers, out.Models)
+	out.DefaultModelID = defaultModelID(active, providers, out.Models)
 	return out, nil
 }
 
@@ -121,7 +149,13 @@ func (c *Catalog) ResolveModel(_ context.Context, modelOrProvider string) (strin
 	if raw == "" {
 		return "", nil
 	}
-	if c.stub {
+	c.mu.RLock()
+	providers := c.providers
+	modelLists := c.modelLists
+	stub := c.stub
+	c.mu.RUnlock()
+
+	if stub {
 		for _, m := range stubModels() {
 			if m.ID == raw || strings.EqualFold(m.Provider, raw) {
 				return m.Provider, nil
@@ -131,19 +165,24 @@ func (c *Catalog) ResolveModel(_ context.Context, modelOrProvider string) (strin
 	}
 
 	upper := strings.ToUpper(raw)
-	if p, ok := c.providers[upper]; ok {
+	if p, ok := providers[upper]; ok {
 		if !p.Enabled {
 			return "", apperr.Validation("model not allowed")
 		}
 		return p.ID, nil
 	}
-	for _, id := range sortedProviderIDs(c.providers) {
-		p := c.providers[id]
+	for _, id := range sortedProviderIDs(providers) {
+		p := providers[id]
 		if !p.Enabled {
 			continue
 		}
 		if strings.TrimSpace(p.Model) == raw {
 			return p.ID, nil
+		}
+		for _, mid := range modelLists[id] {
+			if mid == raw {
+				return p.ID, nil
+			}
 		}
 	}
 	return "", apperr.Validation("model not allowed")

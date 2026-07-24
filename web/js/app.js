@@ -2,6 +2,7 @@ import { api } from './api/index.js';
 import { bootChat } from './ui/chat.js';
 import { bootTheme } from './ui/theme.js';
 import { bootPreviewResize } from './ui/preview-resize.js';
+import { bootSettings } from './ui/settings.js';
 
 function paintModeBadge() {
     const badge = document.getElementById('bpModeBadge');
@@ -89,4 +90,5 @@ bootTheme();
 paintModeBadge();
 bootChrome();
 bootPreviewResize();
+bootSettings();
 bootChat();

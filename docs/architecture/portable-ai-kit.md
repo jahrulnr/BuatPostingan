@@ -20,7 +20,7 @@ Related: [Architecture](README.md) · [Turn loop](turn-loop.md) · [LLM provider
 | `internal/infrastructure/worker/` | Agent turn loop |
 | `internal/infrastructure/sse/` | EventStreamer (JSONL seq → SSE) |
 | `internal/infrastructure/stub/` | Optional 501 stubs for tests |
-| `internal/pkg/apperr`, `idgen`, `redact` | Shared kitchen helpers |
+| `internal/pkg/apperr`, `idgen`, `redact`, `logging` | Shared kitchen helpers (trace_id + slog) |
 | `internal/config/` | Env loader (`BP_*` only in this repo) |
 | `delivery/http/webchat_handler.go` (+ helpers used by it) | Thin `/api/webchat` adapter |
 | `delivery/presenter/` | Contract-stable JSON/SSE shapes |

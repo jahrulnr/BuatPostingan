@@ -36,6 +36,7 @@ Useful env (defaults in parentheses):
 | `BP_HTTP_ADDR` | `:8080` |
 | `BP_WEB_ROOT` | `web` |
 | `BP_STORAGE_ROOT` | `storage/webchat` |
+| `BP_CONFIG_PATH` | `{dirname(STORAGE)}/config.json` |
 | `BP_DOCS_ROOT` | `docs/webchat` |
 | `BP_PROMPTS_ROOT` | `resources/webchat/prompts` |
 | `BP_TOOLS_ROOT` | `resources/webchat/tools` |
@@ -99,6 +100,7 @@ Details: [LLM providers](../architecture/llm-providers.md).
 2. `GET /api/webchat/conversations` → sidebar + docs gate  
 3. Create thread → start turn → SSE `/events` shows `item.completed` / `turn.completed`  
 4. Inspect `storage/webchat/threads/thr_*.jsonl` for durable seq  
+5. Settings: gear on left rail → `#/settings/models` → add OpenAI-compatible provider; file lands at `storage/config.json` (gitignored). See [settings-config](../architecture/settings-config.md).  
 
 ## Troubleshooting
 

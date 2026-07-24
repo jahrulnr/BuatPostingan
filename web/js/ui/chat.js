@@ -948,7 +948,7 @@ export function bootChat(options) {
                 setStatus('Busy');
             } else {
                 setStatus('Failed: ' + (err.message || 'request error'));
-                appendError(messagesEl, String(err.message || err));
+                appendError(messagesEl, String(err.message || err), '', false, err.traceId);
             }
             busy = false;
             isInitiator = false;
@@ -988,7 +988,7 @@ export function bootChat(options) {
                     showToast(err.message || '409 not retryable / busy');
                 } else {
                     showToast(err.message || 'Retry failed');
-                    appendError(messagesEl, String(err.message || err), tid, true);
+                    appendError(messagesEl, String(err.message || err), tid, true, err.traceId);
                 }
                 setStatus('Ready');
             });

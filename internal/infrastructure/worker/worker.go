@@ -4,7 +4,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -18,6 +18,7 @@ import (
 	"buatpostingan/internal/infrastructure/service/llm"
 	"buatpostingan/internal/infrastructure/service/tools"
 	"buatpostingan/internal/pkg/idgen"
+	"buatpostingan/internal/pkg/logging"
 )
 
 // Worker implements service.TurnWorker via goroutines (no external queue).
@@ -63,8 +64,21 @@ func New(deps Deps) *Worker {
 	}
 }
 
+// Reload updates runtime config (e.g. LLMStub after settings save).
+func (w *Worker) Reload(cfg config.Config) {
+	if w == nil {
+		return
+	}
+	w.cfg = cfg
+}
+
 func (w *Worker) Enqueue(ctx context.Context, job service.TurnJob) error {
-	_ = ctx
+	if job.TraceID == "" {
+		job.TraceID = logging.TraceID(ctx)
+	}
+	if job.TraceID == "" {
+		job.TraceID = logging.TraceSystem
+	}
 	timeout := time.Duration(w.cfg.TurnJobTimeoutSec) * time.Second
 	if timeout < 30*time.Second {
 		timeout = 30 * time.Second
@@ -72,14 +86,19 @@ func (w *Worker) Enqueue(ctx context.Context, job service.TurnJob) error {
 	go func() {
 		jobCtx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
+		jobCtx = logging.WithTraceID(jobCtx, job.TraceID)
 		w.process(jobCtx, job)
 	}()
 	return nil
 }
 
 func (w *Worker) process(ctx context.Context, job service.TurnJob) {
-	log.Printf("webchat.turn_start thread=%s turn=%s stub=%v resume=%v",
-		job.ThreadID, job.TurnID, w.cfg.LLMStub, job.IsRetry)
+	logging.Info(ctx, "webchat.turn_start",
+		"thread", job.ThreadID.String(),
+		"turn", job.TurnID.String(),
+		"stub", w.cfg.LLMStub,
+		"resume", job.IsRetry,
+	)
 
 	defer func() {
 		_ = w.store.ClearActiveTurn(context.Background(), job.ThreadID)
@@ -88,7 +107,10 @@ func (w *Worker) process(ctx context.Context, job service.TurnJob) {
 
 	defer func() {
 		if rec := recover(); rec != nil {
-			log.Printf("webchat.turn_panic thread=%s turn=%s: %v", job.ThreadID, job.TurnID, rec)
+			logging.Error(ctx, "webchat.turn_panic", fmt.Errorf("%v", rec),
+				"thread", job.ThreadID.String(),
+				"turn", job.TurnID.String(),
+			)
 			_, _ = w.append(ctx, job, enum.ItemTurnFailed, map[string]any{
 				"error": map[string]any{
 					"code":    "job_error",
@@ -103,7 +125,10 @@ func (w *Worker) process(ctx context.Context, job service.TurnJob) {
 		if utf8.RuneCountInString(msg) > 1000 {
 			msg = string([]rune(msg)[:1000])
 		}
-		log.Printf("webchat.turn_failed thread=%s turn=%s: %s", job.ThreadID, job.TurnID, msg)
+		logging.Error(ctx, "webchat.turn_failed", err,
+			"thread", job.ThreadID.String(),
+			"turn", job.TurnID.String(),
+		)
 		_, _ = w.append(ctx, job, enum.ItemTurnFailed, map[string]any{
 			"error": map[string]any{
 				"code":    "job_error",
@@ -111,7 +136,10 @@ func (w *Worker) process(ctx context.Context, job service.TurnJob) {
 			},
 		})
 	} else {
-		log.Printf("webchat.turn_completed thread=%s turn=%s", job.ThreadID, job.TurnID)
+		logging.Info(ctx, "webchat.turn_completed",
+			"thread", job.ThreadID.String(),
+			"turn", job.TurnID.String(),
+		)
 	}
 }
 
@@ -259,8 +287,12 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 			if utf8.RuneCountInString(text) > 12000 {
 				text = string([]rune(text)[:12000])
 			}
-			log.Printf("webchat.reasoning thread=%s turn=%s round=%d chars=%d",
-				job.ThreadID, job.TurnID, rounds, utf8.RuneCountInString(text))
+			logging.Info(ctx, "webchat.reasoning",
+				"thread", job.ThreadID.String(),
+				"turn", job.TurnID.String(),
+				"round", rounds,
+				"chars", utf8.RuneCountInString(text),
+			)
 			if _, err := w.append(ctx, job, enum.ItemReasoning, map[string]any{
 				"text":  text,
 				"model": modelMetadata(resp, "reasoning"),
@@ -313,9 +345,16 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 				}
 				envMap := envelopeToMap(envelope)
 				raw, _ := json.Marshal(envMap)
-				log.Printf("webchat.tool thread=%s turn=%s round=%d tool=%s call_id=%s ok=%v args_bytes=%d result_bytes=%d",
-					job.ThreadID, job.TurnID, rounds, tc.Name, callID, envelope.OK,
-					len(mustJSON(tc.Arguments)), len(raw))
+				logging.Info(ctx, "webchat.tool",
+					"thread", job.ThreadID.String(),
+					"turn", job.TurnID.String(),
+					"round", rounds,
+					"tool", tc.Name,
+					"call_id", callID,
+					"ok", envelope.OK,
+					"args_bytes", len(mustJSON(tc.Arguments)),
+					"result_bytes", len(raw),
+				)
 				if _, err := w.append(ctx, job, enum.ItemToolResult, map[string]any{
 					"call_id":  callID,
 					"envelope": envMap,
@@ -332,8 +371,12 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 			if identicalToolRounds >= 1 {
 				nudge := "You repeated the same tool call with identical arguments. The result is already in the conversation. Answer the user now, or call a different tool / different arguments (e.g. list_dir path=\"writing\")."
 				messages = append(messages, map[string]any{"role": "system", "content": nudge})
-				log.Printf("webchat.tool_dedupe thread=%s turn=%s round=%d fingerprint=%s",
-					job.ThreadID, job.TurnID, rounds, fp)
+				logging.Info(ctx, "webchat.tool_dedupe",
+					"thread", job.ThreadID.String(),
+					"turn", job.TurnID.String(),
+					"round", rounds,
+					"fingerprint", fp,
+				)
 			}
 			if identicalToolRounds >= 2 {
 				if _, err := w.append(ctx, job, enum.ItemAgentMessage, map[string]any{

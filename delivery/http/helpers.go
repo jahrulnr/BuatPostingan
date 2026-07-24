@@ -5,8 +5,20 @@ import (
 	"net/http"
 	"strconv"
 
+	"buatpostingan/delivery/presenter"
 	"buatpostingan/internal/pkg/apperr"
+	"buatpostingan/internal/pkg/logging"
 )
+
+// writeErr logs 5xx/unknown errors at the HTTP boundary, then writes the JSON error body.
+func writeErr(w http.ResponseWriter, r *http.Request, op string, err error) {
+	logging.BoundaryHTTPError(r.Context(), op, err)
+	presenter.WriteAppError(w, err)
+}
+
+func writeValidation(w http.ResponseWriter, r *http.Request, message string) {
+	writeErr(w, r, "http.validation", apperr.New(http.StatusUnprocessableEntity, apperr.CodeValidation, message))
+}
 
 func decodeJSON(r *http.Request, dst any) error {
 	defer r.Body.Close()

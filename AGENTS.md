@@ -83,6 +83,7 @@ Reuse over rewrite: treat kitchen + webchat delivery as a **copyable kit**, not 
 - `BP_LLM_VISION=auto|on|off` (default `auto`): gate multimodal image parts — see [`docs/architecture/llm-vision.md`](docs/architecture/llm-vision.md).
 - `BP_LLM_EFFORT=auto|none|minimal|low|medium|high|xhigh|max` (default `auto`): reasoning effort when the model supports it — see [`docs/architecture/llm-effort.md`](docs/architecture/llm-effort.md).
 - Model picker (composer): `GET /api/webchat/models` + optional StartTurn `model`/`effort` — see [`docs/architecture/llm-model-picker.md`](docs/architecture/llm-model-picker.md).
+- Settings UI + JSON config: `storage/config.json` (gitignored; see `storage/config.example.json`), env bootstrap then file SoT for LLM providers — [`docs/architecture/settings-config.md`](docs/architecture/settings-config.md). API under `/api/settings`.
 
 ## Make targets
 

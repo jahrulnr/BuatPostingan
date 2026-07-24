@@ -7,14 +7,24 @@ import (
 	"strings"
 	"time"
 
-	"buatpostingan/internal/usecase/webchat"
 	"buatpostingan/internal/config"
+	"buatpostingan/internal/usecase/settings"
+	"buatpostingan/internal/usecase/webchat"
 )
 
 // MountWebchatAPI registers /api/webchat routes only (no static FE).
 // Use this when embedding the AI kit into another product mux.
+// Wrap the mux with TraceMiddleware so X-Trace-Id is planted on every request.
 func MountWebchatAPI(mux *http.ServeMux, uc webchat.Usecase) {
 	NewWebchatHandler(uc).Register(mux)
+}
+
+// MountSettingsAPI registers /api/settings CRUD (JSON file-backed).
+func MountSettingsAPI(mux *http.ServeMux, uc *settings.Service) {
+	if uc == nil {
+		return
+	}
+	NewSettingsHandler(uc).Register(mux)
 }
 
 // MountHealthz registers GET /healthz.
@@ -43,15 +53,16 @@ func MountStaticWeb(mux *http.ServeMux, webRoot string) {
 
 // NewServer wires product HTTP: API + healthz + static web/.
 // Other hosts should call MountWebchatAPI (and optionally MountHealthz) on their own mux.
-func NewServer(cfg config.Config, uc webchat.Usecase) *http.Server {
+func NewServer(cfg config.Config, uc webchat.Usecase, settingsUC *settings.Service) *http.Server {
 	mux := http.NewServeMux()
 	MountWebchatAPI(mux, uc)
+	MountSettingsAPI(mux, settingsUC)
 	MountHealthz(mux)
 	MountStaticWeb(mux, cfg.WebRoot)
 
 	return &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           withCORS(mux),
+		Handler:           withCORS(TraceMiddleware(mux)),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 }
@@ -59,7 +70,8 @@ func NewServer(cfg config.Config, uc webchat.Usecase) *http.Server {
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Admin-User-Id, X-Admin-Display-Name, X-CSRF-TOKEN, Last-Event-ID")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Admin-User-Id, X-Admin-Display-Name, X-CSRF-TOKEN, Last-Event-ID, X-Trace-Id, traceparent")
+		w.Header().Set("Access-Control-Expose-Headers", "X-Trace-Id, Retry-After")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

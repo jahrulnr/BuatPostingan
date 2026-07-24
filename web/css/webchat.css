@@ -444,6 +444,14 @@ input:focus-visible {
     opacity: 0.85;
 }
 
+.msg-error__trace {
+    font-family: var(--wm-mono);
+    font-size: 0.68rem;
+    color: var(--wm-muted, #8b949e);
+    margin-top: 0.35rem;
+    word-break: break-all;
+}
+
 .msg-error__actions {
     display: flex;
     flex-wrap: wrap;

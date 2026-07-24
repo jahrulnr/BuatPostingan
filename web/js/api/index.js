@@ -127,6 +127,58 @@ export const subscribeEvents = mockMode
     ? mock.subscribeEventsMock
     : real.subscribeEventsImpl;
 
+export const getSettingsSnapshot = mockMode
+    ? mock.getSettingsSnapshotMock
+    : real.getSettingsSnapshotImpl;
+
+export const listSettingsUsers = mockMode
+    ? mock.listSettingsUsersMock
+    : real.listSettingsUsersImpl;
+
+export const createSettingsUser = mockMode
+    ? mock.createSettingsUserMock
+    : real.createSettingsUserImpl;
+
+export const updateSettingsUser = mockMode
+    ? mock.updateSettingsUserMock
+    : real.updateSettingsUserImpl;
+
+export const deleteSettingsUser = mockMode
+    ? mock.deleteSettingsUserMock
+    : real.deleteSettingsUserImpl;
+
+export const listLLMProviders = mockMode
+    ? mock.listLLMProvidersMock
+    : real.listLLMProvidersImpl;
+
+export const getLLMProvider = mockMode
+    ? mock.getLLMProviderMock
+    : real.getLLMProviderImpl;
+
+export const createLLMProvider = mockMode
+    ? mock.createLLMProviderMock
+    : real.createLLMProviderImpl;
+
+export const updateLLMProvider = mockMode
+    ? mock.updateLLMProviderMock
+    : real.updateLLMProviderImpl;
+
+export const deleteLLMProvider = mockMode
+    ? mock.deleteLLMProviderMock
+    : real.deleteLLMProviderImpl;
+
+export const addLLMModel = mockMode
+    ? mock.addLLMModelMock
+    : real.addLLMModelImpl;
+
+export const removeLLMModel = mockMode
+    ? mock.removeLLMModelMock
+    : real.removeLLMModelImpl;
+
+export const importLLMModels = mockMode
+    ? mock.importLLMModelsMock
+    : real.importLLMModelsImpl;
+
 /** @type {import('./types.js').ApiContext} */
 export const api = {
     baseUrl: baseUrl,

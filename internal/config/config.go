@@ -37,6 +37,8 @@ type Config struct {
 	LLMCircuitCooldownSec      int
 	LLMRetryStatuses           []int
 	LLMProviders               map[string]LLMProvider
+	// LLMModelLists is optional provider→model ids from config.json (picker expand).
+	LLMModelLists map[string][]string
 
 	ContextCompactionEnabled bool
 	ContextMaxInputTokens    int

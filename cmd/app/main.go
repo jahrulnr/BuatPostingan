@@ -2,14 +2,13 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
 	"path/filepath"
 
 	httpdelivery "buatpostingan/delivery/http"
-	webchatusecase "buatpostingan/internal/usecase/webchat"
 	"buatpostingan/internal/config"
 	"buatpostingan/internal/infrastructure/ratelimit"
+	"buatpostingan/internal/infrastructure/repository/appconfig"
 	"buatpostingan/internal/infrastructure/repository/attachments"
 	"buatpostingan/internal/infrastructure/repository/jsonl"
 	"buatpostingan/internal/infrastructure/service/docs"
@@ -17,15 +16,33 @@ import (
 	"buatpostingan/internal/infrastructure/service/tools"
 	"buatpostingan/internal/infrastructure/sse"
 	"buatpostingan/internal/infrastructure/worker"
+	"buatpostingan/internal/pkg/logging"
 	"buatpostingan/internal/pkg/redact"
+	settingsuc "buatpostingan/internal/usecase/settings"
+	webchatusecase "buatpostingan/internal/usecase/webchat"
 )
 
 func main() {
-	cfg := config.Load()
-	ctx := context.Background()
+	envCfg := config.Load()
+	ctx := logging.SystemContext(context.Background())
+
+	cfgPath := envCfg.ConfigPath()
+	settingsStore := appconfig.NewStore(cfgPath)
+	cfg := envCfg
+	if settingsStore.Exists() {
+		if doc, err := settingsStore.Load(ctx); err != nil {
+			logging.Warn(ctx, "config.json load warning", "err", err.Error())
+		} else {
+			cfg = config.ApplySettingsFile(envCfg, doc)
+			logging.Info(ctx, "config merged", "path", cfgPath, "providers", len(cfg.LLMProviders), "source", "file")
+		}
+	} else {
+		logging.Info(ctx, "config bootstrap", "path", cfgPath, "note", "no file yet — LLM from env")
+	}
 
 	if err := os.MkdirAll(cfg.StorageRoot, 0o775); err != nil {
-		log.Fatalf("storage root: %v", err)
+		logging.Error(ctx, "storage.root", err)
+		os.Exit(1)
 	}
 	for _, sub := range []string{"threads", "interrupt", "rl", "llm", "attachments"} {
 		_ = os.MkdirAll(filepath.Join(cfg.StorageRoot, sub), 0o775)
@@ -39,7 +56,8 @@ func main() {
 	red := redact.New()
 	attStore, err := attachments.NewStore(cfg.StorageRoot, 0)
 	if err != nil {
-		log.Fatalf("attachments: %v", err)
+		logging.Error(ctx, "attachments", err)
+		os.Exit(1)
 	}
 
 	docsIndex, err := docs.NewIndex(cfg.DocsRoot, cfg.StorageRoot, docs.Options{
@@ -49,17 +67,22 @@ func main() {
 		DisableFuzzy: !cfg.DocsFuzzyEnabled,
 	})
 	if err != nil {
-		log.Fatalf("docs index: %v", err)
+		logging.Error(ctx, "docs.index", err)
+		os.Exit(1)
 	}
 	if err := docsIndex.Reindex(ctx); err != nil {
-		log.Printf("docs reindex warning: %v", err)
+		logging.Warn(ctx, "docs reindex warning", "err", err.Error())
 	}
 	gate, gerr := docsIndex.Gate(ctx)
 	if gerr != nil {
-		log.Printf("docs gate error: %v", gerr)
+		logging.Error(ctx, "docs.gate", gerr)
 	} else {
-		log.Printf("docs gate: usable=%v status=%s docs=%d msg=%s",
-			gate.Usable, gate.Status, gate.DocumentCount, gate.Message)
+		logging.Info(ctx, "docs gate",
+			"usable", gate.Usable,
+			"status", gate.Status,
+			"docs", gate.DocumentCount,
+			"msg", gate.Message,
+		)
 	}
 
 	llmCfg := llm.FromApp(cfg)
@@ -76,7 +99,8 @@ func main() {
 		// FSRoot empty: list_dir/read_file/grep have full host FS access (local-dev).
 	})
 	if err != nil {
-		log.Fatalf("tools registry: %v", err)
+		logging.Error(ctx, "tools.registry", err)
+		os.Exit(1)
 	}
 
 	tw := worker.New(worker.Deps{
@@ -90,10 +114,18 @@ func main() {
 		Attachments: attStore,
 		Vision:      visionPolicy,
 	})
+	llmRuntime := llm.NewRuntime(llmRouter, modelCatalog, visionPolicy, effortPolicy, tw)
+	settingsSvc := settingsuc.NewService(settingsStore, envCfg, llmRuntime)
 	events := sse.NewStreamer(store)
 
-	log.Printf("webchat ready: llm_stub=%v vision=%s effort=%s strategy=%s active=%s providers=%d",
-		cfg.LLMStub, visionPolicy.Mode(), effortPolicy.Mode(), cfg.LLMStrategy, cfg.LLMActiveProvider, len(cfg.LLMProviders))
+	logging.Info(ctx, "webchat ready",
+		"llm_stub", cfg.LLMStub,
+		"vision", visionPolicy.Mode(),
+		"effort", effortPolicy.Mode(),
+		"strategy", cfg.LLMStrategy,
+		"active", cfg.LLMActiveProvider,
+		"providers", len(cfg.LLMProviders),
+	)
 
 	uc := webchatusecase.NewService(webchatusecase.Deps{
 		Threads:     store,
@@ -109,9 +141,9 @@ func main() {
 		Models:      modelCatalog,
 	})
 
-	srv := httpdelivery.NewServer(cfg, uc)
+	srv := httpdelivery.NewServer(cfg, uc, settingsSvc)
 	if err := httpdelivery.ListenAndServe(srv); err != nil {
-		log.Printf("server stopped: %v", err)
+		logging.Error(ctx, "http.server", err)
 		os.Exit(1)
 	}
 }

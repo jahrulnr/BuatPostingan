@@ -79,7 +79,7 @@ func TestListConversationsJSONShape(t *testing.T) {
 			},
 		},
 	}
-	srv := httpdelivery.NewServer(config.Config{WebRoot: "web"}, uc)
+	srv := httpdelivery.NewServer(config.Config{WebRoot: "web"}, uc, nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/webchat/conversations", nil)
 	rec := httptest.NewRecorder()
 	srv.Handler.ServeHTTP(rec, req)
@@ -102,7 +102,7 @@ func TestListConversationsJSONShape(t *testing.T) {
 func TestListConversationsNotImplemented(t *testing.T) {
 	t.Parallel()
 	uc := &listFake{err: apperr.NotImplemented("ListConversations")}
-	srv := httpdelivery.NewServer(config.Config{WebRoot: "web"}, uc)
+	srv := httpdelivery.NewServer(config.Config{WebRoot: "web"}, uc, nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/webchat/conversations", nil)
 	rec := httptest.NewRecorder()
 	srv.Handler.ServeHTTP(rec, req)
@@ -166,7 +166,7 @@ func TestListModelsJSONShape(t *testing.T) {
 			Stub:           false,
 		},
 	}
-	srv := httpdelivery.NewServer(config.Config{WebRoot: "web"}, uc)
+	srv := httpdelivery.NewServer(config.Config{WebRoot: "web"}, uc, nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/webchat/models", nil)
 	rec := httptest.NewRecorder()
 	srv.Handler.ServeHTTP(rec, req)

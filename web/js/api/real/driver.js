@@ -3,18 +3,35 @@ function csrfHeader(api) {
     return token ? { 'X-CSRF-TOKEN': token } : {};
 }
 
+function newTraceId() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return 'tr_' + crypto.randomUUID().replace(/-/g, '');
+    }
+    return 'tr_' + Date.now().toString(16) + Math.random().toString(16).slice(2, 10);
+}
+
+function traceHeader() {
+    return { 'X-Trace-Id': newTraceId() };
+}
+
 function jsonHeaders(api) {
     return Object.assign(
         {
             Accept: 'application/json',
             'Content-Type': 'application/json',
         },
-        csrfHeader(api)
+        csrfHeader(api),
+        traceHeader()
     );
+}
+
+function acceptHeaders(api) {
+    return Object.assign({ Accept: 'application/json' }, csrfHeader(api), traceHeader());
 }
 
 async function parseJson(res) {
     const body = await res.json().catch(function () { return {}; });
+    const traceId = res.headers.get('X-Trace-Id') || res.headers.get('x-trace-id') || '';
     if (!res.ok) {
         const err = new Error(
             (body && (body.code || body.error || (body.error && body.error.code))) ||
@@ -23,15 +40,17 @@ async function parseJson(res) {
         err.status = res.status;
         err.body = body;
         err.retryAfter = res.headers.get('Retry-After');
+        err.traceId = traceId;
         throw err;
     }
+    if (traceId) body._traceId = traceId;
     return body;
 }
 
 /** @param {import('../types.js').ApiContext} api */
 export function listConversationsImpl(api, _req) {
     return fetch(api.baseUrl + '/conversations', {
-        headers: { Accept: 'application/json' },
+        headers: acceptHeaders(api),
     }).then(parseJson);
 }
 
@@ -39,7 +58,7 @@ export function listConversationsImpl(api, _req) {
 export function createThreadImpl(api, _req) {
     return fetch(api.baseUrl + '/threads', {
         method: 'POST',
-        headers: Object.assign({ Accept: 'application/json' }, csrfHeader(api)),
+        headers: acceptHeaders(api),
     }).then(parseJson);
 }
 
@@ -47,7 +66,7 @@ export function createThreadImpl(api, _req) {
 export function getThreadImpl(api, req) {
     const after = req.afterSeq || 0;
     return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '?after_seq=' + after, {
-        headers: { Accept: 'application/json' },
+        headers: acceptHeaders(api),
     }).then(parseJson);
 }
 
@@ -78,7 +97,7 @@ export function startTurnImpl(api, req) {
 /** @param {import('../types.js').ApiContext} api */
 export function listModelsImpl(api, _req) {
     return fetch(api.baseUrl + '/models', {
-        headers: { Accept: 'application/json' },
+        headers: acceptHeaders(api),
     }).then(parseJson);
 }
 
@@ -88,7 +107,7 @@ export function uploadAttachmentImpl(api, req) {
     form.append('file', req.file, req.file && req.file.name);
     return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/attachments', {
         method: 'POST',
-        headers: Object.assign({ Accept: 'application/json' }, csrfHeader(api)),
+        headers: acceptHeaders(api),
         body: form,
     }).then(parseJson);
 }
@@ -96,7 +115,7 @@ export function uploadAttachmentImpl(api, req) {
 /** @param {import('../types.js').ApiContext} api */
 export function listAttachmentsImpl(api, req) {
     return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/attachments', {
-        headers: { Accept: 'application/json' },
+        headers: acceptHeaders(api),
     }).then(parseJson);
 }
 
@@ -160,4 +179,122 @@ export function subscribeEventsImpl(api, req) {
             es.close();
         },
     };
+}
+
+function settingsBase(api) {
+    const base = String((api && api.baseUrl) || '').replace(/\/api\/webchat\/?$/, '');
+    return (base || '') + '/api/settings';
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function getSettingsSnapshotImpl(api) {
+    return fetch(settingsBase(api), { headers: { Accept: 'application/json' } }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function listSettingsUsersImpl(api) {
+    return fetch(settingsBase(api) + '/users', { headers: { Accept: 'application/json' } }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function createSettingsUserImpl(api, body) {
+    return fetch(settingsBase(api) + '/users', {
+        method: 'POST',
+        headers: jsonHeaders(api),
+        body: JSON.stringify(body || {}),
+    }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function updateSettingsUserImpl(api, id, body) {
+    return fetch(settingsBase(api) + '/users/' + encodeURIComponent(id), {
+        method: 'PATCH',
+        headers: jsonHeaders(api),
+        body: JSON.stringify(body || {}),
+    }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function deleteSettingsUserImpl(api, id) {
+    return fetch(settingsBase(api) + '/users/' + encodeURIComponent(id), {
+        method: 'DELETE',
+        headers: acceptHeaders(api),
+    }).then(function (res) {
+        if (!res.ok) return parseJson(res);
+        return null;
+    });
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function listLLMProvidersImpl(api) {
+    return fetch(settingsBase(api) + '/llm/providers', { headers: { Accept: 'application/json' } }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function getLLMProviderImpl(api, id) {
+    return fetch(settingsBase(api) + '/llm/providers/' + encodeURIComponent(id), {
+        headers: acceptHeaders(api),
+    }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function createLLMProviderImpl(api, body) {
+    return fetch(settingsBase(api) + '/llm/providers', {
+        method: 'POST',
+        headers: jsonHeaders(api),
+        body: JSON.stringify(body || {}),
+    }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function updateLLMProviderImpl(api, id, body) {
+    return fetch(settingsBase(api) + '/llm/providers/' + encodeURIComponent(id), {
+        method: 'PATCH',
+        headers: jsonHeaders(api),
+        body: JSON.stringify(body || {}),
+    }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function deleteLLMProviderImpl(api, id) {
+    return fetch(settingsBase(api) + '/llm/providers/' + encodeURIComponent(id), {
+        method: 'DELETE',
+        headers: acceptHeaders(api),
+    }).then(function (res) {
+        if (!res.ok) return parseJson(res);
+        return null;
+    });
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function addLLMModelImpl(api, id, model) {
+    return fetch(settingsBase(api) + '/llm/providers/' + encodeURIComponent(id) + '/models', {
+        method: 'POST',
+        headers: jsonHeaders(api),
+        body: JSON.stringify(model || {}),
+    }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function removeLLMModelImpl(api, id, modelId) {
+    return fetch(
+        settingsBase(api) +
+            '/llm/providers/' +
+            encodeURIComponent(id) +
+            '/models/' +
+            encodeURIComponent(modelId),
+        {
+            method: 'DELETE',
+            headers: acceptHeaders(api),
+        }
+    ).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function importLLMModelsImpl(api, id) {
+    return fetch(settingsBase(api) + '/llm/providers/' + encodeURIComponent(id) + '/import-models', {
+        method: 'POST',
+        headers: jsonHeaders(api),
+        body: '{}',
+    }).then(parseJson);
 }

@@ -28,6 +28,7 @@
     <link rel="stylesheet" href="./css/shell.css?v=20260724-ide2">
     <link rel="stylesheet" href="./css/webchat.css?v=20260724-model1">
     <link rel="stylesheet" href="./css/webchat-conversations.css?v=20260724-ide2">
+    <link rel="stylesheet" href="./css/settings.css?v=20260724-settings1">
 </head>
 <body class="page-webchat">
     <div class="bp-shell" id="bpShell">
@@ -76,9 +77,16 @@
                     </label>
                 </div>
                 <ul class="wc-rail__list" id="conversationList"></ul>
-                <footer class="wc-rail__foot">
-                    <span class="wc-rail__hint">Reader / instructor</span>
-                </footer>
+                <div class="wc-rail__profile">
+                    <div class="wc-rail__avatar" aria-hidden="true"><i class="bi bi-person"></i></div>
+                    <div class="wc-rail__profile-meta">
+                        <strong>Owner</strong>
+                        <span>local</span>
+                    </div>
+                    <button type="button" class="wc-rail__gear" id="btnOpenSettings" aria-label="Open settings" data-wc-tooltip="Settings">
+                        <i class="bi bi-gear" aria-hidden="true"></i>
+                    </button>
+                </div>
             </aside>
 
             <main class="wc-main" aria-label="Active conversation">
@@ -177,6 +185,31 @@
                 </div>
             </aside>
         </div>
+
+        <div class="bp-settings" id="bpSettings" hidden>
+            <nav class="bp-settings__nav" aria-label="Settings">
+                <div class="bp-settings__nav-head">
+                    <button type="button" class="bp-settings__btn bp-settings__btn--ghost bp-settings__btn--sm" id="btnSettingsBack" aria-label="Back to chat">
+                        <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                    </button>
+                    <strong>Settings</strong>
+                </div>
+                <ul class="bp-settings__nav-list" data-settings-nav>
+                    <li><a href="#/settings/general" data-settings-link="general"><i class="bi bi-sliders" aria-hidden="true"></i> General</a></li>
+                    <li><a href="#/settings/users" data-settings-link="users"><i class="bi bi-people" aria-hidden="true"></i> Users</a></li>
+                    <li><a href="#/settings/models" data-settings-link="models"><i class="bi bi-cpu" aria-hidden="true"></i> Models</a></li>
+                </ul>
+                <div class="bp-settings__nav-foot">
+                    <button type="button" class="bp-settings__btn bp-settings__btn--ghost" id="btnSettingsLogout" style="width:100%;justify-content:center">
+                        <i class="bi bi-box-arrow-right" aria-hidden="true"></i> Logout
+                    </button>
+                </div>
+            </nav>
+            <div class="bp-settings__main">
+                <div data-settings-panel></div>
+                <div class="bp-settings__toast" id="settingsToast" role="status" aria-live="polite" hidden></div>
+            </div>
+        </div>
     </div>
 
     <div class="wc-dialog" id="renameDialog" hidden>
@@ -243,6 +276,57 @@
         </section>
     </div>
 
+    <div class="wc-dialog" id="providerDialog" hidden>
+        <div class="wc-dialog__backdrop" data-provider-close></div>
+        <section class="wc-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="providerDialogTitle" tabindex="-1">
+            <div class="wc-dialog__accent" aria-hidden="true"></div>
+            <header class="wc-dialog__header">
+                <div class="wc-dialog__icon" aria-hidden="true"><i class="bi bi-plug"></i></div>
+                <div>
+                    <span class="wc-dialog__eyebrow">LLM</span>
+                    <h5 id="providerDialogTitle">Add OpenAI Compatible</h5>
+                </div>
+                <button type="button" class="wc-dialog__close" data-provider-close aria-label="Close">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </header>
+            <form class="bp-provider-form" id="providerForm" novalidate>
+                <label>Name
+                    <input name="name" type="text" required placeholder="OpenRouter" autocomplete="off">
+                </label>
+                <label>ID / prefix
+                    <input name="id" type="text" required placeholder="OPENROUTER" autocomplete="off">
+                </label>
+                <label>Prefix (optional)
+                    <input name="prefix" type="text" placeholder="openrouter" autocomplete="off">
+                </label>
+                <label>API type
+                    <select name="api">
+                        <option value="responses">responses</option>
+                        <option value="chat">chat</option>
+                    </select>
+                </label>
+                <label>Base URL
+                    <input name="base_url" type="url" required placeholder="https://openrouter.ai/api/v1" autocomplete="off">
+                </label>
+                <label>API key
+                    <input name="api_key" type="password" placeholder="sk-…" autocomplete="new-password">
+                </label>
+                <label>Model id
+                    <input name="model_id" type="text" placeholder="openai/gpt-4o-mini" autocomplete="off">
+                </label>
+                <label class="bp-check">
+                    <input name="enabled" type="checkbox" checked>
+                    <span>Enabled</span>
+                </label>
+                <div class="wc-dialog__actions">
+                    <button type="button" class="wc-dialog__button wc-dialog__button--ghost" data-provider-close>Cancel</button>
+                    <button type="submit" class="wc-dialog__button wc-dialog__button--primary">Save</button>
+                </div>
+            </form>
+        </section>
+    </div>
+
     <script>
         window.__WC_PRODUCT_NAME__ = 'BuatPostingan';
         window.__BP_ADMIN_USER_ID__ = 1;
@@ -253,6 +337,6 @@
     </script>
     <script src="./vendor/marked/marked.umd.js"></script>
     <script src="./vendor/dompurify/purify.min.js"></script>
-    <script type="module" src="./js/app.js?v=20260724-model1"></script>
+    <script type="module" src="./js/app.js?v=20260724-settings1"></script>
 </body>
 </html>

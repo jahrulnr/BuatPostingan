@@ -58,6 +58,9 @@ type TurnJob struct {
 	ProviderID string
 	// Effort optionally overrides BP_LLM_EFFORT for this turn (normalized level or auto).
 	Effort string
+	// TraceID correlates logs for this turn with the HTTP request that enqueued it.
+	// Empty at enqueue → copied from ctx; still empty → "system".
+	TraceID string
 }
 
 // ModelCatalog lists picker models and resolves per-turn model overrides (allowlist).

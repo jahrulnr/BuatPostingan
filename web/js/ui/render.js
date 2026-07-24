@@ -251,7 +251,7 @@ function formatBytes(n) {
     return (num / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
-export function appendError(messagesEl, detail, turnId, retryable) {
+export function appendError(messagesEl, detail, turnId, retryable, traceId) {
     const welcome = messagesEl.querySelector('.chat-welcome');
     if (welcome) welcome.remove();
     const art = document.createElement('article');
@@ -265,12 +265,18 @@ export function appendError(messagesEl, detail, turnId, retryable) {
             escapeHtml(turnId) + '">' +
             '<i class="bi bi-arrow-clockwise"></i> Retry</button></div>';
     }
+    const trace =
+        traceId
+            ? '<div class="msg-error__trace">trace: ' + escapeHtml(String(traceId)) + '</div>'
+            : '';
     art.innerHTML =
         '<div class="msg__bubble"><div class="msg-error">' +
         '<div class="msg-error__head">' +
         '<i class="bi bi-exclamation-triangle-fill msg-error__icon"></i>' +
         '<div><div class="msg-error__title">Failed</div>' +
-        '<div class="msg-error__detail">' + escapeHtml(detail || 'error') + '</div></div></div>' +
+        '<div class="msg-error__detail">' + escapeHtml(detail || 'error') + '</div>' +
+        trace +
+        '</div></div>' +
         actions + '</div></div>';
     messagesEl.appendChild(art);
     messagesEl.scrollTop = messagesEl.scrollHeight;

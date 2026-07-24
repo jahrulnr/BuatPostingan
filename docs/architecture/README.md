@@ -15,6 +15,8 @@ Deep dives:
 - [`turn-loop.md`](turn-loop.md) — StartTurn → worker → tools → JSONL → SSE  
 - [`llm-providers.md`](llm-providers.md) — stub, OpenAI-compatible `chat`/`responses`, router  
 - [`llm-model-picker.md`](llm-model-picker.md) — composer model/effort picker + `/models`  
+- [`settings-config.md`](settings-config.md) — JSON settings UI + `/api/settings`  
+- [`observability.md`](observability.md) — `trace_id` + slog boundaries  
 - [`../operations/runbook.md`](../operations/runbook.md) — local run  
 
 ## Layout
@@ -38,7 +40,7 @@ internal/                        resep dapur (private)
     worker/                      in-process agent loop
     sse/                         EventStreamer (poll JSONL → SSE events)
     stub/                        501 adapters (tests / fallback)
-  pkg/apperr|idgen|redact
+  pkg/apperr|idgen|redact|logging
 web/                             vanilla FE (dual-driver mock|real)
 resources/webchat/               prompts + *.tool.json
 storage/webchat/                 runtime JSONL + docs_index + interrupt/rl/llm
