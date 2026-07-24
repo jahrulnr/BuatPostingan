@@ -90,10 +90,7 @@ func (fs *docsFilesystem) listDir(args map[string]any) (map[string]any, error) {
 	if offset > total {
 		offset = total
 	}
-	end := offset + limit
-	if end > total {
-		end = total
-	}
+	end := min(offset + limit, total)
 	page := entries[offset:end]
 	nextOffset := offset + len(page)
 	hasMore := nextOffset < total

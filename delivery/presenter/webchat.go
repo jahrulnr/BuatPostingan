@@ -3,8 +3,8 @@ package presenter
 import (
 	"time"
 
-	"buatpostingan/internal/usecase/webchat"
 	"buatpostingan/internal/domain/entity"
+	"buatpostingan/internal/usecase/webchat"
 )
 
 // DocsIndexGate maps entity gate → FE docs_index object.
@@ -38,15 +38,15 @@ func Conversation(c webchat.ConversationView) map[string]any {
 		title = nil
 	}
 	return map[string]any{
-		"thread_id":                 m.ThreadID.String(),
-		"title":                     title,
-		"title_source":              string(m.TitleSource),
-		"status":                    string(m.Status),
-		"created_by_admin_user_id":  m.CreatedByAdminUserID,
-		"updated_at":                UnixMillis(m.UpdatedAt),
-		"last_activity_at":          UnixMillis(m.LastActivityAt),
-		"floor_holder_admin_id":     m.FloorHolderAdminID,
-		"floor_remaining_sec":       c.FloorRemainingSec,
+		"thread_id":                m.ThreadID.String(),
+		"title":                    title,
+		"title_source":             string(m.TitleSource),
+		"status":                   string(m.Status),
+		"created_by_admin_user_id": m.CreatedByAdminUserID,
+		"updated_at":               UnixMillis(m.UpdatedAt),
+		"last_activity_at":         UnixMillis(m.LastActivityAt),
+		"floor_holder_admin_id":    m.FloorHolderAdminID,
+		"floor_remaining_sec":      c.FloorRemainingSec,
 	}
 }
 
@@ -87,14 +87,14 @@ func ThreadSnapshot(snap entity.ThreadSnapshot) map[string]any {
 		items = append(items, TranscriptItem(it))
 	}
 	return map[string]any{
-		"thread_id":                       snap.ThreadID.String(),
-		"seq_head":                        snap.SeqHead,
-		"busy":                            snap.Busy,
-		"floor_holder_admin_id":           snap.FloorHolderAdminID,
-		"floor_remaining_sec":             snap.FloorRemainingSec,
-		"active_turn_id":                  activeTurn,
-		"active_turn_initiator_admin_id":  snap.ActiveTurnInitiatorAdminID,
-		"items":                           items,
+		"thread_id":                      snap.ThreadID.String(),
+		"seq_head":                       snap.SeqHead,
+		"busy":                           snap.Busy,
+		"floor_holder_admin_id":          snap.FloorHolderAdminID,
+		"floor_remaining_sec":            snap.FloorRemainingSec,
+		"active_turn_id":                 activeTurn,
+		"active_turn_initiator_admin_id": snap.ActiveTurnInitiatorAdminID,
+		"items":                          items,
 	}
 }
 
