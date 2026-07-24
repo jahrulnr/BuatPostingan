@@ -77,6 +77,66 @@ func StartTurn(out webchat.StartTurnResult) map[string]any {
 	}
 }
 
+func ListModels(cat entity.ModelsCatalog) map[string]any {
+	rows := make([]map[string]any, 0, len(cat.Models))
+	for _, m := range cat.Models {
+		efforts := m.SupportedEfforts
+		if efforts == nil {
+			efforts = []string{}
+		}
+		rows = append(rows, map[string]any{
+			"id":                m.ID,
+			"label":             m.Label,
+			"provider":          m.Provider,
+			"supports_vision":   m.SupportsVision,
+			"supported_efforts": efforts,
+			"default_effort":    m.DefaultEffort,
+			"disabled":          m.Disabled,
+		})
+	}
+	opts := cat.EffortOptions
+	if opts == nil {
+		opts = []string{}
+	}
+	return map[string]any{
+		"models":           rows,
+		"default_model_id": cat.DefaultModelID,
+		"stub":             cat.Stub,
+		"effort": map[string]any{
+			"current": cat.EffortCurrent,
+			"options": opts,
+		},
+	}
+}
+
+func Attachment(m entity.AttachmentMeta) map[string]any {
+	out := map[string]any{
+		"attachment_id":             m.ID,
+		"thread_id":                 m.ThreadID.String(),
+		"filename":                  m.Filename,
+		"mime":                      m.Mime,
+		"size":                      m.Size,
+		"kind":                      m.Kind,
+		"uploaded_at":               m.UploadedAt.UTC().Format(time.RFC3339),
+		"uploaded_by_admin_user_id": m.UploadedByID,
+	}
+	if m.Width > 0 {
+		out["width"] = m.Width
+	}
+	if m.Height > 0 {
+		out["height"] = m.Height
+	}
+	return out
+}
+
+func AttachmentList(list []entity.AttachmentMeta) map[string]any {
+	rows := make([]map[string]any, 0, len(list))
+	for _, m := range list {
+		rows = append(rows, Attachment(m))
+	}
+	return map[string]any{"attachments": rows}
+}
+
 func ThreadSnapshot(snap entity.ThreadSnapshot) map[string]any {
 	var activeTurn any
 	if snap.ActiveTurnID != nil {

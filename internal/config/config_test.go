@@ -24,6 +24,8 @@ func clearLLMEnv(t *testing.T) {
 		"BP_TURN_JOB_TIMEOUT_SEC",
 		"BP_LLM_STUB",
 		"BP_LLM_STREAM",
+		"BP_LLM_VISION",
+		"BP_LLM_EFFORT",
 		"BP_LLM_STRATEGY",
 		"BP_LLM_ACTIVE_PROVIDER",
 		"BP_LLM_TOTAL_ATTEMPT_BUDGET",
@@ -83,6 +85,12 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 	if !cfg.LLMStream {
 		t.Fatal("LLMStream should default true")
+	}
+	if cfg.LLMVision != "auto" {
+		t.Fatalf("LLMVision default %q", cfg.LLMVision)
+	}
+	if cfg.LLMEffort != "auto" {
+		t.Fatalf("LLMEffort default %q", cfg.LLMEffort)
 	}
 	if cfg.LLMStrategy != "failover" || cfg.LLMActiveProvider != "OPENROUTER" {
 		t.Fatalf("llm %+v %q", cfg.LLMStrategy, cfg.LLMActiveProvider)
@@ -174,6 +182,72 @@ func TestLoad_LLMStream(t *testing.T) {
 	cfg = config.Load()
 	if cfg.LLMStream {
 		t.Fatal("BP_LLM_STREAM=0 should disable")
+	}
+}
+
+func TestLoad_LLMVision(t *testing.T) {
+	clearLLMEnv(t)
+	cfg := config.Load()
+	if cfg.LLMVision != "auto" {
+		t.Fatalf("default %q", cfg.LLMVision)
+	}
+	t.Setenv("BP_LLM_VISION", "off")
+	cfg = config.Load()
+	if cfg.LLMVision != "off" {
+		t.Fatalf("got %q", cfg.LLMVision)
+	}
+	t.Setenv("BP_LLM_VISION", "ON")
+	cfg = config.Load()
+	if cfg.LLMVision != "on" {
+		t.Fatalf("got %q", cfg.LLMVision)
+	}
+	t.Setenv("BP_LLM_VISION", "weird")
+	cfg = config.Load()
+	if cfg.LLMVision != "auto" {
+		t.Fatalf("invalid should fall back to auto, got %q", cfg.LLMVision)
+	}
+}
+
+func TestLoad_LLMEffort(t *testing.T) {
+	clearLLMEnv(t)
+	cfg := config.Load()
+	if cfg.LLMEffort != "auto" {
+		t.Fatalf("default %q", cfg.LLMEffort)
+	}
+	t.Setenv("BP_LLM_EFFORT", "high")
+	cfg = config.Load()
+	if cfg.LLMEffort != "high" {
+		t.Fatalf("got %q", cfg.LLMEffort)
+	}
+	t.Setenv("BP_LLM_EFFORT", "MIN")
+	cfg = config.Load()
+	if cfg.LLMEffort != "minimal" {
+		t.Fatalf("got %q", cfg.LLMEffort)
+	}
+	t.Setenv("BP_LLM_EFFORT", "off")
+	cfg = config.Load()
+	if cfg.LLMEffort != "none" {
+		t.Fatalf("got %q", cfg.LLMEffort)
+	}
+	t.Setenv("BP_LLM_EFFORT", "weird")
+	cfg = config.Load()
+	if cfg.LLMEffort != "auto" {
+		t.Fatalf("invalid should fall back to auto, got %q", cfg.LLMEffort)
+	}
+}
+
+func TestParseVisionMode(t *testing.T) {
+	if config.ParseVisionMode("1") != "on" || config.ParseVisionMode("false") != "off" {
+		t.Fatal("aliases")
+	}
+}
+
+func TestParseEffortMode(t *testing.T) {
+	if config.ParseEffortMode("x-high") != "xhigh" || config.ParseEffortMode("maximum") != "max" {
+		t.Fatal("aliases")
+	}
+	if config.ParseEffortMode("") != "auto" {
+		t.Fatal("empty → auto")
 	}
 }
 

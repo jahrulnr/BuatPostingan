@@ -11,15 +11,17 @@ import (
 	"buatpostingan/internal/infrastructure/service/tools"
 )
 
-func TestNewRegistryRequiresIndexAndDocsRoot(t *testing.T) {
+func TestNewRegistryRequiresIndex(t *testing.T) {
 	toolsRoot := filepath.Join(findRepoRoot(t), "resources", "webchat", "tools")
-	_, err := tools.NewRegistry(toolsRoot, t.TempDir(), nil, tools.Options{})
+	_, err := tools.NewRegistry(toolsRoot, nil, tools.Options{})
 	if err == nil {
 		t.Fatal("nil index should fail")
 	}
-	_, err = tools.NewRegistry(toolsRoot, filepath.Join(t.TempDir(), "nope"), mustIndex(t), tools.Options{})
+	_, err = tools.NewRegistry(toolsRoot, mustIndex(t), tools.Options{
+		FSRoot: filepath.Join(t.TempDir(), "nope"),
+	})
 	if err == nil {
-		t.Fatal("missing docs root should fail")
+		t.Fatal("missing FSRoot dir should fail when set")
 	}
 }
 
@@ -32,7 +34,7 @@ func TestSearchDocsValidationAndNotReady(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reg, err := tools.NewRegistry(toolsRoot, docsRoot, idx, tools.Options{TopK: 2})
+	reg, err := tools.NewRegistry(toolsRoot, idx, tools.Options{TopK: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +90,7 @@ func TestReadFileViaRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reg, err := tools.NewRegistry(toolsRoot, docsRoot, idx, tools.Options{})
+	reg, err := tools.NewRegistry(toolsRoot, idx, tools.Options{FSRoot: docsRoot})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +119,7 @@ func TestSchemasSkipsMissingToolJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reg, err := tools.NewRegistry(emptyTools, docsRoot, idx, tools.Options{})
+	reg, err := tools.NewRegistry(emptyTools, idx, tools.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

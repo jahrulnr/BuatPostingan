@@ -5,6 +5,8 @@ import {
     getThread,
     renameThread,
     startTurn,
+    uploadAttachment,
+    listModels,
     retryTurn,
     interruptTurn,
     subscribeEvents,
@@ -16,8 +18,10 @@ import {
     welcomeHtml,
     paintActionBubble,
     appendUserMessage,
+    setUserMessageAttachments,
     appendError,
 } from './render.js';
+import { bootModelPicker } from './model-picker.js';
 
 /**
  * Mount webchat UI. Pass { root } to scope lookups inside a widget host
@@ -58,6 +62,17 @@ export function bootChat(options) {
     const renameSubmit = byId('renameSubmit');
     let renameReturnFocus = null;
     let conversationQuery = '';
+
+    const attachBtn = byId('chatAttach');
+    const attachChipsEl = byId('composerAttachments');
+    const attachDialog = byId('attachDialog');
+    const attachDropZone = byId('attachDropZone');
+    const attachPickBtn = byId('attachPickBtn');
+    const attachFileInput = byId('attachFileInput');
+    let attachReturnFocus = null;
+    /** @type {{ localId:string, file:File, name:string, size:number, mime:string, kind:string, previewUrl:string|null }[]} */
+    let pendingAttachments = [];
+    let pendingLocalSeq = 0;
 
     if (!messagesEl || !inputEl || !sendBtn || !statusEl) {
         return null;
@@ -114,16 +129,173 @@ export function bootChat(options) {
         }, 2800);
     }
 
+    const modelPicker = bootModelPicker({
+        root: root,
+        listModels: listModels,
+        api: api,
+        showToast: showToast,
+    });
+
     function updateComposer() {
         const floorBlocked = floorRemainingSec > 0 && floorHolderId !== adminUserId;
         const indexBlocked = !docsIndexUsable;
-        sendBtn.disabled = busy || floorBlocked || indexBlocked;
-        inputEl.disabled = busy || floorBlocked || indexBlocked;
+        const canCompose = !(busy || floorBlocked || indexBlocked);
+        const hasPending = pendingAttachments.length > 0;
+        sendBtn.disabled = !canCompose || (!inputEl.value.trim() && !hasPending);
+        inputEl.disabled = !canCompose;
+        if (attachBtn) attachBtn.disabled = !canCompose;
         if (stopBtn) {
             stopBtn.hidden = !busy;
             stopBtn.disabled = !(busy && isInitiator);
         }
         sendBtn.hidden = !!busy;
+    }
+
+    function formatBytes(n) {
+        const size = Number(n) || 0;
+        if (size < 1024) return size + ' B';
+        if (size < 1024 * 1024) return (size / 1024).toFixed(1) + ' KB';
+        return (size / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function inferKind(file) {
+        const mime = String(file.type || '').toLowerCase();
+        const name = String(file.name || '').toLowerCase();
+        if (mime.indexOf('image/') === 0 || /\.(png|jpe?g|gif|webp)$/.test(name)) return 'image';
+        return 'text';
+    }
+
+    function clearPendingAttachments() {
+        pendingAttachments.forEach(function (a) {
+            if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
+        });
+        pendingAttachments = [];
+        renderAttachChips();
+    }
+
+    function renderAttachChips() {
+        if (!attachChipsEl) return;
+        attachChipsEl.innerHTML = '';
+        if (!pendingAttachments.length) {
+            attachChipsEl.hidden = true;
+            updateComposer();
+            return;
+        }
+        attachChipsEl.hidden = false;
+        pendingAttachments.forEach(function (a) {
+            const chip = document.createElement('div');
+            chip.className = 'attach-chip';
+            chip.dataset.localId = a.localId;
+            let media = '';
+            if (a.kind === 'image' && a.previewUrl) {
+                media = '<img class="attach-chip__thumb" src="' + a.previewUrl + '" alt="">';
+            } else {
+                media = '<span class="attach-chip__icon" aria-hidden="true"><i class="bi bi-file-earmark-text"></i></span>';
+            }
+            chip.innerHTML =
+                media +
+                '<span class="attach-chip__meta">' +
+                '<span class="attach-chip__name">' + escapeHtml(a.name) + '</span>' +
+                '<span class="attach-chip__size">' + escapeHtml(formatBytes(a.size)) + '</span>' +
+                '</span>' +
+                '<button type="button" class="attach-chip__remove" data-remove-attach="' +
+                escapeHtml(a.localId) + '" aria-label="Hapus ' + escapeHtml(a.name) + '">' +
+                '<i class="bi bi-x" aria-hidden="true"></i></button>';
+            attachChipsEl.appendChild(chip);
+        });
+        updateComposer();
+    }
+
+    function addPendingFiles(fileList) {
+        const files = Array.from(fileList || []);
+        files.forEach(function (file) {
+            if (!file || !file.size) return;
+            if (file.size > 8 * 1024 * 1024) {
+                showToast('File terlalu besar (max 8 MB): ' + file.name);
+                return;
+            }
+            const kind = inferKind(file);
+            const localId = 'local_' + (++pendingLocalSeq);
+            const previewUrl = kind === 'image' ? URL.createObjectURL(file) : null;
+            pendingAttachments.push({
+                localId: localId,
+                file: file,
+                name: file.name || 'upload.bin',
+                size: file.size,
+                mime: file.type || '',
+                kind: kind,
+                previewUrl: previewUrl,
+            });
+        });
+        renderAttachChips();
+    }
+
+    function removePendingAttachment(localId) {
+        const idx = pendingAttachments.findIndex(function (a) { return a.localId === localId; });
+        if (idx < 0) return;
+        const [removed] = pendingAttachments.splice(idx, 1);
+        if (removed && removed.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+        renderAttachChips();
+    }
+
+    function openAttachDialog() {
+        if (!attachDialog || (attachBtn && attachBtn.disabled)) return;
+        attachReturnFocus = document.activeElement && document.activeElement !== document.body
+            ? document.activeElement
+            : attachBtn;
+        attachDialog.hidden = false;
+        document.body.classList.add('has-wc-dialog');
+        requestAnimationFrame(function () {
+            attachDialog.classList.add('is-open');
+            if (attachDropZone) attachDropZone.focus();
+        });
+    }
+
+    function closeAttachDialog() {
+        if (!attachDialog || attachDialog.hidden) return;
+        attachDialog.classList.remove('is-open');
+        document.body.classList.remove('has-wc-dialog');
+        setTimeout(function () {
+            attachDialog.hidden = true;
+            if (attachReturnFocus && typeof attachReturnFocus.focus === 'function') {
+                attachReturnFocus.focus();
+            }
+        }, 160);
+    }
+
+    async function readFileAsText(file) {
+        return new Promise(function (resolve) {
+            const reader = new FileReader();
+            reader.onload = function () { resolve(String(reader.result || '')); };
+            reader.onerror = function () { resolve(''); };
+            reader.readAsText(file);
+        });
+    }
+
+    async function uploadPendingAttachments(targetThreadId) {
+        const ids = [];
+        for (let i = 0; i < pendingAttachments.length; i++) {
+            const a = pendingAttachments[i];
+            if (api.mockMode) {
+                const content = a.kind === 'text' ? await readFileAsText(a.file) : '';
+                const uploaded = await uploadAttachment(api, {
+                    threadId: targetThreadId,
+                    filename: a.name,
+                    mime: a.mime,
+                    size: a.size,
+                    kind: a.kind,
+                    content: content,
+                });
+                ids.push(uploaded.attachment_id);
+            } else {
+                const uploaded = await uploadAttachment(api, {
+                    threadId: targetThreadId,
+                    file: a.file,
+                });
+                ids.push(uploaded.attachment_id);
+            }
+        }
+        return ids;
     }
 
     function applyDocsIndexGate(gate) {
@@ -358,8 +530,12 @@ export function bootChat(options) {
         const type = item.type || '';
         if (type === 'user_message') {
             const text = item.text || '';
+            const atts = Array.isArray(item.attachments) ? item.attachments : [];
             if (pendingUserText !== null && text === pendingUserText && pendingOptimisticEl) {
                 pendingOptimisticEl.dataset.id = id;
+                if (atts.length) {
+                    setUserMessageAttachments(pendingOptimisticEl, atts);
+                }
                 if (id) seenItemIds[id] = true;
                 pendingUserText = null;
                 pendingOptimisticEl = null;
@@ -369,7 +545,7 @@ export function bootChat(options) {
             const mine = aid === adminUserId || (aid === 0 && text && pendingUserText === text);
             const who = item.admin_display_name
                 || (aid ? ('Admin #' + aid) : adminDisplayName);
-            appendUserMessage(messagesEl, text, who, mine, id);
+            appendUserMessage(messagesEl, text, who, mine, id, atts);
         } else if (type === 'reasoning') {
             applyReasoning(item);
         } else if (type === 'tool_call') {
@@ -597,6 +773,7 @@ export function bootChat(options) {
             const snap = await getThread(api, { threadId: id, afterSeq: 0 });
             threadId = id;
             localStorage.setItem(storageKey, id);
+            clearPendingAttachments();
             applyFloorFromPayload(snap);
             hydrateItems(snap.items || []);
             setStatus('Hydrated ' + id);
@@ -659,6 +836,7 @@ export function bootChat(options) {
         floorRemainingSec = 0;
         pendingUserText = null;
         pendingOptimisticEl = null;
+        clearPendingAttachments();
         clearMessages(true);
         updateRoomHead({ title: null, title_source: 'pending' });
         setStatus('New · lazy (create on send)');
@@ -670,7 +848,8 @@ export function bootChat(options) {
 
     async function send() {
         const message = inputEl.value.trim();
-        if (!message || busy) return;
+        const hasAttach = pendingAttachments.length > 0;
+        if ((!message && !hasAttach) || busy) return;
         if (!docsIndexUsable) {
             showToast('503 docs index belum siap');
             return;
@@ -684,8 +863,25 @@ export function bootChat(options) {
         isInitiator = true;
         updateComposer();
         inputEl.value = '';
-        pendingUserText = message;
-        pendingOptimisticEl = appendUserMessage(messagesEl, message, adminDisplayName, true, null);
+        pendingUserText = message || '(attached files)';
+        const toUpload = pendingAttachments.slice();
+        const optimisticAtts = toUpload.map(function (a) {
+            return {
+                id: a.localId,
+                filename: a.name,
+                kind: a.kind,
+                size: a.size,
+                previewUrl: a.previewUrl || null,
+            };
+        });
+        pendingOptimisticEl = appendUserMessage(
+            messagesEl,
+            pendingUserText,
+            adminDisplayName,
+            true,
+            null,
+            optimisticAtts
+        );
 
         try {
             if (!threadId) {
@@ -694,7 +890,18 @@ export function bootChat(options) {
                 localStorage.setItem(storageKey, threadId);
                 updateRoomHead({ title: null, title_source: 'pending' });
             }
-            const started = await startTurn(api, { threadId: threadId, message: message });
+            const attachmentIds = toUpload.length
+                ? await uploadPendingAttachments(threadId)
+                : [];
+            clearPendingAttachments();
+            const selection = modelPicker.getSelection();
+            const started = await startTurn(api, {
+                threadId: threadId,
+                message: message,
+                attachmentIds: attachmentIds,
+                model: selection.model || undefined,
+                effort: selection.effort || undefined,
+            });
             turnId = started.turn_id;
             applyFloorFromPayload(started);
             floorHolderId = adminUserId;
@@ -709,6 +916,10 @@ export function bootChat(options) {
                 pendingOptimisticEl = null;
             }
             pendingUserText = null;
+            if (!pendingAttachments.length && toUpload.length) {
+                pendingAttachments = toUpload;
+                renderAttachChips();
+            }
             if (err.status === 503) {
                 if (err.body && err.body.docs_index) {
                     applyDocsIndexGate(err.body.docs_index);
@@ -793,6 +1004,57 @@ export function bootChat(options) {
     });
 
     sendBtn.addEventListener('click', send);
+    inputEl.addEventListener('input', updateComposer);
+    if (attachBtn) attachBtn.addEventListener('click', openAttachDialog);
+    if (attachChipsEl) {
+        attachChipsEl.addEventListener('click', function (e) {
+            const btn = e.target.closest('[data-remove-attach]');
+            if (!btn) return;
+            removePendingAttachment(btn.getAttribute('data-remove-attach'));
+        });
+    }
+    if (attachDialog) {
+        attachDialog.querySelectorAll('[data-attach-close]').forEach(function (button) {
+            button.addEventListener('click', closeAttachDialog);
+        });
+        attachDialog.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeAttachDialog();
+            }
+        });
+    }
+    if (attachPickBtn && attachFileInput) {
+        attachPickBtn.addEventListener('click', function () { attachFileInput.click(); });
+        attachFileInput.addEventListener('change', function () {
+            addPendingFiles(attachFileInput.files);
+            attachFileInput.value = '';
+            closeAttachDialog();
+        });
+    }
+    if (attachDropZone) {
+        ;['dragenter', 'dragover'].forEach(function (name) {
+            attachDropZone.addEventListener(name, function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                attachDropZone.classList.add('is-dragover');
+            });
+        });
+        ;['dragleave', 'drop'].forEach(function (name) {
+            attachDropZone.addEventListener(name, function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                attachDropZone.classList.remove('is-dragover');
+            });
+        });
+        attachDropZone.addEventListener('drop', function (e) {
+            const dt = e.dataTransfer;
+            if (dt && dt.files && dt.files.length) {
+                addPendingFiles(dt.files);
+                closeAttachDialog();
+            }
+        });
+    }
     if (stopBtn) {
         stopBtn.addEventListener('click', function () {
             // Set before await: mock interrupt emits turn.failed synchronously,

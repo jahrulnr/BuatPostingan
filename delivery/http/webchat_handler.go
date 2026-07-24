@@ -1,6 +1,7 @@
 package httpdelivery
 
 import (
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -22,10 +23,13 @@ func NewWebchatHandler(uc webchat.Usecase) *WebchatHandler {
 
 func (h *WebchatHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/webchat/conversations", h.ListConversations)
+	mux.HandleFunc("GET /api/webchat/models", h.ListModels)
 	mux.HandleFunc("POST /api/webchat/threads", h.CreateThread)
 	mux.HandleFunc("GET /api/webchat/threads/{threadID}", h.GetThread)
 	mux.HandleFunc("PATCH /api/webchat/threads/{threadID}", h.RenameThread)
 	mux.HandleFunc("POST /api/webchat/threads/{threadID}/turns", h.StartTurn)
+	mux.HandleFunc("POST /api/webchat/threads/{threadID}/attachments", h.UploadAttachment)
+	mux.HandleFunc("GET /api/webchat/threads/{threadID}/attachments", h.ListAttachments)
 	mux.HandleFunc("POST /api/webchat/threads/{threadID}/retry", h.RetryTurn)
 	mux.HandleFunc("POST /api/webchat/threads/{threadID}/interrupt", h.InterruptTurn)
 	mux.HandleFunc("GET /api/webchat/threads/{threadID}/events", h.Events)
@@ -38,6 +42,15 @@ func (h *WebchatHandler) ListConversations(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	presenter.WriteJSON(w, http.StatusOK, presenter.ListConversations(out))
+}
+
+func (h *WebchatHandler) ListModels(w http.ResponseWriter, r *http.Request) {
+	out, err := h.UC.ListModels(r.Context())
+	if err != nil {
+		presenter.WriteAppError(w, err)
+		return
+	}
+	presenter.WriteJSON(w, http.StatusOK, presenter.ListModels(out))
 }
 
 func (h *WebchatHandler) CreateThread(w http.ResponseWriter, r *http.Request) {
@@ -97,27 +110,88 @@ func (h *WebchatHandler) StartTurn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Message string `json:"message"`
+		Message       string   `json:"message"`
+		AttachmentIDs []string `json:"attachment_ids"`
+		Model         string   `json:"model"`
+		Effort        string   `json:"effort"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		presenter.WriteAppError(w, err)
 		return
 	}
-	if body.Message == "" {
+	if body.Message == "" && len(body.AttachmentIDs) == 0 {
 		presenter.WriteValidationError(w, "message empty")
 		return
 	}
 	out, err := h.UC.StartTurn(r.Context(), webchat.StartTurnInput{
-		ThreadID:    tid,
-		Message:     body.Message,
-		AdminUserID: adminUserID(r),
-		AdminName:   adminDisplayName(r),
+		ThreadID:      tid,
+		Message:       body.Message,
+		AdminUserID:   adminUserID(r),
+		AdminName:     adminDisplayName(r),
+		AttachmentIDs: body.AttachmentIDs,
+		Model:         body.Model,
+		Effort:        body.Effort,
 	})
 	if err != nil {
 		presenter.WriteAppError(w, err)
 		return
 	}
 	presenter.WriteJSON(w, http.StatusAccepted, presenter.StartTurn(out))
+}
+
+func (h *WebchatHandler) UploadAttachment(w http.ResponseWriter, r *http.Request) {
+	tid, err := parseThreadID(r.PathValue("threadID"))
+	if err != nil {
+		presenter.WriteAppError(w, err)
+		return
+	}
+	const maxMem = 10 << 20
+	if err := r.ParseMultipartForm(maxMem); err != nil {
+		presenter.WriteValidationError(w, "multipart required")
+		return
+	}
+	file, hdr, err := r.FormFile("file")
+	if err != nil {
+		presenter.WriteValidationError(w, "file required")
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, maxMem+1))
+	if err != nil {
+		presenter.WriteAppError(w, apperr.New(http.StatusInternalServerError, apperr.CodeInternal, "read failed"))
+		return
+	}
+	if int64(len(data)) > maxMem {
+		presenter.WriteValidationError(w, "file too large")
+		return
+	}
+	mime := hdr.Header.Get("Content-Type")
+	meta, err := h.UC.UploadAttachment(r.Context(), webchat.UploadAttachmentInput{
+		ThreadID:    tid,
+		Filename:    hdr.Filename,
+		Mime:        mime,
+		Data:        data,
+		AdminUserID: adminUserID(r),
+	})
+	if err != nil {
+		presenter.WriteAppError(w, err)
+		return
+	}
+	presenter.WriteJSON(w, http.StatusCreated, presenter.Attachment(meta))
+}
+
+func (h *WebchatHandler) ListAttachments(w http.ResponseWriter, r *http.Request) {
+	tid, err := parseThreadID(r.PathValue("threadID"))
+	if err != nil {
+		presenter.WriteAppError(w, err)
+		return
+	}
+	list, err := h.UC.ListAttachments(r.Context(), tid)
+	if err != nil {
+		presenter.WriteAppError(w, err)
+		return
+	}
+	presenter.WriteJSON(w, http.StatusOK, presenter.AttachmentList(list))
 }
 
 func (h *WebchatHandler) RetryTurn(w http.ResponseWriter, r *http.Request) {

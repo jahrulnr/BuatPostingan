@@ -26,7 +26,7 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./vendor/bootstrap-icons/font/bootstrap-icons.css">
     <link rel="stylesheet" href="./css/shell.css?v=20260724-ide2">
-    <link rel="stylesheet" href="./css/webchat.css?v=20260724-ide2">
+    <link rel="stylesheet" href="./css/webchat.css?v=20260724-model1">
     <link rel="stylesheet" href="./css/webchat-conversations.css?v=20260724-ide2">
 </head>
 <body class="page-webchat">
@@ -103,7 +103,29 @@
                         </div>
                         <div class="webchat-status" id="chatStatus" data-state="ready">Ready</div>
                         <div class="webchat-composer">
+                            <div class="composer-attachments" id="composerAttachments" hidden></div>
+                            <div class="composer-toolbar">
+                                <div class="composer-model-wrap">
+                                    <button
+                                        type="button"
+                                        class="composer-model-pill"
+                                        id="modelPill"
+                                        aria-haspopup="listbox"
+                                        aria-expanded="false"
+                                        aria-controls="modelMenu"
+                                        data-wc-tooltip="Model &amp; effort"
+                                    >
+                                        <i class="bi bi-cpu" aria-hidden="true"></i>
+                                        <span id="modelPillLabel">Model · auto</span>
+                                        <i class="bi bi-chevron-down composer-model-pill__chev" aria-hidden="true"></i>
+                                    </button>
+                                    <div class="composer-model-menu" id="modelMenu" hidden></div>
+                                </div>
+                            </div>
                             <div class="composer-row">
+                                <button type="button" class="composer-attach" id="chatAttach" aria-label="Lampirkan file" data-wc-tooltip="Attach file">
+                                    <i class="bi bi-paperclip" aria-hidden="true"></i>
+                                </button>
                                 <input type="text" class="composer-input" id="chatInput" placeholder="Ketik pertanyaan…" autocomplete="off">
                                 <button class="composer-send" id="chatSend" type="button" aria-label="Kirim">
                                     <i class="bi bi-send-fill"></i>
@@ -190,6 +212,37 @@
         </section>
     </div>
 
+    <div class="wc-dialog" id="attachDialog" hidden>
+        <div class="wc-dialog__backdrop" data-attach-close></div>
+        <section class="wc-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="attachDialogTitle" tabindex="-1">
+            <div class="wc-dialog__accent" aria-hidden="true"></div>
+            <header class="wc-dialog__header">
+                <div class="wc-dialog__icon" aria-hidden="true"><i class="bi bi-paperclip"></i></div>
+                <div>
+                    <span class="wc-dialog__eyebrow">Attachments</span>
+                    <h5 id="attachDialogTitle">Lampirkan file</h5>
+                </div>
+                <button type="button" class="wc-dialog__close" data-attach-close aria-label="Close attach dialog" data-wc-tooltip="Close">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </header>
+            <div class="wc-attach-drop" id="attachDropZone" tabindex="0">
+                <i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>
+                <strong>Drop file di sini</strong>
+                <p>atau pilih dari disk — teks (md, txt, json, …) atau gambar (png, jpg, webp, gif)</p>
+                <button type="button" class="wc-dialog__button wc-dialog__button--primary" id="attachPickBtn">
+                    <span>Pilih file</span>
+                    <i class="bi bi-folder2-open" aria-hidden="true"></i>
+                </button>
+                <input type="file" id="attachFileInput" multiple hidden accept=".md,.txt,.html,.htm,.json,.csv,.xml,.yaml,.yml,.png,.jpg,.jpeg,.gif,.webp,text/*,image/png,image/jpeg,image/gif,image/webp">
+            </div>
+            <p class="wc-dialog__help" id="attachDialogHelp">Maks. 8&nbsp;MB per file. File di-upload saat Anda kirim pesan.</p>
+            <div class="wc-dialog__actions">
+                <button type="button" class="wc-dialog__button wc-dialog__button--ghost" data-attach-close>Selesai</button>
+            </div>
+        </section>
+    </div>
+
     <script>
         window.__WC_PRODUCT_NAME__ = 'BuatPostingan';
         window.__BP_ADMIN_USER_ID__ = 1;
@@ -200,6 +253,6 @@
     </script>
     <script src="./vendor/marked/marked.umd.js"></script>
     <script src="./vendor/dompurify/purify.min.js"></script>
-    <script type="module" src="./js/app.js?v=20260724-ide2"></script>
+    <script type="module" src="./js/app.js?v=20260724-model1"></script>
 </body>
 </html>

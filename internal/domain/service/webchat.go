@@ -46,13 +46,26 @@ type TurnWorker interface {
 
 // TurnJob is one queued chat turn (maps to ProcessChatTurnJob::dispatch).
 type TurnJob struct {
-	ThreadID    valueobject.ThreadID
-	TurnID      valueobject.TurnID
-	AdminUserID int64
-	AdminName   string
-	Message     string
-	IsRetry     bool
-	LockToken   string
+	ThreadID      valueobject.ThreadID
+	TurnID        valueobject.TurnID
+	AdminUserID   int64
+	AdminName     string
+	Message       string
+	AttachmentIDs []string
+	IsRetry       bool
+	LockToken     string
+	// ProviderID optionally pins the LLM provider for this turn (from model picker).
+	ProviderID string
+	// Effort optionally overrides BP_LLM_EFFORT for this turn (normalized level or auto).
+	Effort string
+}
+
+// ModelCatalog lists picker models and resolves per-turn model overrides (allowlist).
+type ModelCatalog interface {
+	ListModels(ctx context.Context) (entity.ModelsCatalog, error)
+	// ResolveModel maps a picker model id or provider id to a configured provider id.
+	// Empty input → empty provider (no pin). Unknown → error.
+	ResolveModel(ctx context.Context, modelOrProvider string) (providerID string, err error)
 }
 
 // --- LLM / tools (used by worker later; declared here for the port map) ---

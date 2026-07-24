@@ -1,0 +1,4 @@
+github.com/jahrulnr/searchwire v0.0.0-20260628145521-682384176033 h1:Q1iNw0AFITqJumQOXPQ6YaSGfIoeN3nzHDbBqN+BpWw=
+github.com/jahrulnr/searchwire v0.0.0-20260628145521-682384176033/go.mod h1:nFgoN+AqMaKRpPr8OYOTWo8m6q8nC99X4+YW+jibutY=
+golang.org/x/net v0.56.0 h1:Rw8j/hFzGvJUZwNBXnAtf5sVDVt+65SK2C7IxCxZt5o=
+golang.org/x/net v0.56.0/go.mod h1:D3Ku6r+V6JROoZK144D2XfMHFcMq/0zSfLelVTCFKec=

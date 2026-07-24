@@ -12,7 +12,7 @@ import (
 	"buatpostingan/internal/infrastructure/service/tools"
 )
 
-func TestPathTraversalRejected(t *testing.T) {
+func TestAbsolutePathReadAllowed(t *testing.T) {
 	repoRoot := findRepoRoot(t)
 	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
 	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
@@ -22,29 +22,30 @@ func TestPathTraversalRejected(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewIndex: %v", err)
 	}
-	reg, err := tools.NewRegistry(toolsRoot, docsRoot, idx, tools.Options{})
+	// Empty FSRoot = unrestricted FS; use a temp file via absolute path (not host /etc).
+	tmp := t.TempDir()
+	absFile := filepath.Join(tmp, "note.txt")
+	if err := os.WriteFile(absFile, []byte("hello absolute\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	reg, err := tools.NewRegistry(toolsRoot, idx, tools.Options{})
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
 
-	for _, path := range []string{"../etc/passwd", "/etc/passwd", "writing/../../etc/passwd", "foo/../bar"} {
-		env, err := reg.Execute(context.Background(), service.ToolCall{
-			Name:      "read_file",
-			Arguments: map[string]any{"path": path},
-		})
-		if err != nil {
-			t.Fatalf("Execute: %v", err)
-		}
-		if env.OK {
-			t.Fatalf("expected rejection for path %q, got ok envelope", path)
-		}
-		code, _ := env.Error["code"].(string)
-		if code != "invalid_path" && code != "file_type_not_allowed" && code != "not_file" {
-			// traversal must surface as invalid_path from registry
-			if code != "invalid_path" {
-				t.Fatalf("path %q: want invalid_path, got %+v", path, env.Error)
-			}
-		}
+	env, err := reg.Execute(context.Background(), service.ToolCall{
+		Name:      "read_file",
+		Arguments: map[string]any{"path": absFile},
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !env.OK {
+		t.Fatalf("absolute path should be allowed: %+v", env)
+	}
+	data, _ := env.Data.(map[string]any)
+	if data["content"] != "hello absolute\n" {
+		t.Fatalf("content=%v", data["content"])
 	}
 }
 
@@ -58,7 +59,7 @@ func TestSearchDocsEnvelopeWhenIndexReady(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewIndex: %v", err)
 	}
-	reg, err := tools.NewRegistry(toolsRoot, docsRoot, idx, tools.Options{})
+	reg, err := tools.NewRegistry(toolsRoot, idx, tools.Options{})
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
@@ -106,7 +107,7 @@ func TestArgumentHealerViaListDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewIndex: %v", err)
 	}
-	reg, err := tools.NewRegistry(toolsRoot, docsRoot, idx, tools.Options{})
+	reg, err := tools.NewRegistry(toolsRoot, idx, tools.Options{FSRoot: docsRoot})
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
@@ -151,7 +152,7 @@ func TestListDirEmptyStillHasLSListing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewIndex: %v", err)
 	}
-	reg, err := tools.NewRegistry(toolsRoot, docsRoot, idx, tools.Options{})
+	reg, err := tools.NewRegistry(toolsRoot, idx, tools.Options{FSRoot: docsRoot})
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
@@ -189,7 +190,7 @@ func TestSchemasOnlyAllowlisted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewIndex: %v", err)
 	}
-	reg, err := tools.NewRegistry(toolsRoot, docsRoot, idx, tools.Options{})
+	reg, err := tools.NewRegistry(toolsRoot, idx, tools.Options{})
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
@@ -197,8 +198,8 @@ func TestSchemasOnlyAllowlisted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Schemas: %v", err)
 	}
-	if len(schemas) != 4 {
-		t.Fatalf("want 4 schemas, got %d", len(schemas))
+	if len(schemas) != len(tools.Allowlist) {
+		t.Fatalf("want %d schemas, got %d", len(tools.Allowlist), len(schemas))
 	}
 	env, _ := reg.Execute(context.Background(), service.ToolCall{Name: "list_modules", Arguments: map[string]any{}})
 	if env.OK || env.Error["code"] != "tool_not_allowed" {

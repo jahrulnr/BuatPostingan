@@ -23,6 +23,7 @@ type memDeps struct {
 	worker    *memWorker
 	events    *memEvents
 	redactor  service.SecretRedactor
+	models    *memModels
 }
 
 func newMemDeps() memDeps {
@@ -36,6 +37,7 @@ func newMemDeps() memDeps {
 		worker:    &memWorker{},
 		events:    &memEvents{},
 		redactor:  identityRedactor{},
+		models:    &memModels{},
 	}
 }
 
@@ -50,6 +52,7 @@ func (d memDeps) service() *webchat.Service {
 		Docs:      d.docs,
 		Events:    d.events,
 		Worker:    d.worker,
+		Models:    d.models,
 	})
 }
 
@@ -83,6 +86,69 @@ func TestStartTurnOrder_HappyPath(t *testing.T) {
 	}
 	if out.FloorHolderAdminID == nil || *out.FloorHolderAdminID != 7 {
 		t.Fatalf("floor holder: %+v", out.FloorHolderAdminID)
+	}
+}
+
+func TestListModels(t *testing.T) {
+	t.Parallel()
+	d := newMemDeps()
+	cat, err := d.service().ListModels(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cat.DefaultModelID == "" || len(cat.Models) == 0 {
+		t.Fatalf("%+v", cat)
+	}
+}
+
+func TestStartTurn_ModelAndEffortOverride(t *testing.T) {
+	t.Parallel()
+	d := newMemDeps()
+	tid, _ := valueobject.NewThreadID("thr_1")
+	d.threads.threads[tid.String()] = &entity.ThreadSnapshot{ThreadID: tid, SeqHead: 1}
+
+	_, err := d.service().StartTurn(context.Background(), webchat.StartTurnInput{
+		ThreadID: tid, Message: "hi", AdminUserID: 1,
+		Model: "openai/gpt-4o-mini", Effort: "high",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.worker.job.ProviderID != "OPENROUTER" || d.worker.job.Effort != "high" {
+		t.Fatalf("job overrides: %+v", d.worker.job)
+	}
+}
+
+func TestStartTurn_InvalidModelRejected(t *testing.T) {
+	t.Parallel()
+	d := newMemDeps()
+	tid, _ := valueobject.NewThreadID("thr_1")
+	d.threads.threads[tid.String()] = &entity.ThreadSnapshot{ThreadID: tid}
+
+	_, err := d.service().StartTurn(context.Background(), webchat.StartTurnInput{
+		ThreadID: tid, Message: "hi", AdminUserID: 1, Model: "evil/model",
+	})
+	ae, ok := apperr.As(err)
+	if !ok || ae.Code != apperr.CodeValidation {
+		t.Fatalf("got %v", err)
+	}
+	if d.worker.called {
+		t.Fatal("must not enqueue")
+	}
+}
+
+func TestStartTurn_InvalidEffortRejected(t *testing.T) {
+	t.Parallel()
+	d := newMemDeps()
+	tid, _ := valueobject.NewThreadID("thr_1")
+	d.threads.threads[tid.String()] = &entity.ThreadSnapshot{ThreadID: tid}
+
+	_, err := d.service().StartTurn(context.Background(), webchat.StartTurnInput{
+		ThreadID: tid, Message: "hi", AdminUserID: 1, Effort: "turbo",
+	})
+	ae, ok := apperr.As(err)
+	if !ok || ae.Code != apperr.CodeValidation {
+		t.Fatalf("got %v", err)
 	}
 }
 
@@ -904,6 +970,41 @@ func (m *memWorker) Enqueue(_ context.Context, job service.TurnJob) error {
 	m.called = true
 	m.job = job
 	return m.err
+}
+
+type memModels struct {
+	catalog entity.ModelsCatalog
+	allowed map[string]string // modelOrProvider → providerID
+}
+
+func (m *memModels) ListModels(context.Context) (entity.ModelsCatalog, error) {
+	if len(m.catalog.Models) == 0 {
+		return entity.ModelsCatalog{
+			Models: []entity.ModelOption{{
+				ID: "openai/gpt-4o-mini", Label: "gpt-4o-mini · OPENROUTER", Provider: "OPENROUTER",
+			}},
+			DefaultModelID: "openai/gpt-4o-mini",
+			EffortCurrent:  "auto",
+			EffortOptions:  []string{"auto", "none", "low", "medium", "high"},
+		}, nil
+	}
+	return m.catalog, nil
+}
+
+func (m *memModels) ResolveModel(_ context.Context, modelOrProvider string) (string, error) {
+	if modelOrProvider == "" {
+		return "", nil
+	}
+	if m.allowed != nil {
+		if pid, ok := m.allowed[modelOrProvider]; ok {
+			return pid, nil
+		}
+		return "", apperr.Validation("model not allowed")
+	}
+	if modelOrProvider == "openai/gpt-4o-mini" || modelOrProvider == "OPENROUTER" {
+		return "OPENROUTER", nil
+	}
+	return "", apperr.Validation("model not allowed")
 }
 
 type memEvents struct {

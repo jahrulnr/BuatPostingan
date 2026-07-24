@@ -15,42 +15,51 @@ import (
 	"buatpostingan/internal/domain/repository"
 	"buatpostingan/internal/domain/service"
 	"buatpostingan/internal/domain/valueobject"
+	"buatpostingan/internal/infrastructure/service/llm"
+	"buatpostingan/internal/infrastructure/service/tools"
 	"buatpostingan/internal/pkg/idgen"
 )
 
 // Worker implements service.TurnWorker via goroutines (no external queue).
 type Worker struct {
-	cfg       config.Config
-	store     repository.ThreadStore
-	locks     repository.ThreadLock
-	interrupt repository.InterruptFlag
-	tools     service.ToolRegistry
-	docs      service.DocsIndex
-	llm       service.LLMRouter
+	cfg         config.Config
+	store       repository.ThreadStore
+	locks       repository.ThreadLock
+	interrupt   repository.InterruptFlag
+	tools       service.ToolRegistry
+	docs        service.DocsIndex
+	llm         service.LLMRouter
+	attachments repository.AttachmentStore
+	vision      visionGate
 }
 
 var _ service.TurnWorker = (*Worker)(nil)
 
 // Deps wires ports into the worker.
 type Deps struct {
-	Config    config.Config
-	Store     repository.ThreadStore
-	Locks     repository.ThreadLock
-	Interrupt repository.InterruptFlag
-	Tools     service.ToolRegistry
-	Docs      service.DocsIndex
-	LLM       service.LLMRouter
+	Config      config.Config
+	Store       repository.ThreadStore
+	Locks       repository.ThreadLock
+	Interrupt   repository.InterruptFlag
+	Tools       service.ToolRegistry
+	Docs        service.DocsIndex
+	LLM         service.LLMRouter
+	Attachments repository.AttachmentStore
+	// Vision optional; when nil, pixels are allowed (tests / legacy).
+	Vision visionGate
 }
 
 func New(deps Deps) *Worker {
 	return &Worker{
-		cfg:       deps.Config,
-		store:     deps.Store,
-		locks:     deps.Locks,
-		interrupt: deps.Interrupt,
-		tools:     deps.Tools,
-		docs:      deps.Docs,
-		llm:       deps.LLM,
+		cfg:         deps.Config,
+		store:       deps.Store,
+		locks:       deps.Locks,
+		interrupt:   deps.Interrupt,
+		tools:       deps.Tools,
+		docs:        deps.Docs,
+		llm:         deps.LLM,
+		attachments: deps.Attachments,
+		vision:      deps.Vision,
 	}
 }
 
@@ -120,11 +129,15 @@ func (w *Worker) run(ctx context.Context, job service.TurnJob) error {
 			return err
 		}
 	} else {
-		if _, err := w.append(ctx, job, enum.ItemUserMessage, map[string]any{
+		payload := map[string]any{
 			"text":               job.Message,
 			"admin_user_id":      job.AdminUserID,
 			"admin_display_name": displayName(job.AdminName),
-		}); err != nil {
+		}
+		if refs := w.attachmentRefs(ctx, job); len(refs) > 0 {
+			payload["attachments"] = refs
+		}
+		if _, err := w.append(ctx, job, enum.ItemUserMessage, payload); err != nil {
 			return err
 		}
 		if _, err := w.append(ctx, job, enum.ItemTurnStarted, nil); err != nil {
@@ -153,8 +166,12 @@ func (w *Worker) run(ctx context.Context, job service.TurnJob) error {
 }
 
 func (w *Worker) runStub(ctx context.Context, job service.TurnJob) error {
+	text := "(stub) received: " + job.Message
+	if len(job.AttachmentIDs) > 0 {
+		text += " · attachments=" + strings.Join(job.AttachmentIDs, ",")
+	}
 	if _, err := w.append(ctx, job, enum.ItemAgentMessage, map[string]any{
-		"text": "(stub) received: " + job.Message,
+		"text": text,
 	}); err != nil {
 		return err
 	}
@@ -184,7 +201,7 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 	if err != nil {
 		return err
 	}
-	messages := buildMessages(snap.Items)
+	messages := w.buildMessages(ctx, job.ThreadID, snap.Items)
 	docCount := 0
 	if w.docs != nil {
 		if gate, gerr := w.docs.Gate(ctx); gerr == nil {
@@ -205,7 +222,11 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 	if maxRounds < 1 {
 		maxRounds = 8
 	}
-	var pinned string
+	pinned := strings.TrimSpace(job.ProviderID)
+	chatCtx := ctx
+	if strings.TrimSpace(job.Effort) != "" {
+		chatCtx = llm.WithEffortMode(ctx, job.Effort)
+	}
 	lastUsage := emptyUsage()
 	var lastModel map[string]any
 	lastToolOnly := false
@@ -223,7 +244,7 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 			return err
 		}
 
-		resp, err := w.llm.Chat(ctx, messages, schemas, pinned)
+		resp, err := w.llm.Chat(chatCtx, messages, schemas, pinned)
 		if err != nil {
 			return err
 		}
@@ -275,7 +296,7 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 				}); err != nil {
 					return err
 				}
-				envelope, execErr := w.tools.Execute(ctx, service.ToolCall{
+				envelope, execErr := w.tools.Execute(tools.WithThreadID(ctx, job.ThreadID), service.ToolCall{
 					CallID:    callID,
 					Name:      tc.Name,
 					Arguments: tc.Arguments,
@@ -457,7 +478,26 @@ func (w *Worker) turnCompleted(ctx context.Context, job service.TurnJob) bool {
 	return false
 }
 
-func buildMessages(items []entity.TranscriptItem) []map[string]any {
+func (w *Worker) buildMessages(ctx context.Context, threadID valueobject.ThreadID, items []entity.TranscriptItem) []map[string]any {
+	var loader *visionLoader
+	if w.attachments != nil {
+		skip := false
+		if w.vision != nil {
+			skip = !w.vision.AllowPixels(ctx)
+		} else if config.ParseVisionMode(w.cfg.LLMVision) == "off" {
+			skip = true
+		}
+		loader = &visionLoader{
+			ctx:        ctx,
+			threadID:   threadID,
+			store:      w.attachments,
+			skipPixels: skip,
+		}
+	}
+	return buildMessages(items, loader)
+}
+
+func buildMessages(items []entity.TranscriptItem, loader *visionLoader) []map[string]any {
 	var msgs []map[string]any
 	for i, it := range items {
 		if it.Type == enum.ItemContextCompact {
@@ -470,20 +510,19 @@ func buildMessages(items []entity.TranscriptItem) []map[string]any {
 				if prev.TurnID != it.TurnID {
 					continue
 				}
-				appendMessageFromItem(&msgs, prev)
+				appendMessageFromItem(&msgs, prev, loader)
 			}
 			continue
 		}
-		appendMessageFromItem(&msgs, it)
+		appendMessageFromItem(&msgs, it, loader)
 	}
 	return msgs
 }
 
-func appendMessageFromItem(msgs *[]map[string]any, it entity.TranscriptItem) {
+func appendMessageFromItem(msgs *[]map[string]any, it entity.TranscriptItem, loader *visionLoader) {
 	switch it.Type {
 	case enum.ItemUserMessage:
-		text, _ := it.Payload["text"].(string)
-		*msgs = append(*msgs, map[string]any{"role": "user", "content": text})
+		*msgs = append(*msgs, map[string]any{"role": "user", "content": userLLMContent(it.Payload, loader)})
 	case enum.ItemAgentMessage:
 		text, _ := it.Payload["text"].(string)
 		*msgs = append(*msgs, map[string]any{"role": "assistant", "content": text})
@@ -622,6 +661,110 @@ func displayName(name string) string {
 		return "Admin"
 	}
 	return name
+}
+
+func (w *Worker) attachmentRefs(ctx context.Context, job service.TurnJob) []map[string]any {
+	if w.attachments == nil || len(job.AttachmentIDs) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(job.AttachmentIDs))
+	for _, id := range job.AttachmentIDs {
+		meta, _, err := w.attachments.ResolvePath(ctx, job.ThreadID, id)
+		if err != nil {
+			out = append(out, map[string]any{
+				"id":            id,
+				"attachment_id": id,
+				"missing":       true,
+			})
+			continue
+		}
+		out = append(out, map[string]any{
+			"id":            meta.ID,
+			"attachment_id": meta.ID,
+			"filename":      meta.Filename,
+			"mime":          meta.Mime,
+			"size":          meta.Size,
+			"kind":          meta.Kind,
+		})
+	}
+	return out
+}
+
+// userContentFromPayload builds the LLM user message. Plain text alone hides
+// durable attachments from the model — prompts tell it to call read_attachment /
+// read_image with attachment_id from an attachments list on the user_message.
+func userContentFromPayload(payload map[string]any) string {
+	text, _ := payload["text"].(string)
+	refs := llmAttachmentRefs(payload["attachments"])
+	if len(refs) == 0 {
+		return text
+	}
+	raw, err := json.Marshal(refs)
+	if err != nil {
+		return text
+	}
+	block := "attachments: " + string(raw)
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return block
+	}
+	return text + "\n\n" + block
+}
+
+func llmAttachmentRefs(raw any) []map[string]any {
+	list, ok := raw.([]any)
+	if !ok {
+		// jsonl / tests may already be []map[string]any
+		if typed, ok := raw.([]map[string]any); ok {
+			out := make([]map[string]any, 0, len(typed))
+			for _, m := range typed {
+				if ref := normalizeLLMAttachmentRef(m); ref != nil {
+					out = append(out, ref)
+				}
+			}
+			return out
+		}
+		return nil
+	}
+	out := make([]map[string]any, 0, len(list))
+	for _, el := range list {
+		m, ok := el.(map[string]any)
+		if !ok {
+			continue
+		}
+		if ref := normalizeLLMAttachmentRef(m); ref != nil {
+			out = append(out, ref)
+		}
+	}
+	return out
+}
+
+func normalizeLLMAttachmentRef(m map[string]any) map[string]any {
+	id, _ := m["attachment_id"].(string)
+	if id == "" {
+		id, _ = m["id"].(string)
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil
+	}
+	ref := map[string]any{"attachment_id": id}
+	if v, ok := m["filename"]; ok {
+		ref["filename"] = v
+	}
+	if v, ok := m["mime"]; ok {
+		ref["mime"] = v
+	}
+	if v, ok := m["size"]; ok {
+		ref["size"] = v
+	}
+	if v, ok := m["kind"]; ok {
+		ref["kind"] = v
+	}
+	if missing, ok := m["missing"].(bool); ok && missing {
+		ref["missing"] = true
+	}
+	return ref
 }
 
 func truncateRunes(s string, max int) string {

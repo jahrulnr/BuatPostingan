@@ -20,7 +20,7 @@ const grepTimeout = 10 * time.Second
 // findRipgrep locates the rg binary. Overridable in tests to force the Go fallback.
 var findRipgrep = exec.LookPath
 
-func (fs *docsFilesystem) grep(args map[string]any) (map[string]any, error) {
+func (fs *workspaceFS) grep(args map[string]any) (map[string]any, error) {
 	query := strings.TrimSpace(asString(args["query"]))
 	if query == "" {
 		return failMap("validation", "query required"), nil
@@ -28,11 +28,7 @@ func (fs *docsFilesystem) grep(args map[string]any) (map[string]any, error) {
 	if utf8.RuneCountInString(query) > 200 {
 		return failMap("validation", "query too long"), nil
 	}
-	relative, err := fs.relativePath(asString(args["path"]))
-	if err != nil {
-		return nil, err
-	}
-	target, err := fs.resolve(relative, true)
+	target, err := fs.resolvePath(asString(args["path"]))
 	if err != nil {
 		return nil, err
 	}
@@ -41,11 +37,11 @@ func (fs *docsFilesystem) grep(args map[string]any) (map[string]any, error) {
 
 	st, err := os.Stat(target)
 	if err != nil {
-		return nil, fmt.Errorf("path is outside docs root")
+		return failMap("not_found", "path not found"), nil
 	}
 
 	if rgPath, err := findRipgrep("rg"); err == nil {
-		matches, truncated, runErr := fs.grepRipgrep(rgPath, query, target, st.IsDir(), maxResults, caseSensitive)
+		matches, truncated, runErr := fs.grepRipgrep(rgPath, query, target, maxResults, caseSensitive)
 		if runErr == nil {
 			return grepOK(query, matches, truncated, "ripgrep"), nil
 		}
@@ -87,7 +83,7 @@ func isInvalidPattern(err error) bool {
 	return ok
 }
 
-func (fs *docsFilesystem) grepRipgrep(rgPath, query, target string, isDir bool, maxResults int, caseSensitive bool) ([]map[string]any, bool, error) {
+func (fs *workspaceFS) grepRipgrep(rgPath, query, target string, maxResults int, caseSensitive bool) ([]map[string]any, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), grepTimeout)
 	defer cancel()
 
@@ -99,9 +95,6 @@ func (fs *docsFilesystem) grepRipgrep(rgPath, query, target string, isDir bool, 
 	}
 	if !caseSensitive {
 		args = append(args, "--ignore-case")
-	}
-	if isDir {
-		args = append(args, "--glob", "*.md")
 	}
 	// -e keeps patterns that start with "-" from being parsed as flags.
 	args = append(args, "-e", query, "--", target)
@@ -143,7 +136,7 @@ func looksLikeBadPattern(stderr string) bool {
 		strings.Contains(lower, "invalid")
 }
 
-func parseRipgrepJSON(fs *docsFilesystem, raw []byte, maxResults int) ([]map[string]any, bool) {
+func parseRipgrepJSON(fs *workspaceFS, raw []byte, maxResults int) ([]map[string]any, bool) {
 	matches := make([]map[string]any, 0)
 	sc := bufio.NewScanner(bytes.NewReader(raw))
 	// Long lines in docs are rare; raise buffer for safety.
@@ -170,12 +163,8 @@ func parseRipgrepJSON(fs *docsFilesystem, raw []byte, maxResults int) ([]map[str
 			text = string([]rune(text)[:500])
 		}
 		abs := filepath.Clean(ev.Data.Path.Text)
-		if !withinRoot(fs.root, abs) {
-			// Defensive: never surface paths outside sandbox.
-			continue
-		}
 		matches = append(matches, map[string]any{
-			"path": fs.relativeToRoot(abs),
+			"path": fs.displayPath(abs),
 			"line": ev.Data.LineNumber,
 			"text": text,
 		})
@@ -186,7 +175,7 @@ func parseRipgrepJSON(fs *docsFilesystem, raw []byte, maxResults int) ([]map[str
 	return matches, false
 }
 
-func (fs *docsFilesystem) grepGo(query, target string, isDir bool, maxResults int, caseSensitive bool) ([]map[string]any, bool, error) {
+func (fs *workspaceFS) grepGo(query, target string, isDir bool, maxResults int, caseSensitive bool) ([]map[string]any, bool, error) {
 	pattern := query
 	if !caseSensitive {
 		pattern = "(?i)" + query
@@ -198,7 +187,7 @@ func (fs *docsFilesystem) grepGo(query, target string, isDir bool, maxResults in
 
 	var files []string
 	if isDir {
-		files, err = fs.markdownFiles(target)
+		files, err = fs.listFiles(target)
 		if err != nil {
 			return nil, false, err
 		}
@@ -222,7 +211,7 @@ func (fs *docsFilesystem) grepGo(query, target string, isDir bool, maxResults in
 				text = string([]rune(text)[:500])
 			}
 			matches = append(matches, map[string]any{
-				"path": fs.relativeToRoot(file),
+				"path": fs.displayPath(file),
 				"line": i + 1,
 				"text": text,
 			})

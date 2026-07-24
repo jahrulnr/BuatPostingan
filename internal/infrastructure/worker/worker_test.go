@@ -296,7 +296,7 @@ func TestBuildMessages(t *testing.T) {
 		}},
 		{Type: enum.ItemReasoning, ThreadID: tid, TurnID: turn, Payload: map[string]any{"text": "think"}},
 	}
-	msgs := buildMessages(items)
+	msgs := buildMessages(items, nil)
 	if len(msgs) != 4 {
 		t.Fatalf("len=%d %#v", len(msgs), msgs)
 	}
@@ -310,13 +310,42 @@ func TestBuildMessages(t *testing.T) {
 		t.Fatalf("%#v", msgs[3])
 	}
 
+	withAtt := []entity.TranscriptItem{
+		{Type: enum.ItemUserMessage, ThreadID: tid, TurnID: turn, Payload: map[string]any{
+			"text": "baca lampiran",
+			"attachments": []any{
+				map[string]any{
+					"id":       "att_1",
+					"filename": "note.md",
+					"mime":     "text/markdown",
+					"kind":     "text",
+					"size":     12,
+				},
+			},
+		}},
+	}
+	attMsgs := buildMessages(withAtt, nil)
+	if len(attMsgs) != 1 {
+		t.Fatalf("att len=%d", len(attMsgs))
+	}
+	content, _ := attMsgs[0]["content"].(string)
+	if !strings.Contains(content, "baca lampiran") {
+		t.Fatalf("missing text: %q", content)
+	}
+	if !strings.Contains(content, `"attachment_id":"att_1"`) {
+		t.Fatalf("missing attachment_id for LLM: %q", content)
+	}
+	if !strings.Contains(content, "attachments:") {
+		t.Fatalf("missing attachments block: %q", content)
+	}
+
 	compactTurn, _ := valueobject.NewTurnID("trn_2")
 	items = append(items,
 		entity.TranscriptItem{Type: enum.ItemUserMessage, ThreadID: tid, TurnID: compactTurn, Payload: map[string]any{"text": "old"}},
 		entity.TranscriptItem{Type: enum.ItemContextCompact, ThreadID: tid, TurnID: compactTurn, Payload: map[string]any{"text": "summary"}},
 		entity.TranscriptItem{Type: enum.ItemUserMessage, ThreadID: tid, TurnID: compactTurn, Payload: map[string]any{"text": "after"}},
 	)
-	msgs = buildMessages(items)
+	msgs = buildMessages(items, nil)
 	if msgs[0]["role"] != "system" || !strings.Contains(msgs[0]["content"].(string), "summary") {
 		t.Fatalf("compact %#v", msgs)
 	}

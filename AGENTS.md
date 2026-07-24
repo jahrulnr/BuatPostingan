@@ -69,14 +69,20 @@ Reuse over rewrite: treat kitchen + webchat delivery as a **copyable kit**, not 
 
 - Reader/instructor only — `write_enabled` stays false
 - No mutation tools in the LLM tools array
+- Allowlist readers only: `search_docs`, `list_dir`, `read_file`, `grep`, `read_attachment`, `read_image`, `web_search`, `web_fetch`
 - Turn loop in worker, not HTTP request
 - SSE mirrors durable JSONL seq
+- Uploads under `storage/webchat/attachments/{threadId}/` — attachment tools keyed by `attachment_id` for the active thread
+- **Local-dev FS:** `list_dir` / `read_file` / `grep` have **full host filesystem access** (absolute paths including `/`; no docs-root jail). Insecure for multi-tenant production — reintroduce a jail before exposing beyond trusted local use. `search_docs` still searches the `BP_DOCS_ROOT` corpus only.
 
 ## Ready-to-use LLM
 
 - Default `BP_LLM_STUB=true` when no provider API key is set → canned `agent_message` without HTTP.
 - Real LLM: set provider key (e.g. `BP_LLM_OPENROUTER_API_KEY`) and `BP_LLM_STUB=false` (or omit stub once a key exists).
 - `BP_LLM_*_API=responses` (preferred, AIPedia-aligned) or `chat`. Default `BP_LLM_STREAM=true`: client sends `stream=true` and parses proxy SSE (`text/event-stream`); JSON non-stream remains a path. Set `BP_LLM_STREAM=false` to force JSON. If streaming is rejected as unsupported, client retries once with `stream=false`.
+- `BP_LLM_VISION=auto|on|off` (default `auto`): gate multimodal image parts — see [`docs/architecture/llm-vision.md`](docs/architecture/llm-vision.md).
+- `BP_LLM_EFFORT=auto|none|minimal|low|medium|high|xhigh|max` (default `auto`): reasoning effort when the model supports it — see [`docs/architecture/llm-effort.md`](docs/architecture/llm-effort.md).
+- Model picker (composer): `GET /api/webchat/models` + optional StartTurn `model`/`effort` — see [`docs/architecture/llm-model-picker.md`](docs/architecture/llm-model-picker.md).
 
 ## Make targets
 

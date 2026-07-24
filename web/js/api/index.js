@@ -103,6 +103,18 @@ export const startTurn = mockMode
     ? mock.startTurnMock
     : real.startTurnImpl;
 
+export const uploadAttachment = mockMode
+    ? mock.uploadAttachmentMock
+    : real.uploadAttachmentImpl;
+
+export const listAttachments = mockMode
+    ? mock.listAttachmentsMock
+    : real.listAttachmentsImpl;
+
+export const listModels = mockMode
+    ? mock.listModelsMock
+    : real.listModelsImpl;
+
 export const retryTurn = mockMode
     ? mock.retryTurnMock
     : real.retryTurnImpl;

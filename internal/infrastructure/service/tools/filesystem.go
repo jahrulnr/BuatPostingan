@@ -10,36 +10,40 @@ import (
 	"unicode/utf8"
 )
 
-// docsFilesystem sandboxes list_dir / read_file / grep under docsRoot.
-type docsFilesystem struct {
-	root string
+// workspaceFS resolves list_dir / read_file / grep against the real filesystem.
+// Empty base means relative paths resolve via filepath.Abs (process cwd); absolute
+// paths are always unrestricted (including "/"). A non-empty base (e.g. test temp
+// dir) is only the default for relative paths — not a jail.
+type workspaceFS struct {
+	base string
 }
 
-func newDocsFilesystem(docsRoot string) (*docsFilesystem, error) {
-	abs, err := filepath.Abs(docsRoot)
+func newWorkspaceFS(fsRoot string) (*workspaceFS, error) {
+	fsRoot = strings.TrimSpace(fsRoot)
+	if fsRoot == "" {
+		return &workspaceFS{base: ""}, nil
+	}
+	abs, err := filepath.Abs(fsRoot)
 	if err != nil {
-		return nil, fmt.Errorf("docs root unavailable: %w", err)
+		return nil, fmt.Errorf("fs root unavailable: %w", err)
 	}
 	real, err := filepath.EvalSymlinks(abs)
 	if err != nil {
 		if st, stErr := os.Stat(abs); stErr != nil || !st.IsDir() {
-			return nil, fmt.Errorf("docs root unavailable")
+			return nil, fmt.Errorf("fs root unavailable")
 		}
 		real = abs
 	}
 	st, err := os.Stat(real)
 	if err != nil || !st.IsDir() {
-		return nil, fmt.Errorf("docs root unavailable")
+		return nil, fmt.Errorf("fs root unavailable")
 	}
-	return &docsFilesystem{root: real}, nil
+	return &workspaceFS{base: real}, nil
 }
 
-func (fs *docsFilesystem) listDir(args map[string]any) (map[string]any, error) {
-	relative, err := fs.relativePath(asString(args["path"]))
-	if err != nil {
-		return nil, err
-	}
-	directory, err := fs.resolve(relative, true)
+func (fs *workspaceFS) listDir(args map[string]any) (map[string]any, error) {
+	requested := asString(args["path"])
+	directory, err := fs.resolvePath(requested)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +70,7 @@ func (fs *docsFilesystem) listDir(args map[string]any) (map[string]any, error) {
 		}
 		entry := map[string]any{
 			"name": name,
-			"path": fs.relativeToRoot(full),
+			"path": fs.displayPath(full),
 			"type": typ,
 		}
 		if infoErr == nil && info != nil {
@@ -80,7 +84,7 @@ func (fs *docsFilesystem) listDir(args map[string]any) (map[string]any, error) {
 		ti, _ := entries[i]["type"].(string)
 		tj, _ := entries[j]["type"].(string)
 		if ti != tj {
-			return ti < tj // directory before file? PHP uses [type, name] — "directory" < "file"
+			return ti < tj
 		}
 		ni, _ := entries[i]["name"].(string)
 		nj, _ := entries[j]["name"].(string)
@@ -90,7 +94,7 @@ func (fs *docsFilesystem) listDir(args map[string]any) (map[string]any, error) {
 	if offset > total {
 		offset = total
 	}
-	end := min(offset + limit, total)
+	end := min(offset+limit, total)
 	page := entries[offset:end]
 	nextOffset := offset + len(page)
 	hasMore := nextOffset < total
@@ -100,11 +104,9 @@ func (fs *docsFilesystem) listDir(args map[string]any) (map[string]any, error) {
 	} else {
 		next = nil
 	}
-	// Always include an ls -lah style listing (with . and ..) so empty dirs
-	// are never a barren entries:[] with no readable context for the model/UI.
 	listing := formatLSListing(directory, st, page, total)
 	return okMap(map[string]any{
-		"path":        relative,
+		"path":        fs.displayPath(directory),
 		"entries":     page,
 		"listing":     listing,
 		"offset":      offset,
@@ -168,21 +170,14 @@ func formatLSListing(directory string, dirInfo os.FileInfo, page []map[string]an
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func (fs *docsFilesystem) readFile(args map[string]any) (map[string]any, error) {
-	relative, err := fs.relativePath(asString(args["path"]))
-	if err != nil {
-		return nil, err
-	}
-	file, err := fs.resolve(relative, false)
+func (fs *workspaceFS) readFile(args map[string]any) (map[string]any, error) {
+	file, err := fs.resolvePath(asString(args["path"]))
 	if err != nil {
 		return nil, err
 	}
 	st, err := os.Stat(file)
 	if err != nil || st.IsDir() {
 		return failMap("not_file", "path is not a file"), nil
-	}
-	if strings.ToLower(filepath.Ext(file)) != ".md" {
-		return failMap("file_type_not_allowed", "only Markdown files are readable"), nil
 	}
 
 	maxChars := clamp(asInt(args["max_chars"], 12000), 1, 20000)
@@ -210,7 +205,7 @@ func (fs *docsFilesystem) readFile(args map[string]any) (map[string]any, error) 
 		next = nil
 	}
 	return okMap(map[string]any{
-		"path":        relative,
+		"path":        fs.displayPath(file),
 		"content":     slice,
 		"offset":      offset,
 		"has_more":    hasMore,
@@ -220,49 +215,48 @@ func (fs *docsFilesystem) readFile(args map[string]any) (map[string]any, error) 
 	}, hasMore), nil
 }
 
-func (fs *docsFilesystem) relativePath(value string) (string, error) {
+// resolvePath maps a tool path argument to an absolute filesystem path.
+// Absolute paths (including "/") are accepted as-is. Relative paths join the
+// optional base, or resolve via filepath.Abs when base is empty. Symlinks are
+// followed; there is no workspace jail.
+func (fs *workspaceFS) resolvePath(value string) (string, error) {
 	path := strings.ReplaceAll(strings.TrimSpace(value), "\\", "/")
+	if strings.Contains(path, "\x00") {
+		return "", fmt.Errorf("invalid path")
+	}
 	if path == "" || path == "." {
-		return "", nil
-	}
-	if strings.HasPrefix(path, "/") || strings.Contains(path, "\x00") {
-		return "", fmt.Errorf("path traversal is not allowed")
-	}
-	for _, p := range strings.Split(path, "/") {
-		if p == "." || p == ".." {
-			return "", fmt.Errorf("path traversal is not allowed")
+		if fs.base != "" {
+			return fs.base, nil
 		}
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("cwd unavailable: %w", err)
+		}
+		return cwd, nil
 	}
-	return strings.Trim(path, "/"), nil
-}
 
-func (fs *docsFilesystem) resolve(relative string, directoryAllowed bool) (string, error) {
-	candidate := fs.root
-	if relative != "" {
-		candidate = filepath.Join(fs.root, filepath.FromSlash(relative))
+	native := filepath.FromSlash(path)
+	var candidate string
+	if filepath.IsAbs(native) {
+		candidate = filepath.Clean(native)
+	} else if fs.base != "" {
+		candidate = filepath.Join(fs.base, native)
+	} else {
+		abs, err := filepath.Abs(native)
+		if err != nil {
+			return "", err
+		}
+		candidate = abs
 	}
+
 	real, err := filepath.EvalSymlinks(candidate)
 	if err != nil {
-		// Non-existent path: still check lexical containment then fail outside.
-		clean := filepath.Clean(candidate)
-		if !withinRoot(fs.root, clean) {
-			return "", fmt.Errorf("path is outside docs root")
-		}
-		return "", fmt.Errorf("path is outside docs root")
-	}
-	if !withinRoot(fs.root, real) {
-		return "", fmt.Errorf("path is outside docs root")
-	}
-	if !directoryAllowed {
-		st, err := os.Stat(real)
-		if err != nil || st.IsDir() {
-			return "", fmt.Errorf("file path required")
-		}
+		return filepath.Clean(candidate), nil
 	}
 	return real, nil
 }
 
-func (fs *docsFilesystem) markdownFiles(directory string) ([]string, error) {
+func (fs *workspaceFS) listFiles(directory string) ([]string, error) {
 	var files []string
 	err := filepath.WalkDir(directory, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -271,31 +265,20 @@ func (fs *docsFilesystem) markdownFiles(directory string) ([]string, error) {
 		if d.IsDir() {
 			return nil
 		}
-		if strings.EqualFold(filepath.Ext(d.Name()), ".md") {
-			files = append(files, path)
-		}
+		files = append(files, path)
 		return nil
 	})
 	sort.Strings(files)
 	return files, err
 }
 
-func (fs *docsFilesystem) relativeToRoot(path string) string {
-	rel, err := filepath.Rel(fs.root, path)
-	if err != nil {
-		return filepath.ToSlash(path)
+func (fs *workspaceFS) displayPath(path string) string {
+	if fs.base != "" {
+		if rel, err := filepath.Rel(fs.base, path); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return filepath.ToSlash(rel)
+		}
 	}
-	return filepath.ToSlash(rel)
-}
-
-func withinRoot(root, path string) bool {
-	root = filepath.Clean(root)
-	path = filepath.Clean(path)
-	if path == root {
-		return true
-	}
-	sep := string(filepath.Separator)
-	return strings.HasPrefix(path, root+sep)
+	return filepath.ToSlash(path)
 }
 
 func okMap(data map[string]any, truncated bool) map[string]any {
@@ -309,7 +292,7 @@ func okMap(data map[string]any, truncated bool) map[string]any {
 	}
 	return map[string]any{
 		"ok":   true,
-		"tool": "docs_filesystem",
+		"tool": "workspace_fs",
 		"data": data,
 		"error": nil,
 		"meta": map[string]any{
@@ -323,7 +306,7 @@ func okMap(data map[string]any, truncated bool) map[string]any {
 func failMap(code, message string) map[string]any {
 	return map[string]any{
 		"ok":   false,
-		"tool": "docs_filesystem",
+		"tool": "workspace_fs",
 		"data": nil,
 		"error": map[string]any{
 			"code":    code,

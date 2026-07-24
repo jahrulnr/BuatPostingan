@@ -84,4 +84,4 @@ Optional FE widget kit (same API, no product chrome):
 
 ## Tool dialect notes
 
-- **`grep`**: prefers host `rg` (`exec.Command`, no shell) with `--json -e <pattern> -- <sandbox-path>`; falls back to Go `regexp` (RE2) when `rg` is missing. Both dialects are linear-time regex (no backrefs/lookaround). Pattern is never passed through a shell. AIPedia PHP still uses literal `str_contains` until ported.
+- **`grep`**: prefers host `rg` (`exec.Command`, no shell) with `--json -e <pattern> -- <path>`; falls back to Go `regexp` (RE2) when `rg` is missing. Both dialects are linear-time regex (no backrefs/lookaround). Pattern is never passed through a shell. Local-dev: paths are unrestricted on the host FS (not docs-jailed). AIPedia PHP still uses literal `str_contains` until ported.

@@ -9,6 +9,9 @@ Human + agent documentation grounded in **current code**. Start here, then dive 
 | [Architecture](architecture/README.md) | Clean Architecture layers, foldering, tools, persistence, frontend overview |
 | [Turn loop](architecture/turn-loop.md) | StartTurn → worker → LLM/tools → JSONL → SSE end-to-end |
 | [LLM providers](architecture/llm-providers.md) | OpenAI-compatible `chat` / `responses`, stub, env, router/circuit |
+| [LLM vision](architecture/llm-vision.md) | Multimodal image parts, `BP_LLM_VISION`, capability gate |
+| [LLM effort](architecture/llm-effort.md) | Reasoning effort (`BP_LLM_EFFORT`), catalog probe, request shapes |
+| [LLM model picker](architecture/llm-model-picker.md) | Composer model + effort UI, `GET /models`, StartTurn overrides |
 | [Portable AI kit](architecture/portable-ai-kit.md) | What to copy vs leave when reusing the webchat stack |
 | [Runbook](operations/runbook.md) | `make be` / `make fe`, stub vs real LLM, `?mock=1` |
 | [API service notes](api-service/README.md) | Pointer to `/api/webchat` surface |

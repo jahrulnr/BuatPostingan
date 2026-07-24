@@ -107,8 +107,18 @@ Successful results carry `ModelRef{Provider, ID, API}` (provider slot id + confi
 - Non–OpenAI-compatible vendor protocols without a compatible proxy
 - Mutation or admin tools in the LLM tools array (product lock — see [Architecture](README.md#tools))
 
+## Vision
+
+Image attachments and `BP_LLM_VISION`: see [LLM vision](llm-vision.md).
+
+## Reasoning effort
+
+`BP_LLM_EFFORT` (default `auto`): see [LLM effort](llm-effort.md). Applied on both chat completions and Responses when the active model advertises support; omitted otherwise.
+
 ## Related
 
 - [Turn loop](turn-loop.md) — when Chat is called inside the agent loop
+- [LLM vision](llm-vision.md) — multimodal gate + request shapes
+- [LLM effort](llm-effort.md) — reasoning_effort / reasoning.effort policy
 - [Runbook](../operations/runbook.md) — env examples for local stub vs real
 - [Portable AI kit](portable-ai-kit.md) — copy boundary; rename env prefix on embed

@@ -65,6 +65,25 @@
  */
 
 /**
+ * @typedef {Object} ModelOption
+ * @property {string} id
+ * @property {string} label
+ * @property {string} provider
+ * @property {boolean} supports_vision
+ * @property {string[]} supported_efforts
+ * @property {string} default_effort
+ * @property {boolean} [disabled]
+ */
+
+/**
+ * @typedef {Object} ListModelsResponse
+ * @property {ModelOption[]} models
+ * @property {string} default_model_id
+ * @property {boolean} [stub]
+ * @property {{ current: string, options: string[] }} effort
+ */
+
+/**
  * @typedef {Object} SubscribeEventsRequest
  * @property {string} threadId
  * @property {number} afterSeq

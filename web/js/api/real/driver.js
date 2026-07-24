@@ -62,10 +62,41 @@ export function renameThreadImpl(api, req) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function startTurnImpl(api, req) {
+    const body = {
+        message: req.message,
+        attachment_ids: req.attachmentIds || [],
+    };
+    if (req.model) body.model = req.model;
+    if (req.effort) body.effort = req.effort;
     return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/turns', {
         method: 'POST',
         headers: jsonHeaders(api),
-        body: JSON.stringify({ message: req.message }),
+        body: JSON.stringify(body),
+    }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function listModelsImpl(api, _req) {
+    return fetch(api.baseUrl + '/models', {
+        headers: { Accept: 'application/json' },
+    }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function uploadAttachmentImpl(api, req) {
+    const form = new FormData();
+    form.append('file', req.file, req.file && req.file.name);
+    return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/attachments', {
+        method: 'POST',
+        headers: Object.assign({ Accept: 'application/json' }, csrfHeader(api)),
+        body: form,
+    }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function listAttachmentsImpl(api, req) {
+    return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/attachments', {
+        headers: { Accept: 'application/json' },
     }).then(parseJson);
 }
 

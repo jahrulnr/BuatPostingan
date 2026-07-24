@@ -5,8 +5,10 @@ import (
 	"strings"
 	"time"
 
+	"buatpostingan/internal/config"
 	"buatpostingan/internal/domain/entity"
 	"buatpostingan/internal/domain/enum"
+	"buatpostingan/internal/domain/repository"
 	"buatpostingan/internal/domain/service"
 	"buatpostingan/internal/domain/valueobject"
 	"buatpostingan/internal/pkg/apperr"
@@ -87,13 +89,26 @@ func (s *Service) StartTurn(ctx context.Context, in StartTurnInput) (StartTurnRe
 	// Order mirrors AipediaWebchatController::startTurn
 	// DocsGate → validate → access → rate → floor.assert → redact → lock → floor.acquire → enqueue
 	msg := strings.TrimSpace(in.Message)
-	if msg == "" {
+	attIDs := uniqueNonEmpty(in.AttachmentIDs)
+	if msg == "" && len(attIDs) == 0 {
 		return StartTurnResult{}, apperr.Empty("message empty")
 	}
+	if msg == "" {
+		msg = "(attached files)"
+	}
+
+	providerID, effort, err := s.resolveTurnOverrides(ctx, in.Model, in.Effort)
+	if err != nil {
+		return StartTurnResult{}, err
+	}
+
 	if err := s.requireDocsReady(ctx); err != nil {
 		return StartTurnResult{}, err
 	}
 	if _, err := s.deps.Threads.GetThread(ctx, in.ThreadID, 0); err != nil {
+		return StartTurnResult{}, err
+	}
+	if err := s.assertAttachments(ctx, in.ThreadID, attIDs); err != nil {
 		return StartTurnResult{}, err
 	}
 	if err := s.assertRate(ctx, in.AdminUserID); err != nil {
@@ -134,13 +149,16 @@ func (s *Service) StartTurn(ctx context.Context, in StartTurnInput) (StartTurnRe
 	}
 
 	job := service.TurnJob{
-		ThreadID:    in.ThreadID,
-		TurnID:      turnID,
-		AdminUserID: in.AdminUserID,
-		AdminName:   in.AdminName,
-		Message:     safe,
-		IsRetry:     false,
-		LockToken:   lockToken,
+		ThreadID:      in.ThreadID,
+		TurnID:        turnID,
+		AdminUserID:   in.AdminUserID,
+		AdminName:     in.AdminName,
+		Message:       safe,
+		AttachmentIDs: attIDs,
+		IsRetry:       false,
+		LockToken:     lockToken,
+		ProviderID:    providerID,
+		Effort:        effort,
 	}
 	if err := s.deps.Worker.Enqueue(ctx, job); err != nil {
 		_ = s.deps.Locks.Release(ctx, in.ThreadID, lockToken)
@@ -156,6 +174,90 @@ func (s *Service) StartTurn(ctx context.Context, in StartTurnInput) (StartTurnRe
 		FloorHolderAdminID: &holder,
 		FloorRemainingSec:  0,
 	}, nil
+}
+
+func (s *Service) ListModels(ctx context.Context) (entity.ModelsCatalog, error) {
+	if s.deps.Models == nil {
+		return entity.ModelsCatalog{}, apperr.NotImplemented("ListModels")
+	}
+	return s.deps.Models.ListModels(ctx)
+}
+
+func (s *Service) resolveTurnOverrides(ctx context.Context, model, effortRaw string) (providerID, effort string, err error) {
+	effort, ok := config.NormalizeEffortOverride(effortRaw)
+	if !ok {
+		return "", "", apperr.Validation("effort not allowed")
+	}
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return "", effort, nil
+	}
+	if s.deps.Models == nil {
+		return "", "", apperr.Validation("model not allowed")
+	}
+	providerID, err = s.deps.Models.ResolveModel(ctx, model)
+	if err != nil {
+		return "", "", err
+	}
+	return providerID, effort, nil
+}
+
+func (s *Service) UploadAttachment(ctx context.Context, in UploadAttachmentInput) (entity.AttachmentMeta, error) {
+	if s.deps.Attachments == nil {
+		return entity.AttachmentMeta{}, apperr.NotImplemented("attachments")
+	}
+	if _, err := s.deps.Threads.GetThread(ctx, in.ThreadID, 0); err != nil {
+		return entity.AttachmentMeta{}, err
+	}
+	return s.deps.Attachments.Save(ctx, repository.SaveAttachmentInput{
+		ThreadID:     in.ThreadID,
+		Filename:     in.Filename,
+		Mime:         in.Mime,
+		Data:         in.Data,
+		UploadedByID: in.AdminUserID,
+	})
+}
+
+func (s *Service) ListAttachments(ctx context.Context, threadID valueobject.ThreadID) ([]entity.AttachmentMeta, error) {
+	if s.deps.Attachments == nil {
+		return nil, apperr.NotImplemented("attachments")
+	}
+	if _, err := s.deps.Threads.GetThread(ctx, threadID, 0); err != nil {
+		return nil, err
+	}
+	return s.deps.Attachments.List(ctx, threadID)
+}
+
+func (s *Service) assertAttachments(ctx context.Context, threadID valueobject.ThreadID, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	if s.deps.Attachments == nil {
+		return apperr.Validation("attachments not configured")
+	}
+	for _, id := range ids {
+		if _, _, err := s.deps.Attachments.ResolvePath(ctx, threadID, id); err != nil {
+			return apperr.Validation("unknown attachment_id: " + id)
+		}
+	}
+	return nil
+}
+
+func uniqueNonEmpty(ids []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
 }
 
 func (s *Service) RetryTurn(ctx context.Context, threadID valueobject.ThreadID, turnID valueobject.TurnID, adminUserID int64) (StartTurnResult, error) {

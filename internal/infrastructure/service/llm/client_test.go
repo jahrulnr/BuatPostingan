@@ -165,9 +165,9 @@ func TestParseResponsesNonStreamJSON(t *testing.T) {
 		"object": "response",
 		"output": []any{
 			map[string]any{
-				"type": "function_call",
-				"call_id": "c1",
-				"name": "search_docs",
+				"type":      "function_call",
+				"call_id":   "c1",
+				"name":      "search_docs",
 				"arguments": `{"query":"sse"}`,
 			},
 			map[string]any{
@@ -459,5 +459,119 @@ func TestToResponsesRequestIncludesFunctionCallOutput(t *testing.T) {
 	}
 	if !sawCall || !sawOut {
 		t.Fatalf("want function_call + function_call_output, input=%#v", input)
+	}
+}
+
+func TestToResponsesRequestMultimodalImage(t *testing.T) {
+	p := config.LLMProvider{ID: "OPENROUTER", Model: "xiaomi/mimo-v2.5", API: "responses", MaxOutputTokens: 64}
+	dataURL := "data:image/png;base64,iVBORw0KGgo="
+	messages := []map[string]any{
+		{
+			"role": "user",
+			"content": []map[string]any{
+				{"type": "text", "text": "apa isi gambar ini?"},
+				{"type": "image_url", "image_url": map[string]any{"url": dataURL}},
+			},
+		},
+	}
+	body := toResponsesRequest(p, messages, nil, true)
+	input, _ := body["input"].([]map[string]any)
+	if len(input) != 1 {
+		t.Fatalf("input=%#v", input)
+	}
+	parts, ok := input[0]["content"].([]map[string]any)
+	if !ok || len(parts) != 2 {
+		t.Fatalf("content parts=%#v", input[0]["content"])
+	}
+	if parts[0]["type"] != "input_text" || parts[0]["text"] != "apa isi gambar ini?" {
+		t.Fatalf("text part %#v", parts[0])
+	}
+	if parts[1]["type"] != "input_image" || parts[1]["image_url"] != dataURL {
+		t.Fatalf("image part %#v", parts[1])
+	}
+}
+
+func TestChatCompletionsMultimodalBody(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"a cat"}}],"usage":{"prompt_tokens":10,"completion_tokens":2}}`)
+	}))
+	defer srv.Close()
+	streamOff := false
+	c := NewClient(Config{Stream: &streamOff})
+	c.cfg.Providers = map[string]config.LLMProvider{
+		"C": {ID: "C", BaseURL: srv.URL, APIKey: "k", Model: "m", API: "chat", TimeoutSec: 5, MaxOutputTokens: 32},
+	}
+	c.cfg.ActiveProvider = "C"
+	dataURL := "data:image/png;base64,abc"
+	res, err := c.Chat(context.Background(), []map[string]any{{
+		"role": "user",
+		"content": []map[string]any{
+			{"type": "text", "text": "what?"},
+			{"type": "image_url", "image_url": map[string]any{"url": dataURL}},
+		},
+	}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Text != "a cat" {
+		t.Fatalf("%q", res.Text)
+	}
+	msgs, _ := gotBody["messages"].([]any)
+	if len(msgs) != 1 {
+		t.Fatalf("messages=%#v", gotBody["messages"])
+	}
+	msg, _ := msgs[0].(map[string]any)
+	parts, _ := msg["content"].([]any)
+	if len(parts) != 2 {
+		t.Fatalf("content=%#v", msg["content"])
+	}
+	img, _ := parts[1].(map[string]any)
+	if img["type"] != "image_url" {
+		t.Fatalf("part1=%#v", img)
+	}
+}
+
+func TestResponsesMultimodalHTTPBody(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":3,"output_tokens":1}}`)
+	}))
+	defer srv.Close()
+	streamOff := false
+	c := NewClient(Config{Stream: &streamOff})
+	c.cfg.Providers = map[string]config.LLMProvider{
+		"R": {ID: "R", BaseURL: srv.URL, APIKey: "k", Model: "m", API: "responses", TimeoutSec: 5, MaxOutputTokens: 32},
+	}
+	c.cfg.ActiveProvider = "R"
+	dataURL := "data:image/png;base64,xyz"
+	_, err := c.Chat(context.Background(), []map[string]any{{
+		"role": "user",
+		"content": []any{
+			map[string]any{"type": "text", "text": "see"},
+			map[string]any{"type": "image_url", "image_url": map[string]any{"url": dataURL}},
+		},
+	}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := gotBody["input"].([]any)
+	if len(input) != 1 {
+		t.Fatalf("input=%#v", gotBody["input"])
+	}
+	item, _ := input[0].(map[string]any)
+	parts, _ := item["content"].([]any)
+	if len(parts) != 2 {
+		t.Fatalf("parts=%#v", item["content"])
+	}
+	img, _ := parts[1].(map[string]any)
+	if img["type"] != "input_image" || img["image_url"] != dataURL {
+		t.Fatalf("image=%#v", img)
 	}
 }

@@ -42,6 +42,15 @@ func (f *listFake) RetryTurn(context.Context, valueobject.ThreadID, valueobject.
 func (f *listFake) InterruptTurn(context.Context, valueobject.ThreadID, valueobject.TurnID, int64) error {
 	return apperr.NotImplemented("x")
 }
+func (f *listFake) UploadAttachment(context.Context, webchat.UploadAttachmentInput) (entity.AttachmentMeta, error) {
+	return entity.AttachmentMeta{}, apperr.NotImplemented("x")
+}
+func (f *listFake) ListAttachments(context.Context, valueobject.ThreadID) ([]entity.AttachmentMeta, error) {
+	return nil, apperr.NotImplemented("x")
+}
+func (f *listFake) ListModels(context.Context) (entity.ModelsCatalog, error) {
+	return entity.ModelsCatalog{}, apperr.NotImplemented("x")
+}
 func (f *listFake) SubscribeEvents(context.Context, valueobject.ThreadID, uint64, webchat.EventEmitter) error {
 	return apperr.NotImplemented("x")
 }
@@ -131,5 +140,52 @@ func TestMountWebchatAPIWithoutStatic(t *testing.T) {
 	mux.ServeHTTP(root, httptest.NewRequest(http.MethodGet, "/", nil))
 	if root.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 without static, got %d", root.Code)
+	}
+}
+
+type modelsFake struct {
+	listFake
+	cat entity.ModelsCatalog
+}
+
+func (f *modelsFake) ListModels(context.Context) (entity.ModelsCatalog, error) {
+	return f.cat, nil
+}
+
+func TestListModelsJSONShape(t *testing.T) {
+	t.Parallel()
+	uc := &modelsFake{
+		cat: entity.ModelsCatalog{
+			Models: []entity.ModelOption{{
+				ID: "openai/gpt-4o-mini", Label: "gpt-4o-mini · OPENROUTER", Provider: "OPENROUTER",
+				SupportsVision: true, SupportedEfforts: []string{"low", "medium", "high"}, DefaultEffort: "medium",
+			}},
+			DefaultModelID: "openai/gpt-4o-mini",
+			EffortCurrent:  "auto",
+			EffortOptions:  []string{"auto", "none", "medium", "high"},
+			Stub:           false,
+		},
+	}
+	srv := httpdelivery.NewServer(config.Config{WebRoot: "web"}, uc)
+	req := httptest.NewRequest(http.MethodGet, "/api/webchat/models", nil)
+	rec := httptest.NewRecorder()
+	srv.Handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["default_model_id"] != "openai/gpt-4o-mini" {
+		t.Fatalf("%v", body)
+	}
+	models, ok := body["models"].([]any)
+	if !ok || len(models) != 1 {
+		t.Fatalf("models: %v", body["models"])
+	}
+	effort, ok := body["effort"].(map[string]any)
+	if !ok || effort["current"] != "auto" {
+		t.Fatalf("effort: %v", body["effort"])
 	}
 }

@@ -178,18 +178,77 @@ export function paintActionBubble(messagesEl, state) {
     messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-export function appendUserMessage(messagesEl, text, who, mine, id) {
+export function appendUserMessage(messagesEl, text, who, mine, id, attachments) {
     const welcome = messagesEl.querySelector('.chat-welcome');
     if (welcome) welcome.remove();
     const art = document.createElement('article');
     art.className = 'msg msg--user ' + (mine ? 'is-mine' : 'is-peer');
     if (id) art.dataset.id = id;
+    const bubbleBody = escapeHtml(text || '');
+    const attachHtml = renderMessageAttachments(attachments);
     art.innerHTML =
         '<div class="msg__who">' + escapeHtml(who) + (mine ? ' · you' : '') + '</div>' +
-        '<div class="msg__bubble">' + escapeHtml(text) + '</div>';
+        '<div class="msg__bubble">' +
+        (bubbleBody ? '<div class="msg__text">' + bubbleBody + '</div>' : '') +
+        attachHtml +
+        '</div>';
     messagesEl.appendChild(art);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return art;
+}
+
+/** Paint attachment chips inside an existing user bubble (optimistic → SSE confirm). */
+export function setUserMessageAttachments(art, attachments) {
+    if (!art) return;
+    const bubble = art.querySelector('.msg__bubble');
+    if (!bubble) return;
+    let host = bubble.querySelector('.msg__attachments');
+    const html = renderMessageAttachments(attachments);
+    if (!html) {
+        if (host) host.remove();
+        return;
+    }
+    if (host) {
+        host.outerHTML = html;
+    } else {
+        bubble.insertAdjacentHTML('beforeend', html);
+    }
+}
+
+function renderMessageAttachments(attachments) {
+    const list = Array.isArray(attachments) ? attachments : [];
+    if (!list.length) return '';
+    const chips = list.map(function (a) {
+        if (!a) return '';
+        const name = a.filename || a.name || a.attachment_id || a.id || 'file';
+        const kind = a.kind || '';
+        const size = a.size != null ? formatBytes(a.size) : '';
+        let media = '';
+        if (kind === 'image' && a.previewUrl) {
+            media = '<img class="attach-chip__thumb" src="' + escapeHtml(a.previewUrl) + '" alt="">';
+        } else if (kind === 'image') {
+            media = '<span class="attach-chip__icon" aria-hidden="true"><i class="bi bi-file-earmark-image"></i></span>';
+        } else {
+            media = '<span class="attach-chip__icon" aria-hidden="true"><i class="bi bi-file-earmark-text"></i></span>';
+        }
+        return (
+            '<div class="attach-chip attach-chip--msg" title="' + escapeHtml(name) + '">' +
+            media +
+            '<span class="attach-chip__meta">' +
+            '<span class="attach-chip__name">' + escapeHtml(name) + '</span>' +
+            (size ? '<span class="attach-chip__size">' + escapeHtml(size) + '</span>' : '') +
+            '</span></div>'
+        );
+    }).filter(Boolean).join('');
+    if (!chips) return '';
+    return '<div class="msg__attachments">' + chips + '</div>';
+}
+
+function formatBytes(n) {
+    const num = Number(n) || 0;
+    if (num < 1024) return num + ' B';
+    if (num < 1024 * 1024) return (num / 1024).toFixed(1) + ' KB';
+    return (num / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
 export function appendError(messagesEl, detail, turnId, retryable) {

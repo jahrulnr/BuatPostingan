@@ -1,0 +1,17 @@
+{
+  "type": "function",
+  "name": "read_image",
+  "description": "Confirm metadata for a user-uploaded image on the current thread (filename, mime, size, dimensions). Image pixels are already attached to the multimodal user message for vision-capable models when under the size limit — call this to cite attachment_id accurately, not because vision is missing. Keyed by attachment_id for this thread's uploads.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "attachment_id": {
+        "type": "string",
+        "description": "Attachment id from the user_message attachments list (att_…)."
+      }
+    },
+    "required": ["attachment_id"],
+    "additionalProperties": false
+  },
+  "strict": true
+}

@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"buatpostingan/internal/domain/entity"
+	"buatpostingan/internal/domain/repository"
 	"buatpostingan/internal/domain/service"
 	"buatpostingan/internal/infrastructure/service/docs"
 )
@@ -23,28 +25,48 @@ type DocsIndex interface {
 	SearchHits(ctx context.Context, query string, topK int, filters docs.Filters) ([]docs.Hit, error)
 }
 
+// VisionPixelsGate reports whether multimodal pixels are allowed for the active model.
+type VisionPixelsGate interface {
+	AllowPixels(ctx context.Context) bool
+}
+
 // Options configures Registry defaults.
 type Options struct {
-	TopK int // default for search_docs when top_k omitted
+	TopK        int // default for search_docs when top_k omitted
+	Attachments repository.AttachmentStore
+	// WebSearch overrides the default searchwire-backed searcher (tests).
+	WebSearch WebSearcher
+	// FetchClient overrides the SSRF-safe HTTP client for web_fetch (tests).
+	FetchClient *http.Client
+	// Vision optional; when nil, read_image treats bytes under the size cap as available.
+	Vision VisionPixelsGate
+	// FSRoot is an optional base for relative paths in list_dir / read_file / grep.
+	// Empty = unrestricted real filesystem (relative → process cwd; absolute incl. "/").
+	// Non-empty is a relative-path default only — not a sandbox jail. Prefer empty for local dev.
+	FSRoot string
 }
 
 // Registry loads *.tool.json schemas and executes allowlisted tools.
 type Registry struct {
-	toolsRoot string
-	index     DocsIndex
-	fs        *docsFilesystem
-	topK      int
-	schemas   map[string]map[string]any // name -> raw tool json
+	toolsRoot   string
+	index       DocsIndex
+	fs          *workspaceFS
+	attachments repository.AttachmentStore
+	webSearch   WebSearcher
+	fetchClient *http.Client
+	vision      VisionPixelsGate
+	topK        int
+	schemas     map[string]map[string]any // name -> raw tool json
 }
 
 // NewRegistry constructs a ToolRegistry.
 // toolsRoot should contain search_docs.tool.json, list_dir.tool.json, etc.
-// docsRoot is the Markdown knowledge sandbox.
-func NewRegistry(toolsRoot, docsRoot string, index DocsIndex, opts Options) (*Registry, error) {
+// Filesystem tools use opts.FSRoot (empty = full host FS for local development).
+func NewRegistry(toolsRoot string, index DocsIndex, opts Options) (*Registry, error) {
 	if index == nil {
 		return nil, errf("tools: DocsIndex required")
 	}
-	fs, err := newDocsFilesystem(docsRoot)
+	fs, err := newWorkspaceFS(opts.FSRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -53,11 +75,15 @@ func NewRegistry(toolsRoot, docsRoot string, index DocsIndex, opts Options) (*Re
 		topK = DefaultTopK
 	}
 	r := &Registry{
-		toolsRoot: toolsRoot,
-		index:     index,
-		fs:        fs,
-		topK:      topK,
-		schemas:   map[string]map[string]any{},
+		toolsRoot:   toolsRoot,
+		index:       index,
+		fs:          fs,
+		attachments: opts.Attachments,
+		webSearch:   opts.WebSearch,
+		fetchClient: opts.FetchClient,
+		vision:      opts.Vision,
+		topK:        topK,
+		schemas:     map[string]map[string]any{},
 	}
 	if err := r.loadSchemas(); err != nil {
 		return nil, err
@@ -140,6 +166,34 @@ func (r *Registry) Execute(ctx context.Context, call service.ToolCall) (service.
 			return r.fail("invalid_path", err.Error(), name, started), nil
 		}
 		env.Tool = name
+		if env.Meta == nil {
+			env.Meta = map[string]any{}
+		}
+		env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
+		return env, nil
+	case "read_attachment":
+		env := r.execReadAttachment(ctx, args)
+		if env.Meta == nil {
+			env.Meta = map[string]any{}
+		}
+		env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
+		return env, nil
+	case "read_image":
+		env := r.execReadImage(ctx, args)
+		if env.Meta == nil {
+			env.Meta = map[string]any{}
+		}
+		env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
+		return env, nil
+	case "web_search":
+		env := r.execWebSearch(ctx, args)
+		if env.Meta == nil {
+			env.Meta = map[string]any{}
+		}
+		env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
+		return env, nil
+	case "web_fetch":
+		env := r.execWebFetch(ctx, args)
 		if env.Meta == nil {
 			env.Meta = map[string]any{}
 		}

@@ -47,8 +47,85 @@ export function renameThreadMock(api, req) {
 export function startTurnMock(api, req) {
     try {
         return Promise.resolve(
-            store.startTurn(req.threadId, req.message, adminId(api), adminName(api))
+            store.startTurn(
+                req.threadId,
+                req.message,
+                adminId(api),
+                adminName(api),
+                req.attachmentIds || [],
+                { model: req.model, effort: req.effort }
+            )
         );
+    } catch (err) {
+        return Promise.reject(err);
+    }
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function listModelsMock(_api, _req) {
+    return Promise.resolve({
+        models: [
+            {
+                id: 'stub/default',
+                label: 'Stub default',
+                provider: 'STUB',
+                supports_vision: false,
+                supported_efforts: [],
+                default_effort: 'auto',
+                disabled: false,
+            },
+            {
+                id: 'stub/reasoning',
+                label: 'Stub reasoning',
+                provider: 'STUB',
+                supports_vision: false,
+                supported_efforts: ['none', 'low', 'medium', 'high'],
+                default_effort: 'medium',
+                disabled: false,
+            },
+            {
+                id: 'stub/vision',
+                label: 'Stub vision',
+                provider: 'STUB',
+                supports_vision: true,
+                supported_efforts: [],
+                default_effort: 'auto',
+                disabled: false,
+            },
+        ],
+        default_model_id: 'stub/default',
+        stub: true,
+        effort: {
+            current: 'auto',
+            options: ['auto', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
+        },
+    });
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function uploadAttachmentMock(api, req) {
+    try {
+        return Promise.resolve(
+            store.uploadAttachment(req.threadId, {
+                filename: req.filename,
+                mime: req.mime,
+                size: req.size,
+                kind: req.kind,
+                content: req.content,
+                width: req.width,
+                height: req.height,
+                adminUserId: adminId(api),
+            })
+        );
+    } catch (err) {
+        return Promise.reject(err);
+    }
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function listAttachmentsMock(api, req) {
+    try {
+        return Promise.resolve(store.listAttachments(req.threadId));
     } catch (err) {
         return Promise.reject(err);
     }

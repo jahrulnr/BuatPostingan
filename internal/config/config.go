@@ -26,6 +26,10 @@ type Config struct {
 
 	LLMStub                    bool
 	LLMStream                  bool // request stream=true (default); false → JSON non-stream
+	// LLMVision: auto|on|off — gate multimodal image parts (default auto).
+	LLMVision                  string
+	// LLMEffort: auto|none|minimal|low|medium|high|xhigh|max — reasoning effort (default auto).
+	LLMEffort                  string
 	LLMStrategy                string
 	LLMActiveProvider          string
 	LLMTotalAttemptBudget      int
@@ -108,6 +112,8 @@ func Load() Config {
 
 		LLMStub:                    stub,
 		LLMStream:                  getenvBoolFirst([]string{"BP_LLM_STREAM"}, true),
+		LLMVision:                  ParseVisionMode(getenvFirst("BP_LLM_VISION", "auto")),
+		LLMEffort:                  ParseEffortMode(getenvFirst("BP_LLM_EFFORT", "auto")),
 		LLMStrategy:                strings.ToLower(getenvFirst("BP_LLM_STRATEGY", "failover")),
 		LLMActiveProvider:          active,
 		LLMTotalAttemptBudget:      getenvIntFirst([]string{"BP_LLM_TOTAL_ATTEMPT_BUDGET"}, 4),
@@ -176,6 +182,68 @@ func loadProviders() map[string]LLMProvider {
 		out[id] = p
 	}
 	return out
+}
+
+// ParseVisionMode normalizes BP_LLM_VISION to auto|on|off (default auto).
+func ParseVisionMode(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "on", "1", "true", "yes":
+		return "on"
+	case "off", "0", "false", "no":
+		return "off"
+	case "auto":
+		return "auto"
+	default:
+		return "auto"
+	}
+}
+
+// ParseEffortMode normalizes BP_LLM_EFFORT (default auto).
+// Accepted: auto|none|minimal|low|medium|high|xhigh|max (+ aliases).
+func ParseEffortMode(raw string) string {
+	if n, ok := NormalizeEffortOverride(raw); ok && n != "" {
+		return n
+	}
+	if strings.TrimSpace(raw) == "" {
+		return "auto"
+	}
+	// Unknown env values fall back to auto (same as historical Load behavior).
+	return "auto"
+}
+
+// EffortPickerOptions is the global reasoning-effort menu (includes auto).
+func EffortPickerOptions() []string {
+	return []string{"auto", "none", "minimal", "low", "medium", "high", "xhigh", "max"}
+}
+
+// NormalizeEffortOverride parses a StartTurn / picker effort override.
+// Empty input → ("", true) meaning “use server default”.
+// Unknown non-empty → ("", false).
+func NormalizeEffortOverride(raw string) (normalized string, ok bool) {
+	s := strings.ToLower(strings.TrimSpace(raw))
+	if s == "" {
+		return "", true
+	}
+	switch s {
+	case "auto":
+		return "auto", true
+	case "none", "off", "0", "false", "no":
+		return "none", true
+	case "minimal", "min":
+		return "minimal", true
+	case "low":
+		return "low", true
+	case "medium", "med", "default":
+		return "medium", true
+	case "high":
+		return "high", true
+	case "xhigh", "x-high", "extra", "extra_high", "extrahigh":
+		return "xhigh", true
+	case "max", "maximum":
+		return "max", true
+	default:
+		return "", false
+	}
 }
 
 func getenvFirst(keys ...string) string {

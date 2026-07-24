@@ -14,6 +14,7 @@ Deep dives:
 
 - [`turn-loop.md`](turn-loop.md) — StartTurn → worker → tools → JSONL → SSE  
 - [`llm-providers.md`](llm-providers.md) — stub, OpenAI-compatible `chat`/`responses`, router  
+- [`llm-model-picker.md`](llm-model-picker.md) — composer model/effort picker + `/models`  
 - [`../operations/runbook.md`](../operations/runbook.md) — local run  
 
 ## Layout
@@ -59,6 +60,7 @@ Handlers call `webchat.Usecase` only. Concrete service: `webchat.NewService(Deps
 | FE export | HTTP | Usecase |
 |---|---|---|
 | `listConversations` | `GET /api/webchat/conversations` | `ListConversations` |
+| `listModels` | `GET /api/webchat/models` | `ListModels` |
 | `createThread` | `POST /api/webchat/threads` | `CreateThread` |
 | `getThread` | `GET /api/webchat/threads/{id}` | `GetThread` |
 | `renameThread` | `PATCH /api/webchat/threads/{id}` | `RenameThread` |
@@ -78,7 +80,7 @@ Handlers call `webchat.Usecase` only. Concrete service: `webchat.NewService(Deps
 ## Runtime wiring (`cmd/app`)
 
 1. Ensure storage dirs; `docs.NewIndex` (+ Reindex) + Gate log  
-2. `tools.NewRegistry` (allowlist: search_docs, list_dir, read_file, grep)  
+2. `tools.NewRegistry` (allowlist: search_docs, list_dir, read_file, grep, read_attachment, read_image, web_search, web_fetch)  
 3. `llm.NewClient` + `llm.NewRouter` (failover / circuit)  
 4. `worker.New` + `sse.NewStreamer`  
 5. `webchat.NewService(Deps{…})` → HTTP server  
@@ -91,15 +93,23 @@ Allowlist (hardcoded in `tools.Allowlist`; schemas from disk):
 
 | Tool | Role |
 |---|---|
-| `search_docs` | Lexical RAG over indexed Markdown |
-| `list_dir` | List under docs sandbox (`data.listing` ls-style incl. `.` / `..`) |
-| `read_file` | Read file under sandbox |
+| `search_docs` | Lexical RAG over indexed Markdown (`BP_DOCS_ROOT`) |
+| `list_dir` | List host directories (`data.listing` ls-style incl. `.` / `..`) |
+| `read_file` | Read host files (absolute or relative) |
 | `grep` | Regex search; prefers host `rg` (`--json`, no shell); Go RE2 fallback |
+| `read_attachment` | Read text uploads for the current thread (`attachment_id`) |
+| `read_image` | Image upload metadata; pixels auto-injected into multimodal LLM user messages when under vision size limits |
+| `web_search` | Public metasearch via [searchwire](https://github.com/jahrulnr/searchwire) (Brave/Startpage/Wikipedia/GitHub); query string only |
+| `web_fetch` | SSRF-safe HTTP GET of public http(s) URLs → title + truncated text |
 
 - Schemas: `resources/webchat/tools/{name}.tool.json` (`BP_TOOLS_ROOT`)  
-- Sandbox root = `BP_DOCS_ROOT` (default `docs/webchat`) — absolute/`..` rejected  
+- **Local-dev FS:** `list_dir` / `read_file` / `grep` use the real host filesystem (absolute paths including `/` allowed; optional `Options.FSRoot` is a relative-path base for tests only — not a jail). **Insecure for multi-tenant production.**  
+- Docs corpus for `search_docs` = `BP_DOCS_ROOT` (default `docs/webchat`) — indexing only; does not jail other FS tools  
+- Attachments = `{BP_STORAGE_ROOT}/attachments/{threadId}/` — tools require worker thread context + `attachment_id`  
+- `web_fetch` blocks localhost/private/link-local/metadata IPs; max body 2 MiB; text/html(+text) only  
+- Optional `BP_GITHUB_TOKEN` (or `GITHUB_TOKEN`) raises GitHub search rate limits for `web_search` — not required for default path  
 - No mutation / admin-route tools  
-- Multi `tool_calls` in one LLM response: **sequential** Execute; all results feed the next round  
+- Multi `tool_calls` in one LLM response: **sequential** Execute; all results feed the next round
 
 ## Persistence (JSONL)
 
@@ -111,12 +121,15 @@ threads/{id}.jsonl      # append-only transcript items + seq
 threads/{id}.seq
 threads/{id}.lock
 interrupt/{thread}/{turn}.flag
+attachments/{threadId}/{attId}.meta.json
+attachments/{threadId}/{attId}.data
 ```
 
 - **seq** — monotonic per thread; SSE cursor = last seen seq  
 - **session index** — conversation sidebar meta (title, active turn, floor holder, …)  
 - **lock** — single active turn worker per thread  
 - **interrupt flags** — cooperative stop between LLM rounds  
+- **attachments** — multipart uploads; `POST /api/webchat/threads/{id}/attachments`; StartTurn accepts `attachment_ids`  
 - Speak-floor + rate-limit state also under storage (see jsonl / ratelimit packages)  
 
 ## Frontend

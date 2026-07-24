@@ -19,6 +19,9 @@ type Usecase interface {
 	StartTurn(ctx context.Context, in StartTurnInput) (StartTurnResult, error)
 	RetryTurn(ctx context.Context, threadID valueobject.ThreadID, turnID valueobject.TurnID, adminUserID int64) (StartTurnResult, error)
 	InterruptTurn(ctx context.Context, threadID valueobject.ThreadID, turnID valueobject.TurnID, adminUserID int64) error
+	UploadAttachment(ctx context.Context, in UploadAttachmentInput) (entity.AttachmentMeta, error)
+	ListAttachments(ctx context.Context, threadID valueobject.ThreadID) ([]entity.AttachmentMeta, error)
+	ListModels(ctx context.Context) (entity.ModelsCatalog, error)
 	// SubscribeEvents blocks until ctx is done or the stream ends.
 	// emit must be called with FE/SSE event names (item.completed, turn.*, …).
 	SubscribeEvents(ctx context.Context, threadID valueobject.ThreadID, afterSeq uint64, emit EventEmitter) error
@@ -51,10 +54,23 @@ type RenameResult struct {
 }
 
 type StartTurnInput struct {
-	ThreadID    valueobject.ThreadID
-	Message     string
-	AdminUserID int64
-	AdminName   string
+	ThreadID      valueobject.ThreadID
+	Message       string
+	AdminUserID   int64
+	AdminName     string
+	AttachmentIDs []string
+	// Model is an optional picker override (model id or provider id); validated against allowlist.
+	Model string
+	// Effort is an optional per-turn reasoning effort override (auto|none|…|max).
+	Effort string
+}
+
+type UploadAttachmentInput struct {
+	ThreadID     valueobject.ThreadID
+	Filename     string
+	Mime         string
+	Data         []byte
+	AdminUserID  int64
 }
 
 type StartTurnResult struct {

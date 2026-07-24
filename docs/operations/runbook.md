@@ -85,7 +85,11 @@ BP_LLM_OPENROUTER_MODEL=openai/gpt-4o-mini
 BP_LLM_OPENROUTER_API=responses   # or chat
 ```
 
-Restart `make be`. Expect tool rounds (search_docs / list_dir / read_file / grep) when the model calls them. Logs: `webchat.turn_start`, `webchat.tool`, `webchat.reasoning`, `webchat.turn_completed`.
+Restart `make be`. Expect tool rounds (search_docs / list_dir / read_file / grep / read_attachment / read_image) when the model calls them. Logs: `webchat.turn_start`, `webchat.tool`, `webchat.reasoning`, `webchat.turn_completed`.
+
+**Vision (image attach):** With `BP_LLM_VISION=auto` (default) or `on` and a vision-capable model (e.g. `xiaomi/mimo-v2.5`), attach a PNG/JPEG and ask “apa isi gambar ini?”. Worker injects `image_url` / `input_image` data-URL parts (cap 4 MiB / image). Text-only models under `auto` get metadata only. Details: [llm-vision.md](../architecture/llm-vision.md).
+
+**Effort (reasoning):** `BP_LLM_EFFORT=auto` (default) probes `/models` and only sends `reasoning.effort` / `reasoning_effort` when the model advertises support. Explicit levels (`medium`, `high`, …) are clamped/omitted the same way. Details: [llm-effort.md](../architecture/llm-effort.md).
 
 Details: [LLM providers](../architecture/llm-providers.md).
 
@@ -105,7 +109,7 @@ Details: [LLM providers](../architecture/llm-providers.md).
 | Docs / turns refused | Docs index not usable — check `BP_DOCS_ROOT` + startup Reindex/Gate |
 | Empty model replies on Responses | Prefer `API=responses` + SSE (`BP_LLM_STREAM=true` default); only set `BP_LLM_STREAM=false` if upstream cannot stream |
 | Mock UI when you wanted real | Remove `?mock=1` / clear `localStorage bp.mockMode` |
-| Tool path errors | Tools are sandboxed to `BP_DOCS_ROOT` only |
+| Tool path errors | Check absolute/relative path exists; FS tools are unrestricted on the host (local-dev) |
 
 ## Related
 

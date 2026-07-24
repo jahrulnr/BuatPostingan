@@ -18,6 +18,10 @@ type Config struct {
 	Providers               map[string]config.LLMProvider
 	// Stream requests stream=true when non-nil. Nil defaults to true (SSE preferred).
 	Stream *bool
+	// Vision is BP_LLM_VISION (auto|on|off).
+	Vision string
+	// Effort is BP_LLM_EFFORT (auto|none|minimal|low|medium|high|xhigh|max).
+	Effort string
 }
 
 func FromApp(cfg config.Config) Config {
@@ -32,6 +36,8 @@ func FromApp(cfg config.Config) Config {
 		RetryStatuses:           cfg.LLMRetryStatuses,
 		Providers:               cfg.LLMProviders,
 		Stream:                  &stream,
+		Vision:                  config.ParseVisionMode(cfg.LLMVision),
+		Effort:                  config.ParseEffortMode(cfg.LLMEffort),
 	}
 }
 

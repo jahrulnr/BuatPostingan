@@ -10,6 +10,7 @@ import (
 	webchatusecase "buatpostingan/internal/usecase/webchat"
 	"buatpostingan/internal/config"
 	"buatpostingan/internal/infrastructure/ratelimit"
+	"buatpostingan/internal/infrastructure/repository/attachments"
 	"buatpostingan/internal/infrastructure/repository/jsonl"
 	"buatpostingan/internal/infrastructure/service/docs"
 	"buatpostingan/internal/infrastructure/service/llm"
@@ -26,7 +27,7 @@ func main() {
 	if err := os.MkdirAll(cfg.StorageRoot, 0o775); err != nil {
 		log.Fatalf("storage root: %v", err)
 	}
-	for _, sub := range []string{"threads", "interrupt", "rl", "llm"} {
+	for _, sub := range []string{"threads", "interrupt", "rl", "llm", "attachments"} {
 		_ = os.MkdirAll(filepath.Join(cfg.StorageRoot, sub), 0o775)
 	}
 
@@ -36,6 +37,10 @@ func main() {
 	floor := jsonl.NewSpeakFloor(store, cfg.SpeakFloorTTL)
 	rl := ratelimit.NewTurnLimiter(cfg.StorageRoot, cfg.TurnRateLimitPerMin)
 	red := redact.New()
+	attStore, err := attachments.NewStore(cfg.StorageRoot, 0)
+	if err != nil {
+		log.Fatalf("attachments: %v", err)
+	}
 
 	docsIndex, err := docs.NewIndex(cfg.DocsRoot, cfg.StorageRoot, docs.Options{
 		AppID:        cfg.DocsAppID,
@@ -57,39 +62,51 @@ func main() {
 			gate.Usable, gate.Status, gate.DocumentCount, gate.Message)
 	}
 
-	reg, err := tools.NewRegistry(cfg.ToolsRoot, cfg.DocsRoot, docsIndex, tools.Options{TopK: cfg.DocsTopK})
+	llmCfg := llm.FromApp(cfg)
+	llmClient := llm.NewClient(llmCfg)
+	llmRouter := llm.NewRouter(llmCfg, llmClient)
+	visionPolicy := llm.NewVisionPolicy(llmCfg)
+	effortPolicy := llm.NewEffortPolicy(llmCfg)
+	modelCatalog := llm.NewCatalog(cfg, visionPolicy, effortPolicy)
+
+	reg, err := tools.NewRegistry(cfg.ToolsRoot, docsIndex, tools.Options{
+		TopK:        cfg.DocsTopK,
+		Attachments: attStore,
+		Vision:      visionPolicy,
+		// FSRoot empty: list_dir/read_file/grep have full host FS access (local-dev).
+	})
 	if err != nil {
 		log.Fatalf("tools registry: %v", err)
 	}
 
-	llmCfg := llm.FromApp(cfg)
-	llmClient := llm.NewClient(llmCfg)
-	llmRouter := llm.NewRouter(llmCfg, llmClient)
-
 	tw := worker.New(worker.Deps{
-		Config:    cfg,
-		Store:     store,
-		Locks:     locks,
-		Interrupt: intr,
-		Tools:     reg,
-		Docs:      docsIndex,
-		LLM:       llmRouter,
+		Config:      cfg,
+		Store:       store,
+		Locks:       locks,
+		Interrupt:   intr,
+		Tools:       reg,
+		Docs:        docsIndex,
+		LLM:         llmRouter,
+		Attachments: attStore,
+		Vision:      visionPolicy,
 	})
 	events := sse.NewStreamer(store)
 
-	log.Printf("webchat ready: llm_stub=%v strategy=%s active=%s providers=%d",
-		cfg.LLMStub, cfg.LLMStrategy, cfg.LLMActiveProvider, len(cfg.LLMProviders))
+	log.Printf("webchat ready: llm_stub=%v vision=%s effort=%s strategy=%s active=%s providers=%d",
+		cfg.LLMStub, visionPolicy.Mode(), effortPolicy.Mode(), cfg.LLMStrategy, cfg.LLMActiveProvider, len(cfg.LLMProviders))
 
 	uc := webchatusecase.NewService(webchatusecase.Deps{
-		Threads:   store,
-		Locks:     locks,
-		Interrupt: intr,
-		Floor:     floor,
-		RateLimit: rl,
-		Redactor:  red,
-		Docs:      docsIndex,
-		Events:    events,
-		Worker:    tw,
+		Threads:     store,
+		Locks:       locks,
+		Interrupt:   intr,
+		Floor:       floor,
+		RateLimit:   rl,
+		Redactor:    red,
+		Docs:        docsIndex,
+		Events:      events,
+		Worker:      tw,
+		Attachments: attStore,
+		Models:      modelCatalog,
 	})
 
 	srv := httpdelivery.NewServer(cfg, uc)

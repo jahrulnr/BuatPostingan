@@ -23,6 +23,7 @@ type Client struct {
 	cfg    Config
 	http   *http.Client
 	retry  map[int]struct{}
+	effort *EffortPolicy
 }
 
 func NewClient(cfg Config) *Client {
@@ -32,9 +33,10 @@ func NewClient(cfg Config) *Client {
 	}
 	retry[413] = struct{}{}
 	return &Client{
-		cfg:   cfg,
-		http:  &http.Client{},
-		retry: retry,
+		cfg:    cfg,
+		http:   &http.Client{},
+		retry:  retry,
+		effort: NewEffortPolicy(cfg),
 	}
 }
 
@@ -74,6 +76,7 @@ func (c *Client) chatViaCompletions(ctx context.Context, p config.LLMProvider, m
 	if len(tools) > 0 {
 		body["tools"] = normalizeChatTools(tools)
 	}
+	c.applyEffort(ctx, p, body)
 	payload, err := c.postJSON(ctx, p, "chat/completions", body)
 	if err != nil {
 		return service.LLMResult{}, err
@@ -83,6 +86,7 @@ func (c *Client) chatViaCompletions(ctx context.Context, p config.LLMProvider, m
 
 func (c *Client) chatViaResponses(ctx context.Context, p config.LLMProvider, messages []map[string]any, tools []map[string]any) (service.LLMResult, error) {
 	body := toResponsesRequest(p, messages, tools, c.wantStream())
+	c.applyEffort(ctx, p, body)
 	payload, err := c.postJSON(ctx, p, "responses", body)
 	if err != nil {
 		return service.LLMResult{}, err
@@ -92,6 +96,17 @@ func (c *Client) chatViaResponses(ctx context.Context, p config.LLMProvider, mes
 		return parseChatCompletionPayload(p, payload), nil
 	}
 	return parseResponsesPayload(p, payload), nil
+}
+
+func (c *Client) applyEffort(ctx context.Context, p config.LLMProvider, body map[string]any) {
+	if c == nil || c.effort == nil || body == nil {
+		return
+	}
+	if mode, ok := EffortModeFromContext(ctx); ok {
+		ApplyEffort(body, p.API, c.effort.ResolveWithMode(ctx, p, mode))
+		return
+	}
+	ApplyEffort(body, p.API, c.effort.ResolveFor(ctx, p))
 }
 
 func parseResponsesPayload(p config.LLMProvider, payload map[string]any) service.LLMResult {
@@ -543,7 +558,7 @@ func normalizeChatTools(tools []map[string]any) []map[string]any {
 			"function": map[string]any{
 				"name":        fn["name"],
 				"description": fn["description"],
-				"parameters":   normalizeParameters(params),
+				"parameters":  normalizeParameters(params),
 				"strict":      false,
 			},
 		})
@@ -562,8 +577,7 @@ func toResponsesRequest(p config.LLMProvider, messages []map[string]any, tools [
 				instructions = append(instructions, content)
 			}
 		case "user":
-			content, _ := msg["content"].(string)
-			input = append(input, map[string]any{"role": "user", "content": content})
+			input = append(input, map[string]any{"role": "user", "content": toResponsesUserContent(msg["content"])})
 		case "assistant":
 			if tcs, ok := msg["tool_calls"].([]any); ok && len(tcs) > 0 {
 				for _, raw := range tcs {
@@ -603,6 +617,68 @@ func toResponsesRequest(p config.LLMProvider, messages []map[string]any, tools [
 	return body
 }
 
+// toResponsesUserContent maps chat-completions content (string or multimodal
+// parts) into Responses API content (string or input_text / input_image parts).
+func toResponsesUserContent(content any) any {
+	switch c := content.(type) {
+	case nil:
+		return ""
+	case string:
+		return c
+	case []map[string]any:
+		parts := make([]any, len(c))
+		for i, p := range c {
+			parts[i] = p
+		}
+		return toResponsesContentParts(parts)
+	case []any:
+		return toResponsesContentParts(c)
+	default:
+		return fmt.Sprint(c)
+	}
+}
+
+func toResponsesContentParts(parts []any) []map[string]any {
+	out := make([]map[string]any, 0, len(parts))
+	for _, raw := range parts {
+		p, ok := raw.(map[string]any)
+		if !ok || p == nil {
+			continue
+		}
+		switch p["type"] {
+		case "text", "input_text":
+			text := p["text"]
+			out = append(out, map[string]any{"type": "input_text", "text": text})
+		case "image_url", "input_image":
+			url := extractImageURL(p)
+			if url == "" {
+				continue
+			}
+			part := map[string]any{"type": "input_image", "image_url": url}
+			if detail, ok := p["detail"]; ok {
+				part["detail"] = detail
+			}
+			out = append(out, part)
+		}
+	}
+	if len(out) == 0 {
+		return []map[string]any{{"type": "input_text", "text": ""}}
+	}
+	return out
+}
+
+func extractImageURL(p map[string]any) string {
+	switch u := p["image_url"].(type) {
+	case string:
+		return strings.TrimSpace(u)
+	case map[string]any:
+		if s, ok := u["url"].(string); ok {
+			return strings.TrimSpace(s)
+		}
+	}
+	return ""
+}
+
 func toResponsesTools(tools []map[string]any) []map[string]any {
 	out := make([]map[string]any, 0, len(tools))
 	for _, tool := range tools {
@@ -618,7 +694,7 @@ func toResponsesTools(tools []map[string]any) []map[string]any {
 			"type":        "function",
 			"name":        fn["name"],
 			"description": fn["description"],
-			"parameters":   normalizeParameters(params),
+			"parameters":  normalizeParameters(params),
 		})
 	}
 	return out

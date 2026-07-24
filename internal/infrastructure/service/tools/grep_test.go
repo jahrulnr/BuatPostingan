@@ -16,7 +16,7 @@ func TestGrepRegexMatchAndEmpty(t *testing.T) {
 	mustWrite(t, filepath.Join(docsRoot, "b.md"), "nothing here\n")
 	mustWrite(t, filepath.Join(docsRoot, "skip.txt"), "regex_token_42\n")
 
-	fs, err := newDocsFilesystem(docsRoot)
+	fs, err := newWorkspaceFS(docsRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,11 +42,9 @@ func TestGrepRegexMatchAndEmpty(t *testing.T) {
 		t.Fatalf("engine=%v want go", data["engine"])
 	}
 	matches := data["matches"].([]map[string]any)
-	if len(matches) != 1 {
-		t.Fatalf("matches=%#v want 1 (md only)", matches)
-	}
-	if matches[0]["path"] != "a.md" {
-		t.Fatalf("path=%v", matches[0]["path"])
+	// Full FS: both .md and .txt match.
+	if len(matches) != 2 {
+		t.Fatalf("matches=%#v want 2", matches)
 	}
 
 	empty, err := fs.grep(map[string]any{"query": "zzz_no_such", "path": ""})
@@ -66,7 +64,7 @@ func TestGrepRegexMatchAndEmpty(t *testing.T) {
 func TestGrepInvalidPattern(t *testing.T) {
 	docsRoot := t.TempDir()
 	mustWrite(t, filepath.Join(docsRoot, "a.md"), "hello\n")
-	fs, err := newDocsFilesystem(docsRoot)
+	fs, err := newWorkspaceFS(docsRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +85,7 @@ func TestGrepInvalidPattern(t *testing.T) {
 	}
 }
 
-func TestGrepSandboxEscapeBlocked(t *testing.T) {
+func TestGrepAbsolutePathAllowed(t *testing.T) {
 	repoRoot := findRepoRootTools(t)
 	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
 	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
@@ -96,25 +94,28 @@ func TestGrepSandboxEscapeBlocked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reg, err := NewRegistry(toolsRoot, docsRoot, idx, Options{})
+	reg, err := NewRegistry(toolsRoot, idx, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for _, path := range []string{"../etc/passwd", "/etc/passwd", "writing/../../etc/passwd"} {
-		env, err := reg.Execute(context.Background(), service.ToolCall{
-			Name:      "grep",
-			Arguments: map[string]any{"query": "root", "path": path},
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if env.OK {
-			t.Fatalf("path %q should be rejected", path)
-		}
-		if env.Error["code"] != "invalid_path" {
-			t.Fatalf("path %q: %+v", path, env.Error)
-		}
+	tmp := t.TempDir()
+	mustWrite(t, filepath.Join(tmp, "hit.txt"), "unique_grep_token_99\n")
+	abs := filepath.Join(tmp, "hit.txt")
+
+	env, err := reg.Execute(context.Background(), service.ToolCall{
+		Name:      "grep",
+		Arguments: map[string]any{"query": "unique_grep_token_99", "path": abs},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !env.OK {
+		t.Fatalf("absolute grep path should work: %+v", env)
+	}
+	data, _ := env.Data.(map[string]any)
+	if data["count"] != 1 {
+		t.Fatalf("%+v", data)
 	}
 }
 
@@ -125,7 +126,7 @@ func TestGrepRipgrepEngineWhenAvailable(t *testing.T) {
 	}
 	docsRoot := t.TempDir()
 	mustWrite(t, filepath.Join(docsRoot, "hit.md"), "alpha beta gamma\n")
-	fs, err := newDocsFilesystem(docsRoot)
+	fs, err := newWorkspaceFS(docsRoot)
 	if err != nil {
 		t.Fatal(err)
 	}

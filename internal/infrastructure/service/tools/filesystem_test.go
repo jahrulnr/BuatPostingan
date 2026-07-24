@@ -13,7 +13,7 @@ func TestReadFileHappyAndPagination(t *testing.T) {
 	root := t.TempDir()
 	body := strings.Repeat("αβγ", 100) // multi-byte runes
 	mustWrite(t, filepath.Join(root, "doc.md"), body)
-	fs, err := newDocsFilesystem(root)
+	fs, err := newWorkspaceFS(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,55 +54,54 @@ func TestReadFileHappyAndPagination(t *testing.T) {
 func TestReadFileEdges(t *testing.T) {
 	root := t.TempDir()
 	mustWrite(t, filepath.Join(root, "ok.md"), "# hi\n")
-	mustWrite(t, filepath.Join(root, "note.txt"), "not markdown\n")
+	mustWrite(t, filepath.Join(root, "note.txt"), "plain text\n")
 	sub := filepath.Join(root, "subdir")
 	if err := os.MkdirAll(sub, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	fs, err := newDocsFilesystem(root)
+	fs, err := newWorkspaceFS(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	cases := []struct {
-		name    string
-		args    map[string]any
-		code    string
-		wantErr bool
-	}{
-		{"missing", map[string]any{"path": "nope.md"}, "", true}, // resolve treats missing as outside
-		{"directory", map[string]any{"path": "subdir"}, "", true},
-		{"txt", map[string]any{"path": "note.txt"}, "file_type_not_allowed", false},
-		{"absolute", map[string]any{"path": "/etc/passwd"}, "", true},
-		{"dotdot", map[string]any{"path": "../etc/passwd"}, "", true},
-		{"nullbyte", map[string]any{"path": "ok\x00.md"}, "", true},
+	// missing → not_file fail envelope
+	out, err := fs.readFile(map[string]any{"path": "nope.md"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			out, err := fs.readFile(tc.args)
-			if tc.wantErr {
-				if err == nil && (out == nil || out["ok"] == true) {
-					t.Fatalf("expected rejection, out=%+v", out)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected err: %v", err)
-			}
-			if ok, _ := out["ok"].(bool); ok {
-				t.Fatalf("expected fail, got %+v", out)
-			}
-			if tc.code != "" {
-				code := out["error"].(map[string]any)["code"]
-				if code != tc.code {
-					t.Fatalf("code=%v want %s", code, tc.code)
-				}
-			}
-		})
+	if ok, _ := out["ok"].(bool); ok {
+		t.Fatal("expected not_file")
+	}
+	if out["error"].(map[string]any)["code"] != "not_file" {
+		t.Fatalf("%+v", out["error"])
+	}
+
+	// directory → not_file
+	out, err = fs.readFile(map[string]any{"path": "subdir"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out["error"].(map[string]any)["code"] != "not_file" {
+		t.Fatalf("%+v", out["error"])
+	}
+
+	// non-markdown allowed
+	out, err = fs.readFile(map[string]any{"path": "note.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := out["ok"].(bool); !ok {
+		t.Fatalf("%+v", out)
+	}
+
+	// null byte rejected
+	_, err = fs.readFile(map[string]any{"path": "ok\x00.md"})
+	if err == nil {
+		t.Fatal("null byte should error")
 	}
 
 	// offset past EOF clamps
-	out, err := fs.readFile(map[string]any{"path": "ok.md", "offset": 99999})
+	out, err = fs.readFile(map[string]any{"path": "ok.md", "offset": 99999})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,13 +111,67 @@ func TestReadFileEdges(t *testing.T) {
 	}
 }
 
+func TestAbsoluteAndDotDotPathsAllowed(t *testing.T) {
+	root := t.TempDir()
+	sub := filepath.Join(root, "sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(root, "top.txt"), "top\n")
+	mustWrite(t, filepath.Join(sub, "nested.txt"), "nested\n")
+
+	// Unrestricted FS: absolute path into temp tree (not host /etc).
+	fs, err := newWorkspaceFS("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := fs.readFile(map[string]any{"path": filepath.Join(root, "top.txt")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := out["ok"].(bool); !ok {
+		t.Fatalf("%+v", out)
+	}
+	if out["data"].(map[string]any)["content"] != "top\n" {
+		t.Fatalf("%+v", out["data"])
+	}
+
+	// Relative base + .. climbs out of base (no jail).
+	fs2, err := newWorkspaceFS(sub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err = fs2.readFile(map[string]any{"path": "../top.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := out["ok"].(bool); !ok {
+		t.Fatalf(".. should resolve outside base: %+v", out)
+	}
+	if out["data"].(map[string]any)["content"] != "top\n" {
+		t.Fatalf("%+v", out["data"])
+	}
+
+	// list_dir via absolute path
+	listed, err := fs.listDir(map[string]any{"path": root, "max_entries": 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := listed["ok"].(bool); !ok {
+		t.Fatalf("%+v", listed)
+	}
+	if listed["data"].(map[string]any)["total"].(int) < 1 {
+		t.Fatalf("%+v", listed["data"])
+	}
+}
+
 func TestListDirPaginationAndNotDir(t *testing.T) {
 	root := t.TempDir()
 	for i := 0; i < 5; i++ {
 		mustWrite(t, filepath.Join(root, "f"+string(rune('a'+i))+".md"), "x\n")
 	}
 	mustWrite(t, filepath.Join(root, "solo.md"), "y\n")
-	fs, err := newDocsFilesystem(root)
+	fs, err := newWorkspaceFS(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +196,6 @@ func TestListDirPaginationAndNotDir(t *testing.T) {
 		t.Fatalf("%+v", d2)
 	}
 
-	// list a file path → not_directory
 	bad, err := fs.listDir(map[string]any{"path": "solo.md"})
 	if err != nil {
 		t.Fatal(err)
@@ -155,7 +207,6 @@ func TestListDirPaginationAndNotDir(t *testing.T) {
 		t.Fatalf("%+v", bad["error"])
 	}
 
-	// offset beyond total
 	far, err := fs.listDir(map[string]any{"path": "", "offset": 9999, "max_entries": 1})
 	if err != nil {
 		t.Fatal(err)
@@ -166,14 +217,18 @@ func TestListDirPaginationAndNotDir(t *testing.T) {
 	}
 }
 
-func TestNewDocsFilesystemMissing(t *testing.T) {
-	_, err := newDocsFilesystem(filepath.Join(t.TempDir(), "nope"))
+func TestNewWorkspaceFSMissing(t *testing.T) {
+	_, err := newWorkspaceFS(filepath.Join(t.TempDir(), "nope"))
 	if err == nil {
 		t.Fatal("expected error")
 	}
+	fs, err := newWorkspaceFS("")
+	if err != nil || fs == nil {
+		t.Fatal("empty FSRoot should succeed")
+	}
 }
 
-func TestSymlinkEscapeBlocked(t *testing.T) {
+func TestSymlinkFollowed(t *testing.T) {
 	root := t.TempDir()
 	outside := t.TempDir()
 	mustWrite(t, filepath.Join(outside, "secret.md"), "leak\n")
@@ -182,16 +237,19 @@ func TestSymlinkEscapeBlocked(t *testing.T) {
 	if err := os.Symlink(filepath.Join(outside, "secret.md"), link); err != nil {
 		t.Skip("symlink not supported:", err)
 	}
-	fs, err := newDocsFilesystem(root)
+	fs, err := newWorkspaceFS(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = fs.readFile(map[string]any{"path": "escape.md"})
-	if err == nil {
-		t.Fatal("symlink outside sandbox must fail")
+	out, err := fs.readFile(map[string]any{"path": "escape.md"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(err.Error(), "outside") {
-		t.Fatalf("err=%v", err)
+	if ok, _ := out["ok"].(bool); !ok {
+		t.Fatalf("symlink should be followed: %+v", out)
+	}
+	if out["data"].(map[string]any)["content"] != "leak\n" {
+		t.Fatalf("%+v", out["data"])
 	}
 }
 
@@ -221,12 +279,12 @@ func TestOkMapCountVariants(t *testing.T) {
 func TestHealerCoercions(t *testing.T) {
 	params := map[string]any{
 		"properties": map[string]any{
-			"n":    map[string]any{"type": "integer"},
-			"f":    map[string]any{"type": "number"},
-			"b":    map[string]any{"type": "boolean"},
-			"z":    map[string]any{"type": "null"},
+			"n":     map[string]any{"type": "integer"},
+			"f":     map[string]any{"type": "number"},
+			"b":     map[string]any{"type": "boolean"},
+			"z":     map[string]any{"type": "null"},
 			"multi": map[string]any{"type": []any{"integer", "string"}},
-			"bad":  map[string]any{"type": 123},
+			"bad":   map[string]any{"type": 123},
 		},
 	}
 	out := healArgs(map[string]any{
@@ -299,7 +357,7 @@ func TestGrepQueryValidationAndTruncate(t *testing.T) {
 	root := t.TempDir()
 	longLine := strings.Repeat("m", 600)
 	mustWrite(t, filepath.Join(root, "big.md"), "needle "+longLine+"\n")
-	fs, err := newDocsFilesystem(root)
+	fs, err := newWorkspaceFS(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,7 +395,6 @@ func TestGrepQueryValidationAndTruncate(t *testing.T) {
 		t.Fatalf("text not truncated: %d", utf8.RuneCountInString(text))
 	}
 
-	// max_results truncate across files
 	mustWrite(t, filepath.Join(root, "a.md"), "zzz\n")
 	mustWrite(t, filepath.Join(root, "b.md"), "zzz\n")
 	trunc, err := fs.grep(map[string]any{"query": "zzz", "path": "", "max_results": 1})
@@ -349,9 +406,9 @@ func TestGrepQueryValidationAndTruncate(t *testing.T) {
 	}
 }
 
-func TestParseRipgrepJSONSkipsOutsideAndNonMatch(t *testing.T) {
+func TestParseRipgrepJSONKeepsPathsAndTruncates(t *testing.T) {
 	root := t.TempDir()
-	fs, err := newDocsFilesystem(root)
+	fs, err := newWorkspaceFS(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -360,15 +417,16 @@ func TestParseRipgrepJSONSkipsOutsideAndNonMatch(t *testing.T) {
 	raw := strings.Join([]string{
 		`{"type":"begin","data":{}}`,
 		`not-json`,
-		`{"type":"match","data":{"path":{"text":"` + outside + `"},"lines":{"text":"bad\n"},"line_number":1}}`,
+		`{"type":"match","data":{"path":{"text":"` + outside + `"},"lines":{"text":"out\n"},"line_number":1}}`,
 		`{"type":"match","data":{"path":{"text":"` + inside + `"},"lines":{"text":"` + strings.Repeat("Z", 600) + `\n"},"line_number":2}}`,
 		`{"type":"match","data":{"path":{"text":"` + inside + `"},"lines":{"text":"second\n"},"line_number":3}}`,
 	}, "\n")
-	matches, truncated := parseRipgrepJSON(fs, []byte(raw), 1)
-	if !truncated || len(matches) != 1 {
+	matches, truncated := parseRipgrepJSON(fs, []byte(raw), 2)
+	if !truncated || len(matches) != 2 {
 		t.Fatalf("matches=%#v truncated=%v", matches, truncated)
 	}
-	if utf8.RuneCountInString(matches[0]["text"].(string)) > 500 {
+	// First match may be outside absolute path — no longer filtered.
+	if utf8.RuneCountInString(matches[1]["text"].(string)) > 500 {
 		t.Fatal("line not truncated")
 	}
 }
@@ -380,7 +438,7 @@ func TestGrepRipgrepInvalidPatternAndNoMatch(t *testing.T) {
 	}
 	root := t.TempDir()
 	mustWrite(t, filepath.Join(root, "a.md"), "hello\n")
-	fs, err := newDocsFilesystem(root)
+	fs, err := newWorkspaceFS(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -408,10 +466,9 @@ func TestGrepRipgrepInvalidPatternAndNoMatch(t *testing.T) {
 	}
 }
 
-func TestRelativeToRootFallback(t *testing.T) {
-	fs := &docsFilesystem{root: t.TempDir()}
-	// path on different volume / unrelated → Rel may fail on some OS; still return slash path
-	got := fs.relativeToRoot("/totally/unrelated/path.md")
+func TestDisplayPathFallback(t *testing.T) {
+	fs := &workspaceFS{base: t.TempDir()}
+	got := fs.displayPath("/totally/unrelated/path.md")
 	if got == "" {
 		t.Fatal("empty")
 	}

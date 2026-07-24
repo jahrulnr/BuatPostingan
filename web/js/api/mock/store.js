@@ -21,6 +21,8 @@ export function createStore(fixtures) {
     const threads = new Map();
     /** @type {Map<string, {timers:number[],subscribers:Set<Function>,interrupted:boolean}>} */
     const turns = new Map();
+    /** @type {Map<string, Map<string, Object>>} threadId -> attachmentId -> meta+content */
+    const attachments = new Map();
 
     let docsIndex = { ...fixtures.docsIndexReady };
     let rateWindow = [];
@@ -229,7 +231,7 @@ export function createStore(fixtures) {
         return line;
     }
 
-    function runMockAgent(thread, turnId, adminUserId, userText) {
+    function runMockAgent(thread, turnId, adminUserId, userText, attachmentIds) {
         turns.set(turnId, { timers: [], interrupted: false });
         thread.busy = true;
         thread.active_turn_id = turnId;
@@ -242,56 +244,124 @@ export function createStore(fixtures) {
             turn_id: turnId,
         });
 
+        const attIds = Array.isArray(attachmentIds) ? attachmentIds : [];
+        const firstAtt = attIds.length
+            ? (attachments.get(thread.thread_id) || new Map()).get(attIds[0])
+            : null;
+
         schedule(turnId, 350, function () {
             pushEvent(thread, 'item.completed', {
                 type: 'reasoning',
                 turn_id: turnId,
-                text: 'Mencari referensi relevan di knowledge base.\nMenyusun jawaban singkat.',
+                text: firstAtt
+                    ? 'Membaca lampiran yang diunggah user.\nMenyusun jawaban singkat.'
+                    : 'Mencari referensi relevan di knowledge base.\nMenyusun jawaban singkat.',
                 model: { provider: 'mock', id: 'reasoner-sim' },
             });
         });
 
         const callId = uid('call');
-        schedule(turnId, 700, function () {
-            pushEvent(thread, 'item.completed', {
-                type: 'tool_call',
-                turn_id: turnId,
-                call_id: callId,
-                name: 'search_docs',
-                arguments: { query: String(userText || '').slice(0, 80), top_k: 3 },
-                model: { provider: 'mock', id: 'tool-router' },
+        if (firstAtt) {
+            const toolName = firstAtt.kind === 'image' ? 'read_image' : 'read_attachment';
+            schedule(turnId, 700, function () {
+                pushEvent(thread, 'item.completed', {
+                    type: 'tool_call',
+                    turn_id: turnId,
+                    call_id: callId,
+                    name: toolName,
+                    arguments: { attachment_id: firstAtt.attachment_id },
+                    model: { provider: 'mock', id: 'tool-router' },
+                });
             });
-        });
-
-        schedule(turnId, 1100, function () {
-            pushEvent(thread, 'item.completed', {
-                type: 'tool_result',
-                turn_id: turnId,
-                call_id: callId,
-                envelope: {
-                    ok: true,
-                    tool: 'search_docs',
-                    data: {
-                        chunks: [
-                            { path: 'docs/getting-started.md', heading: 'Mulai', score: 0.92 },
-                            { path: 'docs/writing-tips.md', heading: 'Tips menulis', score: 0.81 },
-                        ],
-                        count: 2,
+            schedule(turnId, 1100, function () {
+                const envelope = firstAtt.kind === 'image'
+                    ? {
+                        ok: true,
+                        tool: 'read_image',
+                        data: {
+                            attachment_id: firstAtt.attachment_id,
+                            filename: firstAtt.filename,
+                            mime: firstAtt.mime,
+                            kind: 'image',
+                            size: firstAtt.size,
+                            width: firstAtt.width || null,
+                            height: firstAtt.height || null,
+                            vision_available: true,
+                            content_provided_to_model: true,
+                            note: 'Mock: vision flagged available; real BE injects image bytes into the multimodal user message.',
+                        },
+                        error: null,
+                        meta: { truncated: false, data_is_untrusted: true },
+                    }
+                    : {
+                        ok: true,
+                        tool: 'read_attachment',
+                        data: {
+                            attachment_id: firstAtt.attachment_id,
+                            filename: firstAtt.filename,
+                            mime: firstAtt.mime,
+                            kind: 'text',
+                            content: String(firstAtt.content || '').slice(0, 2000),
+                        },
+                        error: null,
+                        meta: { truncated: false, data_is_untrusted: true },
+                    };
+                pushEvent(thread, 'item.completed', {
+                    type: 'tool_result',
+                    turn_id: turnId,
+                    call_id: callId,
+                    envelope: envelope,
+                });
+            });
+        } else {
+            schedule(turnId, 700, function () {
+                pushEvent(thread, 'item.completed', {
+                    type: 'tool_call',
+                    turn_id: turnId,
+                    call_id: callId,
+                    name: 'search_docs',
+                    arguments: { query: String(userText || '').slice(0, 80), top_k: 3 },
+                    model: { provider: 'mock', id: 'tool-router' },
+                });
+            });
+            schedule(turnId, 1100, function () {
+                pushEvent(thread, 'item.completed', {
+                    type: 'tool_result',
+                    turn_id: turnId,
+                    call_id: callId,
+                    envelope: {
+                        ok: true,
+                        tool: 'search_docs',
+                        data: {
+                            chunks: [
+                                { path: 'docs/getting-started.md', heading: 'Mulai', score: 0.92 },
+                                { path: 'docs/writing-tips.md', heading: 'Tips menulis', score: 0.81 },
+                            ],
+                            count: 2,
+                        },
+                        error: null,
+                        meta: { truncated: false, data_is_untrusted: true },
                     },
-                    error: null,
-                    meta: { truncated: false, data_is_untrusted: true },
-                },
+                });
             });
-        });
+        }
 
         schedule(turnId, 1600, function () {
-            const reply =
-                'Berikut ringkasan mock untuk pertanyaan Anda:\n\n' +
-                '> **' + String(userText || '').slice(0, 120) + '**\n\n' +
-                '1. Tentukan sudut & audiens\n' +
-                '2. Susun outline singkat\n' +
-                '3. Tulis draft, lalu sunting\n\n' +
-                '_Sumber: search_docs (mock)_';
+            const reply = firstAtt
+                ? (
+                    'Saya membaca lampiran **' + firstAtt.filename + '**.\n\n' +
+                    (firstAtt.kind === 'image'
+                        ? 'Ini gambar (' + (firstAtt.mime || 'image') + '). Vision belum aktif — hanya metadata yang tersedia.'
+                        : 'Cuplikan isi:\n\n> ' + String(firstAtt.content || '').slice(0, 160).replace(/\n/g, ' ') + '…')
+                )
+                : (
+                    'Berikut ringkasan mock untuk pertanyaan Anda:\n\n' +
+                    '> **' + String(userText || '').slice(0, 120) + '**\n\n' +
+                    '1. Tentukan sudut & audiens\n' +
+                    '2. Susun outline singkat\n' +
+                    '3. Tulis draft, lalu sunting\n\n' +
+                    '_Sumber: search_docs (mock)_'
+                );
             pushEvent(thread, 'item.completed', {
                 type: 'agent_message',
                 turn_id: turnId,
@@ -299,7 +369,7 @@ export function createStore(fixtures) {
                 model: { provider: 'mock', id: 'chat-sim' },
             });
             if (!thread.title) {
-                thread.title = String(userText || 'Chat').trim().slice(0, 48) || 'New chat';
+                thread.title = String(userText || firstAtt && firstAtt.filename || 'Chat').trim().slice(0, 48) || 'New chat';
                 thread.title_source = 'auto';
             }
         });
@@ -318,7 +388,90 @@ export function createStore(fixtures) {
         });
     }
 
-    function startTurn(threadId, message, adminUserId, adminDisplayName) {
+    function uploadAttachment(threadId, fileMeta) {
+        const thread = threads.get(threadId);
+        if (!thread || thread.deleted) {
+            throw ApiError(404, 'thread_not_found', 'Thread not found');
+        }
+        const name = String((fileMeta && fileMeta.filename) || 'upload.bin');
+        const mime = String((fileMeta && fileMeta.mime) || 'application/octet-stream');
+        const size = Number((fileMeta && fileMeta.size) || 0);
+        const kind = (fileMeta && fileMeta.kind) || (mime.indexOf('image/') === 0 ? 'image' : 'text');
+        if (size > 8 * 1024 * 1024) {
+            throw ApiError(422, 'validation', 'file too large');
+        }
+        const id = uid('att');
+        const meta = {
+            attachment_id: id,
+            thread_id: threadId,
+            filename: name,
+            mime: mime,
+            size: size,
+            kind: kind,
+            width: fileMeta && fileMeta.width,
+            height: fileMeta && fileMeta.height,
+            content: fileMeta && fileMeta.content,
+            uploaded_at: nowIso(),
+            uploaded_by_admin_user_id: fileMeta && fileMeta.adminUserId || 1,
+        };
+        if (!attachments.has(threadId)) attachments.set(threadId, new Map());
+        attachments.get(threadId).set(id, meta);
+        return {
+            attachment_id: id,
+            thread_id: threadId,
+            filename: name,
+            mime: mime,
+            size: size,
+            kind: kind,
+            width: meta.width,
+            height: meta.height,
+            uploaded_at: meta.uploaded_at,
+            uploaded_by_admin_user_id: meta.uploaded_by_admin_user_id,
+        };
+    }
+
+    function listAttachments(threadId) {
+        const thread = threads.get(threadId);
+        if (!thread || thread.deleted) {
+            throw ApiError(404, 'thread_not_found', 'Thread not found');
+        }
+        const map = attachments.get(threadId) || new Map();
+        return {
+            attachments: Array.from(map.values()).map(function (m) {
+                return {
+                    attachment_id: m.attachment_id,
+                    thread_id: m.thread_id,
+                    filename: m.filename,
+                    mime: m.mime,
+                    size: m.size,
+                    kind: m.kind,
+                    width: m.width,
+                    height: m.height,
+                    uploaded_at: m.uploaded_at,
+                    uploaded_by_admin_user_id: m.uploaded_by_admin_user_id,
+                };
+            }),
+        };
+    }
+
+    const ALLOWED_MODELS = {
+        'stub/default': true,
+        'stub/reasoning': true,
+        'stub/vision': true,
+        STUB: true,
+    };
+    const ALLOWED_EFFORTS = {
+        auto: true,
+        none: true,
+        minimal: true,
+        low: true,
+        medium: true,
+        high: true,
+        xhigh: true,
+        max: true,
+    };
+
+    function startTurn(threadId, message, adminUserId, adminDisplayName, attachmentIds, opts) {
         const thread = threads.get(threadId);
         if (!thread || thread.deleted) {
             throw ApiError(404, 'thread_not_found', 'Thread not found');
@@ -326,20 +479,48 @@ export function createStore(fixtures) {
         assertCanSpeak(thread, adminUserId);
 
         const text = String(message || '').trim();
-        if (!text) throw ApiError(422, 'empty', 'Message empty');
+        const attIds = Array.isArray(attachmentIds) ? attachmentIds.filter(Boolean) : [];
+        if (!text && !attIds.length) throw ApiError(422, 'empty', 'Message empty');
 
-        const turnId = uid('trn');
-        pushEvent(thread, 'item.completed', {
-            type: 'user_message',
-            turn_id: turnId,
-            text: text,
-            admin_user_id: adminUserId,
-            admin_display_name: adminDisplayName || ('Admin #' + adminUserId),
+        const overrides = opts || {};
+        const model = String(overrides.model || '').trim();
+        const effort = String(overrides.effort || '').trim().toLowerCase();
+        if (model && !ALLOWED_MODELS[model]) {
+            throw ApiError(422, 'validation', 'model not allowed');
+        }
+        if (effort && !ALLOWED_EFFORTS[effort]) {
+            throw ApiError(422, 'validation', 'effort not allowed');
+        }
+
+        const attMap = attachments.get(threadId) || new Map();
+        const refs = attIds.map(function (id) {
+            const m = attMap.get(id);
+            if (!m) throw ApiError(422, 'validation', 'unknown attachment_id: ' + id);
+            return {
+                id: m.attachment_id,
+                attachment_id: m.attachment_id,
+                filename: m.filename,
+                mime: m.mime,
+                size: m.size,
+                kind: m.kind,
+            };
         });
 
-        // Agent runs async after 202
+        const turnId = uid('trn');
+        const userPayload = {
+            type: 'user_message',
+            turn_id: turnId,
+            text: text || '(attached files)',
+            admin_user_id: adminUserId,
+            admin_display_name: adminDisplayName || ('Admin #' + adminUserId),
+        };
+        if (refs.length) userPayload.attachments = refs;
+        if (model) userPayload.model_override = model;
+        if (effort) userPayload.effort_override = effort;
+        pushEvent(thread, 'item.completed', userPayload);
+
         setTimeout(function () {
-            runMockAgent(thread, turnId, adminUserId, text);
+            runMockAgent(thread, turnId, adminUserId, text || '(attached files)', attIds);
         }, 0);
 
         return {
@@ -474,6 +655,8 @@ export function createStore(fixtures) {
         getThread,
         renameThread,
         startTurn,
+        uploadAttachment,
+        listAttachments,
         retryTurn,
         interruptTurn,
         subscribe,
