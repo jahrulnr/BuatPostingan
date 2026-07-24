@@ -9,7 +9,7 @@ AI assistant for drafting posts — webchat UI + Go Clean Architecture backend.
 | [`web/`](web/) | Vanilla JS chat UI (mock \| real dual driver) |
 | [`cmd/app`](cmd/app) | Go entrypoint + DI |
 | [`delivery/`](delivery/) | HTTP/SSE adapters (ruang depan) |
-| [`internal/`](internal/) | Resep dapur: domain, application, infrastructure, config, pkg |
+| [`internal/`](internal/) | Resep dapur: domain, usecase, infrastructure, config, pkg |
 | [`resources/webchat/`](resources/webchat/) | Prompts + tool JSON |
 | [`docs/webchat/`](docs/webchat/) | Knowledge Markdown corpus |
 | [`docs/architecture/`](docs/architecture/README.md) | CA map |

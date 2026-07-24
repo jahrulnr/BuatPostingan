@@ -54,3 +54,13 @@ func TestSecretsAdapter(t *testing.T) {
 		t.Fatalf("got %s", out)
 	}
 }
+
+func TestRedactMD5RuneBoundaryLookback(t *testing.T) {
+	// Place a multi-byte rune so lookback lands mid-sequence and steps to RuneStart.
+	prefix := strings.Repeat("x", 35) + "й" // 2-byte rune near the lookback edge
+	in := prefix + "md5 deadbeefdeadbeefdeadbeefdeadbeef"
+	got := redact.RedactText(in)
+	if !strings.Contains(got, "[REDACTED_MD5_HEX]") {
+		t.Fatalf("got %s", got)
+	}
+}

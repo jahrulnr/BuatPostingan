@@ -23,7 +23,7 @@ Public / edge:
 
 **Resep dapur** (private — under `internal/` only):
 
-- `internal/domain`, `internal/application`, `internal/infrastructure`
+- `internal/domain`, `internal/usecase`, `internal/infrastructure`
 - `internal/config`, `internal/pkg`
 
 Kitchen import prefix: `buatpostingan/internal/...`  
@@ -32,13 +32,13 @@ Delivery import prefix: `buatpostingan/delivery/...`
 ## Dependency rule
 
 ```
-delivery → application → domain ← infrastructure
+delivery → usecase → domain ← infrastructure
 ```
 
 Do **not** import `delivery` or `infrastructure` from `domain`.
 Do **not** put business rules in HTTP handlers — handlers call `webchat.Usecase` interface only.
-Do **not** put resep dapur (`domain` / `application` / `infrastructure`) at repo root — those live under `internal/`. `delivery/` stays at root.
-Concrete usecase: `webchat.NewService(Deps{...})` orchestrates ports (AIPedia controller order).
+Do **not** put resep dapur (`domain` / `usecase` / `infrastructure`) at repo root — those live under `internal/`. `delivery/` stays at root.
+Concrete usecase: `webchat.NewService(Deps{...})` in `internal/usecase/webchat` orchestrates ports (AIPedia controller order).
 Port adapters stay under `internal/infrastructure` (jsonl / docs / tools / llm / worker / sse).
 Handlers call `webchat.Usecase` interface only.
 
@@ -54,7 +54,7 @@ Default is **real** (`mockMode=false`) — hits Go BE. Mock via `?mock=1`. Prefe
 Reuse over rewrite: treat kitchen + webchat delivery as a **copyable kit**, not a shared Go module yet.
 
 - **Copy list / consumer checklist:** [`docs/architecture/portable-ai-kit.md`](docs/architecture/portable-ai-kit.md)
-- **AI core:** `internal/{domain,application,infrastructure,config,pkg}` + `delivery/http` webchat handler + `delivery/presenter` + `resources/webchat`
+- **AI core:** `internal/{domain,usecase,infrastructure,config,pkg}` + `delivery/http` webchat handler + `delivery/presenter` + `resources/webchat`
 - **Leave as product shell:** `web/index.html`, `web/css/shell.css`, `web/js/app.js`, `cmd/app`, `docs/webchat` content, Makefile
 - **FE widget slice:** `web/js/api/*` + `web/js/ui/chat.js|render.js` + `web/css/webchat*.css` — mount with `bootChat({ root })`
 - **Config:** prefer portable `WEBCHAT_*` env names; `BP_*` is this product’s alias (both work via `config.Load`)

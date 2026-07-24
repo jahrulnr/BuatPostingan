@@ -37,3 +37,25 @@ func TestNewThreadID(t *testing.T) {
 		t.Fatalf("got %v %v", id, err)
 	}
 }
+
+func TestNewTurnID(t *testing.T) {
+	t.Parallel()
+	if _, err := valueobject.NewTurnID("  "); err == nil {
+		t.Fatal("expected error")
+	}
+	id, err := valueobject.NewTurnID(" trn_1 ")
+	if err != nil || id.String() != "trn_1" {
+		t.Fatalf("got %v %v", id, err)
+	}
+}
+
+func TestNewItemID(t *testing.T) {
+	t.Parallel()
+	if _, err := valueobject.NewItemID(""); err == nil {
+		t.Fatal("expected error")
+	}
+	id, err := valueobject.NewItemID("itm_abc")
+	if err != nil || id.String() != "itm_abc" {
+		t.Fatalf("got %v %v", id, err)
+	}
+}

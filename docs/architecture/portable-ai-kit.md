@@ -79,3 +79,7 @@ Optional FE widget kit (same API, no product chrome):
 - Agent loop in worker, not HTTP handler
 - SSE tails durable seq
 - `write_enabled = false` / no mutation tools
+
+## Tool dialect notes
+
+- **`grep`**: prefers host `rg` (`exec.Command`, no shell) with `--json -e <pattern> -- <sandbox-path>`; falls back to Go `regexp` (RE2) when `rg` is missing. Both dialects are linear-time regex (no backrefs/lookaround). Pattern is never passed through a shell. AIPedia PHP still uses literal `str_contains` until ported.

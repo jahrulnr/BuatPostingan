@@ -3,7 +3,7 @@
 Clean Architecture **ringan** (tanpa Wire / logmanager / salt-pkg). Dependency rule:
 
 ```
-delivery → application → domain ← infrastructure
+delivery → usecase → domain ← infrastructure
 ```
 
 **Resep dapur** ada di **`internal/`**. **Delivery** (ruang depan) di root — adapter HTTP/SSE, bukan business rules.
