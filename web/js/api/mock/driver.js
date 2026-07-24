@@ -4,6 +4,12 @@ import { createSettingsStore } from './settings-store.js';
 
 const store = createStore({ docsIndexReady: resolveInitialDocsIndex() });
 const settingsStore = createSettingsStore();
+let disconnectInjected = false;
+
+function shouldInjectDisconnect() {
+    if (disconnectInjected) return false;
+    return new URLSearchParams(window.location.search).get('mock_disconnect') === '1';
+}
 
 function adminId(api) {
     return Number((api && api.adminUserId) || window.__BP_ADMIN_USER_ID__ || 1);
@@ -159,9 +165,20 @@ export function interruptTurnMock(api, req) {
  */
 export function subscribeEventsMock(api, req) {
     try {
-        return store.subscribe(req.threadId, req.afterSeq || 0, function (eventName, data) {
+        const subscription = store.subscribe(req.threadId, req.afterSeq || 0, function (eventName, data) {
             req.onEvent(eventName, data);
         });
+        if (typeof req.onOpen === 'function') req.onOpen();
+        if (shouldInjectDisconnect()) {
+            disconnectInjected = true;
+            setTimeout(function () {
+                subscription.close();
+                if (typeof req.onError === 'function') {
+                    req.onError(new Error('mock_sse_disconnect'));
+                }
+            }, 250);
+        }
+        return subscription;
     } catch (err) {
         if (typeof req.onError === 'function') req.onError(err);
         return { close: function () {} };

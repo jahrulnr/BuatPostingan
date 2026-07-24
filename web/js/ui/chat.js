@@ -22,6 +22,11 @@ import {
     appendError,
 } from './render.js';
 import { bootModelPicker } from './model-picker.js';
+import {
+    durableSeq,
+    isNearBottom,
+    reconnectDelay,
+} from './stream-reliability.js';
 
 /**
  * Mount webchat UI. Pass { root } to scope lookups inside a widget host
@@ -43,6 +48,7 @@ export function bootChat(options) {
     const sendBtn = byId('chatSend');
     const stopBtn = byId('chatStop');
     const statusEl = byId('chatStatus');
+    const newActivityBtn = byId('chatNewActivity');
     const floorEl = byId('chatFloor');
     const indexBannerEl = byId('chatIndexBanner');
     const newBtn = byId('btnNewChat') || byId('chatNew');
@@ -102,6 +108,21 @@ export function bootChat(options) {
     let seenItemIds = {};
     /** @type {Record<string, any>} */
     let turnUi = {};
+    /** Live agent_message drafts keyed by turn_id (ephemeral item.delta). */
+    let liveDrafts = {};
+    /** Assistant placeholders keyed by turn_id; `_pending` exists before StartTurn returns. */
+    let assistantPlaceholders = {};
+    let deltaFlushRaf = 0;
+    /** Durable JSONL cursor per thread for duplicate suppression and resume. */
+    let lastAppliedSeqByThread = {};
+    let streamGeneration = 0;
+    let streamState = 'idle';
+    let reconnectAttempts = 0;
+    let reconnectTimer = null;
+    let lastStreamActivityAt = 0;
+    let reconnectFailureShown = false;
+    const reconnectBudget = 6;
+    const staleStreamMs = 25000;
 
     function setStatus(text) {
         statusEl.textContent = text;
@@ -109,8 +130,27 @@ export function bootChat(options) {
         let state = 'neutral';
         if (/ready|hydrated|completed/.test(normalized)) state = 'ready';
         else if (/failed|denied|locked|429|423|error/.test(normalized)) state = 'danger';
-        else if (/indexing|streaming|thinking|busy|stopping|sending|queued|retrying/.test(normalized)) state = 'busy';
+        else if (/indexing|streaming|thinking|busy|stopping|sending|queued|retrying|reconnecting|connecting/.test(normalized)) state = 'busy';
         statusEl.dataset.state = state;
+    }
+
+    function hideNewActivity() {
+        if (newActivityBtn) newActivityBtn.hidden = true;
+    }
+
+    function scrollToLatest() {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        hideNewActivity();
+    }
+
+    messagesEl.addEventListener('webchat:new-activity', function () {
+        if (newActivityBtn) newActivityBtn.hidden = false;
+    });
+    messagesEl.addEventListener('scroll', function () {
+        if (isNearBottom(messagesEl)) hideNewActivity();
+    }, { passive: true });
+    if (newActivityBtn) {
+        newActivityBtn.addEventListener('click', scrollToLatest);
     }
 
     function showToast(text) {
@@ -387,7 +427,14 @@ export function bootChat(options) {
         seenItemIds = {};
         pendingOptimisticEl = null;
         turnUi = {};
+        liveDrafts = {};
+        assistantPlaceholders = {};
+        if (deltaFlushRaf) {
+            cancelAnimationFrame(deltaFlushRaf);
+            deltaFlushRaf = 0;
+        }
         messagesEl.innerHTML = welcome ? welcomeHtml(productName) : '';
+        hideNewActivity();
     }
 
     function clearTurnErrors(id) {
@@ -413,6 +460,7 @@ export function bootChat(options) {
     function startActionBubble(turnId, kind) {
         const key = turnId || '_anon';
         const stream = getTurnStream(key);
+        const shouldFollow = isNearBottom(messagesEl);
         const welcome = messagesEl.querySelector('.chat-welcome');
         if (welcome) welcome.remove();
         const art = document.createElement('article');
@@ -429,11 +477,63 @@ export function bootChat(options) {
             tools: [],
             responseModel: null,
             text: '',
+            _followActivity: shouldFollow,
         };
         stream.kind = kind;
         stream.current = state;
         paintActionBubble(messagesEl, state);
         return state;
+    }
+
+    function removeAssistantPlaceholder(id) {
+        const key = id || '';
+        const placeholder = assistantPlaceholders[key];
+        if (!placeholder) return;
+        delete assistantPlaceholders[key];
+        if (placeholder.art && placeholder.art.parentNode) placeholder.art.remove();
+        const stream = turnUi[key || '_anon'];
+        if (stream && stream.current === placeholder) {
+            stream.current = null;
+            stream.kind = null;
+        }
+    }
+
+    function ensureAssistantPlaceholder(id) {
+        const key = id || '_pending';
+        if (assistantPlaceholders[key]) return assistantPlaceholders[key];
+        const stream = getTurnStream(key);
+        if (stream.current) return null;
+        const state = startActionBubble(key, 'message');
+        state.placeholder = true;
+        assistantPlaceholders[key] = state;
+        return state;
+    }
+
+    function adoptPendingPlaceholder(id) {
+        if (!id || assistantPlaceholders[id]) return;
+        const pending = assistantPlaceholders._pending;
+        if (!pending) return;
+        delete assistantPlaceholders._pending;
+        delete turnUi._pending;
+        pending.art.dataset.turnId = id;
+        assistantPlaceholders[id] = pending;
+        const stream = getTurnStream(id);
+        stream.kind = 'message';
+        stream.current = pending;
+    }
+
+    function takePlaceholderAsMessage(id) {
+        const key = id || '';
+        const placeholder = assistantPlaceholders[key];
+        if (!placeholder) return null;
+        delete assistantPlaceholders[key];
+        placeholder.placeholder = false;
+        placeholder.streaming = true;
+        placeholder.text = '';
+        const stream = getTurnStream(key);
+        stream.kind = 'message';
+        stream.current = placeholder;
+        return placeholder;
     }
 
     function ensureActionBubble(turnId, kind) {
@@ -448,20 +548,77 @@ export function bootChat(options) {
         return startActionBubble(turnId, kind);
     }
 
+    function discardLiveDraft(turnId) {
+        const key = turnId || '';
+        const draft = liveDrafts[key];
+        if (!draft) return;
+        delete liveDrafts[key];
+        if (draft.art && draft.art.parentNode) {
+            draft.art.remove();
+        }
+        const stream = turnUi[key || '_anon'];
+        if (stream && stream.current === draft) {
+            stream.current = null;
+            stream.kind = null;
+        }
+    }
+
+    function flushDeltaDrafts() {
+        deltaFlushRaf = 0;
+        Object.keys(liveDrafts).forEach(function (key) {
+            const draft = liveDrafts[key];
+            if (!draft || !draft._dirty) return;
+            draft._dirty = false;
+            paintActionBubble(messagesEl, draft);
+        });
+    }
+
+    function applyTextDelta(data) {
+        if (!data || data.field && data.field !== 'text') return;
+        const turnId = data.turn_id || '';
+        const delta = data.delta != null ? String(data.delta) : '';
+        if (!delta) return;
+        let draft = liveDrafts[turnId];
+        if (!draft) {
+            draft = takePlaceholderAsMessage(turnId) || ensureActionBubble(turnId, 'message');
+            draft.streaming = true;
+            draft.text = '';
+            liveDrafts[turnId] = draft;
+        }
+        if (data.item_id && draft.art) {
+            draft.art.dataset.id = String(data.item_id);
+        }
+        draft.text = (draft.text || '') + delta;
+        draft._dirty = true;
+        if (!deltaFlushRaf) {
+            deltaFlushRaf = requestAnimationFrame(flushDeltaDrafts);
+        }
+        setStatus('Streaming…');
+    }
+
     function applyReasoning(item) {
         const text = String(item.text || '').trim();
         if (!text) return;
         // One JSONL reasoning item → one think bubble (phase change from tools/message).
         // Consecutive reasoning items without an intervening tool/message still share a bubble.
+        // Do not discard live message drafts here: worker may append reasoning after text
+        // deltas and before durable agent_message.
+        removeAssistantPlaceholder(item.turn_id);
         const state = ensureActionBubble(item.turn_id, 'think');
         const chunks = text.split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
         state.thinkingSteps = state.thinkingSteps.concat(chunks.length ? chunks : [text]);
         state.thinkingModel = item.model || state.thinkingModel;
         if (item.id) state.art.dataset.id = item.id;
+        const draft = liveDrafts[item.turn_id || ''];
+        if (draft && draft.art && state.art && draft.art.parentNode === messagesEl) {
+            messagesEl.insertBefore(state.art, draft.art);
+        }
         paintActionBubble(messagesEl, state);
     }
 
     function applyToolCall(item) {
+        removeAssistantPlaceholder(item.turn_id);
+        discardLiveDraft(item.turn_id);
         const state = ensureActionBubble(item.turn_id, 'tools');
         const stream = getTurnStream(item.turn_id);
         const callId = item.call_id || item.id || ('call_' + state.tools.length);
@@ -490,6 +647,7 @@ export function bootChat(options) {
     }
 
     function applyToolResult(item) {
+        removeAssistantPlaceholder(item.turn_id);
         const stream = getTurnStream(item.turn_id);
         const callId = item.call_id || '';
         const envelope = item.envelope || {};
@@ -514,8 +672,37 @@ export function bootChat(options) {
     }
 
     function applyAgentMessage(item) {
-        const state = ensureActionBubble(item.turn_id, 'message');
-        state.text = item.text || '';
+        const text = item.text || '';
+        const turnId = item.turn_id || '';
+        if (item.origin === 'runtime' && text === '(empty model response)') {
+            discardLiveDraft(turnId);
+            appendError(
+                messagesEl,
+                'Model returned no answer (reasoning-only or truncated). Retry the turn.',
+                turnId,
+                true,
+                item.trace_id || ''
+            );
+            return;
+        }
+        const draft = liveDrafts[turnId];
+        if (draft) {
+            delete liveDrafts[turnId];
+            draft.streaming = false;
+            draft._dirty = false;
+            draft.text = text;
+            draft.responseModel = item.model || null;
+            if (item.id) draft.art.dataset.id = item.id;
+            // Keep stream.current pointing at this durable bubble.
+            const stream = getTurnStream(turnId);
+            stream.kind = 'message';
+            stream.current = draft;
+            paintActionBubble(messagesEl, draft);
+            return;
+        }
+        const state = takePlaceholderAsMessage(turnId) || ensureActionBubble(turnId, 'message');
+        state.streaming = false;
+        state.text = text;
         state.responseModel = item.model || null;
         if (item.id) state.art.dataset.id = item.id;
         paintActionBubble(messagesEl, state);
@@ -557,7 +744,13 @@ export function bootChat(options) {
         } else if (type === 'turn.failed' && item.error) {
             const code = item.error.code || '';
             if (code !== 'interrupted') {
-                appendError(messagesEl, (item.error.message || code || 'error'), item.turn_id || '', true);
+                appendError(
+                    messagesEl,
+                    (item.error.message || code || 'error'),
+                    item.turn_id || '',
+                    true,
+                    item.trace_id || item.error.trace_id || ''
+                );
             }
         } else if (type === 'turn.resumed') {
             clearTurnErrors(item.turn_id || '');
@@ -682,23 +875,45 @@ export function bootChat(options) {
         }
     }
 
+    let titleRefreshTimers = [];
+    function clearTitleRefreshPoll() {
+        titleRefreshTimers.forEach(function (id) { clearTimeout(id); });
+        titleRefreshTimers = [];
+    }
+    function scheduleTitleRefreshPoll() {
+        clearTitleRefreshPoll();
+        const active = conversations.find(function (c) { return c.thread_id === threadId; });
+        const pending = !active || !active.title || active.title_source === 'pending';
+        if (!pending) return;
+        [1200, 3500].forEach(function (ms) {
+            titleRefreshTimers.push(setTimeout(function () {
+                refreshConversationList();
+            }, ms));
+        });
+    }
+
     function onTurnFailed(data) {
         let detail = '';
         let code = '';
         let failedTurn = turnId;
+        let trace = '';
         try {
             code = (data && data.error && data.error.code) ? String(data.error.code) : '';
             detail = (data && data.error && data.error.message) ? String(data.error.message) : '';
             if (data && data.turn_id) failedTurn = data.turn_id;
+            trace = (data && (data.trace_id || (data.error && data.error.trace_id)))
+                ? String(data.trace_id || data.error.trace_id)
+                : '';
         } catch (err) {
             detail = '';
         }
+        removeAssistantPlaceholder(failedTurn);
         if (code === 'interrupted') {
             setStatus('Interrupted · floor tetap Anda');
             showToast('Stop · floor tidak dilepas');
         } else {
             setStatus('Failed · bisa Retry');
-            appendError(messagesEl, detail || 'error', failedTurn, true);
+            appendError(messagesEl, detail || 'error', failedTurn, true, trace);
         }
         busy = false;
         isInitiator = false;
@@ -708,77 +923,249 @@ export function bootChat(options) {
         inputEl.focus();
     }
 
-    function closeEvents() {
+    // Live SSE often delivers several item.completed frames in one EventSource
+    // turn (poll burst or rapid worker appends). Queue + one paint per rAF so
+    // think / tools / message bubbles appear progressively instead of clumping.
+    let liveEventQueue = [];
+    let liveFlushRaf = 0;
+
+    function clearLiveEventQueue() {
+        liveEventQueue = [];
+        if (liveFlushRaf) {
+            cancelAnimationFrame(liveFlushRaf);
+            liveFlushRaf = 0;
+        }
+    }
+
+    function dispatchLiveEvent(eventName, data) {
+        if (eventName === 'item.delta') {
+            applyTextDelta(data || {});
+            return;
+        }
+        if (eventName === 'item.completed') {
+            renderItem(data && data.item);
+            return;
+        }
+        if (eventName === 'turn.started') {
+            const startedTurnId = (data && data.turn_id) || turnId || '';
+            if (startedTurnId) ensureAssistantPlaceholder(startedTurnId);
+            setStatus('Thinking…');
+            return;
+        }
+        if (eventName === 'turn.resumed') {
+            let tid = turnId;
+            if (data && data.turn_id) tid = data.turn_id;
+            clearTurnErrors(tid);
+            busy = true;
+            isInitiator = true;
+            setStatus('Retrying…');
+            updateComposer();
+            return;
+        }
+        if (eventName === 'turn.completed') {
+            if (data && data.turn_id) {
+                removeAssistantPlaceholder(data.turn_id);
+                discardLiveDraft(data.turn_id);
+            }
+            setStatus('Ready');
+            busy = false;
+            isInitiator = false;
+            pendingUserText = null;
+            pendingOptimisticEl = null;
+            updateComposer();
+            inputEl.focus();
+            // Stop the socket but keep draining any already-queued paints.
+            stopActiveStream();
+            refreshConversationList().then(function () {
+                // Async LLM auto-title may land after turn.completed.
+                scheduleTitleRefreshPoll();
+            });
+            return;
+        }
+        if (eventName === 'conversation.updated') {
+            refreshConversationList();
+            return;
+        }
+        if (eventName === 'turn.failed') {
+            if (data && data.turn_id) discardLiveDraft(data.turn_id);
+            onTurnFailed(data || {});
+            stopActiveStream();
+            refreshConversationList();
+        }
+    }
+
+    function flushLiveEventQueue() {
+        liveFlushRaf = 0;
+        const next = liveEventQueue.shift();
+        if (!next) return;
+        dispatchLiveEvent(next.eventName, next.data);
+        if (liveEventQueue.length) {
+            liveFlushRaf = requestAnimationFrame(flushLiveEventQueue);
+        }
+    }
+
+    function enqueueLiveEvent(eventName, data) {
+        liveEventQueue.push({ eventName: eventName, data: data });
+        if (!liveFlushRaf) {
+            liveFlushRaf = requestAnimationFrame(flushLiveEventQueue);
+        }
+    }
+
+    function closeEventSource() {
         if (sub) {
             sub.close();
             sub = null;
         }
     }
 
-    function openEvents(id, afterSeq) {
-        closeEvents();
-        sub = subscribeEvents(api, {
+    function cancelReconnect() {
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+        }
+    }
+
+    function stopActiveStream() {
+        cancelReconnect();
+        closeEventSource();
+        streamGeneration += 1;
+        streamState = 'idle';
+        reconnectAttempts = 0;
+    }
+
+    function closeEvents() {
+        clearLiveEventQueue();
+        stopActiveStream();
+    }
+
+    function streamCursor(id) {
+        return Number(lastAppliedSeqByThread[id] || 0);
+    }
+
+    function acceptDurableEvent(id, data) {
+        const seq = durableSeq(data);
+        if (!seq) return true;
+        if (seq <= streamCursor(id)) return false;
+        lastAppliedSeqByThread[id] = seq;
+        return true;
+    }
+
+    function showReconnectFailure(id) {
+        if (reconnectFailureShown) return;
+        reconnectFailureShown = true;
+        streamState = 'exhausted';
+        const cursor = streamCursor(id);
+        const trace = 'sse:' + id + ':seq:' + cursor;
+        removeAssistantPlaceholder(turnId);
+        setStatus('Reconnect failed · seq ' + cursor);
+        appendError(
+            messagesEl,
+            'Realtime connection lost after ' + reconnectBudget + ' retries. Reopen this conversation to resume.',
+            turnId || '',
+            false,
+            trace
+        );
+    }
+
+    function scheduleReconnect(id, generation, immediate) {
+        if (!busy || id !== threadId || generation !== streamGeneration) return;
+        closeEventSource();
+        cancelReconnect();
+        if (reconnectAttempts >= reconnectBudget) {
+            showReconnectFailure(id);
+            return;
+        }
+        streamState = 'reconnecting';
+        setStatus('Reconnecting…');
+        const delay = immediate ? 0 : reconnectDelay(reconnectAttempts);
+        reconnectAttempts += 1;
+        reconnectTimer = setTimeout(function () {
+            reconnectTimer = null;
+            startSubscription(id, generation);
+        }, delay);
+    }
+
+    function startSubscription(id, generation) {
+        if (!busy || id !== threadId || generation !== streamGeneration) return;
+        closeEventSource();
+        streamState = reconnectAttempts ? 'reconnecting' : 'connecting';
+        const nextSub = subscribeEvents(api, {
             threadId: id,
-            afterSeq: afterSeq || 0,
+            afterSeq: streamCursor(id),
+            onOpen: function () {
+                if (id !== threadId || generation !== streamGeneration) return;
+                streamState = 'open';
+                lastStreamActivityAt = Date.now();
+                setStatus(liveDrafts[turnId || ''] ? 'Streaming…' : 'Thinking…');
+            },
             onEvent: function (eventName, data) {
-                if (eventName === 'item.completed') {
-                    renderItem(data && data.item);
-                    return;
-                }
-                if (eventName === 'turn.started') {
-                    setStatus('Thinking…');
-                    return;
-                }
-                if (eventName === 'turn.resumed') {
-                    let tid = turnId;
-                    if (data && data.turn_id) tid = data.turn_id;
-                    clearTurnErrors(tid);
-                    busy = true;
-                    isInitiator = true;
-                    setStatus('Retrying…');
-                    updateComposer();
-                    return;
-                }
-                if (eventName === 'turn.completed') {
-                    setStatus('Ready');
-                    busy = false;
-                    isInitiator = false;
-                    pendingUserText = null;
-                    pendingOptimisticEl = null;
-                    updateComposer();
-                    inputEl.focus();
-                    closeEvents();
-                    refreshConversationList();
-                    return;
-                }
-                if (eventName === 'turn.failed') {
-                    onTurnFailed(data || {});
-                    closeEvents();
-                    refreshConversationList();
-                }
+                if (id !== threadId || generation !== streamGeneration) return;
+                lastStreamActivityAt = Date.now();
+                reconnectAttempts = 0;
+                reconnectFailureShown = false;
+                if (!acceptDurableEvent(id, data)) return;
+                enqueueLiveEvent(eventName, data);
             },
             onError: function () {
-                if (busy) {
-                    busy = false;
-                    isInitiator = false;
-                    updateComposer();
-                }
+                if (id !== threadId || generation !== streamGeneration || !busy) return;
+                scheduleReconnect(id, generation, false);
             },
         });
+        if (generation !== streamGeneration || id !== threadId || !busy) {
+            nextSub.close();
+            return;
+        }
+        sub = nextSub;
     }
+
+    function openEvents(id, afterSeq) {
+        closeEvents();
+        lastAppliedSeqByThread[id] = Math.max(streamCursor(id), Number(afterSeq || 0));
+        reconnectAttempts = 0;
+        reconnectFailureShown = false;
+        const generation = streamGeneration;
+        startSubscription(id, generation);
+    }
+
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState !== 'visible' || !busy || !threadId) return;
+        const stale = !lastStreamActivityAt || (Date.now() - lastStreamActivityAt) > staleStreamMs;
+        if (streamState !== 'open' || stale) {
+            reconnectAttempts = 0;
+            reconnectFailureShown = false;
+            scheduleReconnect(threadId, streamGeneration, true);
+        }
+    });
 
     async function openConversation(id) {
         closeEvents();
+        const requestGeneration = streamGeneration;
         try {
             const snap = await getThread(api, { threadId: id, afterSeq: 0 });
+            if (requestGeneration !== streamGeneration) return;
             threadId = id;
             localStorage.setItem(storageKey, id);
             clearPendingAttachments();
             applyFloorFromPayload(snap);
             hydrateItems(snap.items || []);
-            setStatus('Hydrated ' + id);
-            busy = false;
-            isInitiator = false;
+            lastAppliedSeqByThread[id] = Math.max(
+                Number(snap.seq_head || 0),
+                (snap.items || []).reduce(function (max, item) {
+                    return Math.max(max, Number(item && item.seq || 0));
+                }, 0)
+            );
+            busy = !!snap.busy;
+            turnId = snap.active_turn_id || null;
+            isInitiator = busy
+                && Number(snap.active_turn_initiator_admin_id || 0) === adminUserId;
+            if (busy && turnId) {
+                const stream = turnUi[turnId];
+                if (!stream || !stream.current) ensureAssistantPlaceholder(turnId);
+                setStatus('Connecting…');
+                openEvents(id, streamCursor(id));
+            } else {
+                setStatus('Hydrated ' + id);
+            }
             updateComposer();
             await refreshConversationList();
             const active = conversations.find(function (c) { return c.thread_id === id; });
@@ -882,6 +1269,7 @@ export function bootChat(options) {
             null,
             optimisticAtts
         );
+        ensureAssistantPlaceholder('_pending');
 
         try {
             if (!threadId) {
@@ -903,6 +1291,7 @@ export function bootChat(options) {
                 effort: selection.effort || undefined,
             });
             turnId = started.turn_id;
+            adoptPendingPlaceholder(turnId);
             applyFloorFromPayload(started);
             floorHolderId = adminUserId;
             floorRemainingSec = 0;
@@ -911,6 +1300,8 @@ export function bootChat(options) {
             openEvents(threadId, started.seq_head || 0);
             refreshConversationList();
         } catch (err) {
+            removeAssistantPlaceholder('_pending');
+            removeAssistantPlaceholder(turnId);
             if (pendingOptimisticEl) {
                 pendingOptimisticEl.remove();
                 pendingOptimisticEl = null;
@@ -967,6 +1358,7 @@ export function bootChat(options) {
             setStatus('Retrying…');
             clearTurnErrors(tid);
             turnId = tid;
+            ensureAssistantPlaceholder(tid);
             retryTurn(api, { threadId: threadId, turnId: tid }).then(function (started) {
                 applyFloorFromPayload(started);
                 floorHolderId = adminUserId;
@@ -974,6 +1366,7 @@ export function bootChat(options) {
                 refreshFloorBanner();
                 openEvents(threadId, started.seq_head || 0);
             }).catch(function (err) {
+                removeAssistantPlaceholder(tid);
                 busy = false;
                 isInitiator = false;
                 updateComposer();

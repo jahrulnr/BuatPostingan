@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"buatpostingan/internal/domain/service"
+	"buatpostingan/internal/pkg/logging"
 )
 
 // Router fails over among enabled providers; pins after first success in a turn.
@@ -19,6 +20,7 @@ type Router struct {
 	cfg     Config
 	client  *Client
 	circuit *circuitStore
+	retry   *retryPolicy
 }
 
 func NewRouter(cfg Config, client *Client) *Router {
@@ -29,6 +31,7 @@ func NewRouter(cfg Config, client *Client) *Router {
 		cfg:     cfg,
 		client:  client,
 		circuit: newCircuitStore(cfg.StorageRoot, cfg.CircuitFailureThreshold, cfg.CircuitCooldownSec),
+		retry:   newRetryPolicy(cfg),
 	}
 }
 
@@ -41,6 +44,7 @@ func (r *Router) Reload(cfg Config) {
 		r.client.Reload(cfg)
 	}
 	r.circuit = newCircuitStore(cfg.StorageRoot, cfg.CircuitFailureThreshold, cfg.CircuitCooldownSec)
+	r.retry = newRetryPolicy(cfg)
 }
 
 func (r *Router) Chat(ctx context.Context, messages []map[string]any, tools []map[string]any, pinnedProvider string) (service.LLMResult, error) {
@@ -48,17 +52,28 @@ func (r *Router) Chat(ctx context.Context, messages []map[string]any, tools []ma
 	cfg := r.cfg
 	client := r.client
 	circuit := r.circuit
+	policy := r.retry
 	r.mu.RUnlock()
-	candidates := candidatesFor(cfg, circuit, pinnedProvider)
+	candidates, allOpenFallback := candidatesFor(cfg, circuit, pinnedProvider)
 	attempts := 0
+	retryNum := 0
 	budget := cfg.TotalAttemptBudget
 	if budget < 1 {
 		budget = 4
 	}
 	var last error
-	for _, providerID := range candidates {
+	for ci, providerID := range candidates {
 		p, ok := cfg.Providers[providerID]
 		if !ok || !p.Enabled {
+			continue
+		}
+		// Half-open single-probe gate: a fully-open provider or an in-flight
+		// probe fails fast so we fail over instead of stampeding. Skipped on the
+		// degraded all-open fallback (every provider is open; try anyway).
+		if !allOpenFallback && !circuit.tryAcquire(ctx, providerID) {
+			if last == nil {
+				last = &Error{Provider: providerID, Msg: "circuit open / probe in flight", Transient: true}
+			}
 			continue
 		}
 		maxAttempts := p.MaxAttempts
@@ -69,14 +84,47 @@ func (r *Router) Chat(ctx context.Context, messages []map[string]any, tools []ma
 			attempts++
 			res, err := client.ChatWithProvider(ctx, providerID, messages, tools)
 			if err == nil {
-				circuit.record(providerID, true)
+				circuit.record(ctx, providerID, true)
 				return res, nil
 			}
 			last = err
-			circuit.record(providerID, false)
-			le, ok := err.(*Error)
-			if ok && !le.Transient {
+			le, isLE := err.(*Error)
+			transient := isLE && le.Transient
+			if transient {
+				// Only transient/provider failures count toward the circuit;
+				// auth/validation errors (non-transient) must not trip it.
+				circuit.record(ctx, providerID, false)
+			} else {
 				return service.LLMResult{}, err
+			}
+			// Another attempt coming (this provider or a later candidate)?
+			moreHere := a+1 < maxAttempts && attempts < budget
+			moreProviders := ci+1 < len(candidates) && attempts < budget
+			if !moreHere && !moreProviders {
+				break
+			}
+			retryNum++
+			var retryAfter time.Duration
+			if isLE {
+				retryAfter = le.RetryAfter
+			}
+			delay := policy.delay(retryNum, retryAfter)
+			logging.Warn(ctx, "webchat.llm.retry_backoff",
+				"provider", providerID,
+				"attempt", attempts,
+				"max_attempts", maxAttempts,
+				"budget_used", attempts,
+				"budget", budget,
+				"delay_ms", delay.Milliseconds(),
+				"retry_after_ms", retryAfter.Milliseconds(),
+				"status", statusOf(le),
+				"kind", transientKind(err),
+				"err", err.Error(),
+			)
+			if werr := policy.wait(ctx, delay); werr != nil {
+				// Context cancelled/deadline: never sleep past it; surface the
+				// provider error that triggered the (aborted) retry.
+				return service.LLMResult{}, last
 			}
 		}
 		if attempts >= budget {
@@ -89,15 +137,24 @@ func (r *Router) Chat(ctx context.Context, messages []map[string]any, tools []ma
 	return service.LLMResult{}, &Error{Provider: "none", Msg: "LLM providers exhausted", Transient: true}
 }
 
+func statusOf(le *Error) int {
+	if le == nil {
+		return 0
+	}
+	return le.Status
+}
+
 func (r *Router) candidates(pinnedProvider string) []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return candidatesFor(r.cfg, r.circuit, pinnedProvider)
+	out, _ := candidatesFor(r.cfg, r.circuit, pinnedProvider)
+	return out
 }
 
-func candidatesFor(cfg Config, circuit *circuitStore, pinnedProvider string) []string {
+func candidatesFor(cfg Config, circuit *circuitStore, pinnedProvider string) ([]string, bool) {
 	now := time.Now()
 	state := circuit.read()
+	allOpenFallback := false
 	var enabled []string
 	for id, p := range cfg.Providers {
 		if !p.Enabled {
@@ -108,6 +165,7 @@ func candidatesFor(cfg Config, circuit *circuitStore, pinnedProvider string) []s
 		}
 	}
 	if len(enabled) == 0 {
+		allOpenFallback = true
 		for id, p := range cfg.Providers {
 			if p.Enabled {
 				enabled = append(enabled, id)
@@ -117,9 +175,9 @@ func candidatesFor(cfg Config, circuit *circuitStore, pinnedProvider string) []s
 
 	if cfg.Strategy == "switch" {
 		if cfg.ActiveProvider != "" {
-			return []string{cfg.ActiveProvider}
+			return []string{cfg.ActiveProvider}, allOpenFallback
 		}
-		return enabled
+		return enabled, allOpenFallback
 	}
 
 	if pinnedProvider != "" {
@@ -131,7 +189,7 @@ func candidatesFor(cfg Config, circuit *circuitStore, pinnedProvider string) []s
 						rest = append(rest, x)
 					}
 				}
-				return append([]string{pinnedProvider}, rest...)
+				return append([]string{pinnedProvider}, rest...), allOpenFallback
 			}
 		}
 	}
@@ -155,10 +213,10 @@ func candidatesFor(cfg Config, circuit *circuitStore, pinnedProvider string) []s
 			}
 		}
 		if hasActive {
-			return append([]string{cfg.ActiveProvider}, rest...)
+			return append([]string{cfg.ActiveProvider}, rest...), allOpenFallback
 		}
 	}
-	return enabled
+	return enabled, allOpenFallback
 }
 
 func rotateRoundRobin(storageRoot string, enabled []string) []string {

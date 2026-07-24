@@ -7,10 +7,78 @@
       "role": "owner"
     }
   ],
+  "skills_root": "resources/webchat/skills",
+  "limits": {
+    "max_tool_rounds": 8,
+    "speak_floor_ttl_sec": 600,
+    "lock_ttl_sec": 300,
+    "turn_rate_limit_per_min": 10,
+    "turn_job_timeout_sec": 120
+  },
   "llm": {
     "strategy": "failover",
     "active_provider": "",
     "stub": null,
-    "providers": []
+    "stream": true,
+    "vision": "auto",
+    "effort": "auto",
+    "total_attempt_budget": 4,
+    "circuit_failure_threshold": 3,
+    "circuit_cooldown_sec": 60,
+    "retry_base_delay_ms": 250,
+    "retry_max_delay_ms": 5000,
+    "retry_jitter": 0.2,
+    "providers": [
+      {
+        "id": "OPENROUTER",
+        "name": "OpenRouter",
+        "prefix": "openrouter",
+        "api": "responses",
+        "base_url": "https://openrouter.ai/api/v1",
+        "api_key": "",
+        "enabled": true,
+        "models": [
+          { "id": "openai/gpt-4o-mini" }
+        ],
+        "timeout_sec": 60,
+        "max_attempts": 1,
+        "weight": 1
+      }
+    ]
+  },
+  "context": {
+    "compaction_enabled": true,
+    "max_input_tokens": 12000,
+    "reserve_tokens": 3000,
+    "recent_turns": 4,
+    "summary_max_chars": 12000
+  },
+  "docs": {
+    "top_k": 5,
+    "min_score": 0.5,
+    "fuzzy_enabled": true,
+    "app_id": "buatpostingan"
+  },
+  "web_search": {
+    "github_token": ""
+  },
+  "mcp": {
+    "enabled": true,
+    "connect_timeout_sec": 15,
+    "call_timeout_sec": 30,
+    "servers": [
+      {
+        "id": "echo",
+        "transport": "stdio",
+        "command": "./bin/mcp-echo",
+        "args": [],
+        "env": {},
+        "enabled": true,
+        "trusted": true,
+        "allow_tools": ["echo"],
+        "deny_tools": [],
+        "allow_mutations": false
+      }
+    ]
   }
 }

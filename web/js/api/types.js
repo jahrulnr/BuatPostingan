@@ -88,6 +88,7 @@
  * @property {string} threadId
  * @property {number} afterSeq
  * @property {(eventName: string, data: Object) => void} onEvent
+ * @property {() => void} [onOpen]
  * @property {(err?: Error) => void} [onError]
  */
 

@@ -59,12 +59,13 @@ func TestCircuitStoreOpenAndCooldown(t *testing.T) {
 		t.Fatalf("defaults %#v", c2)
 	}
 
-	c.record("A", false)
+	ctx := context.Background()
+	c.record(ctx, "A", false)
 	st := c.read()
 	if st["A"].Failures != 1 || st["A"].OpenedAt != nil {
 		t.Fatalf("%#v", st["A"])
 	}
-	c.record("A", false)
+	c.record(ctx, "A", false)
 	st = c.read()
 	if st["A"].Failures != 2 || st["A"].OpenedAt == nil {
 		t.Fatalf("should open %#v", st["A"])
@@ -79,16 +80,86 @@ func TestCircuitStoreOpenAndCooldown(t *testing.T) {
 	if !c.isAvailable("missing", st, now) {
 		t.Fatal("missing provider available")
 	}
-	c.record("A", true)
+	c.record(ctx, "A", true)
 	st = c.read()
 	if st["A"].Failures != 0 || st["A"].OpenedAt != nil {
 		t.Fatalf("reset %#v", st["A"])
 	}
 
-	// corrupt file → empty read
+	// corrupt file → empty read (recovers safely)
 	_ = os.WriteFile(c.path(), []byte("not-json"), 0o644)
 	if len(c.read()) != 0 {
 		t.Fatal("corrupt should yield empty")
+	}
+}
+
+// TestCircuitHalfOpenProbeReopenClose exercises the full state machine:
+// threshold→open, cooldown→half-open, single probe, fail→reopen, success→close.
+func TestCircuitHalfOpenProbeReopenClose(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	c := newCircuitStore(root, 2, 1) // threshold 2, cooldown 1s
+	c.probeTTL = 200 * time.Millisecond
+
+	// Trip open after threshold transient failures.
+	c.record(ctx, "A", false)
+	c.record(ctx, "A", false)
+	if c.read()["A"].OpenedAt == nil {
+		t.Fatal("should be open after threshold")
+	}
+	// Open → fail fast (no probe leased while within cooldown).
+	if c.tryAcquire(ctx, "A") {
+		t.Fatal("open provider must not acquire before cooldown")
+	}
+
+	// Force cooldown elapsed by backdating OpenedAt → half-open.
+	st := c.read()
+	old := unixSeconds(time.Now().Add(-5 * time.Second))
+	rec := st["A"]
+	rec.OpenedAt = &old
+	rec.ProbeAt = nil
+	st["A"] = rec
+	c.withLock(func() { c.writeAtomic(st) })
+
+	// Half-open: exactly one probe.
+	if !c.tryAcquire(ctx, "A") {
+		t.Fatal("half-open should lease first probe")
+	}
+	if c.tryAcquire(ctx, "A") {
+		t.Fatal("second concurrent probe must fail fast")
+	}
+
+	// Probe fails → reopen with a fresh cooldown.
+	c.record(ctx, "A", false)
+	st = c.read()
+	if st["A"].OpenedAt == nil || st["A"].ProbeAt != nil {
+		t.Fatalf("reopen should set OpenedAt and clear probe: %#v", st["A"])
+	}
+
+	// Backdate again → half-open probe succeeds → closed.
+	old = unixSeconds(time.Now().Add(-5 * time.Second))
+	rec = st["A"]
+	rec.OpenedAt = &old
+	rec.ProbeAt = nil
+	st["A"] = rec
+	c.withLock(func() { c.writeAtomic(st) })
+	if !c.tryAcquire(ctx, "A") {
+		t.Fatal("half-open should lease probe again")
+	}
+	c.record(ctx, "A", true)
+	st = c.read()
+	if st["A"].Failures != 0 || st["A"].OpenedAt != nil || st["A"].ProbeAt != nil {
+		t.Fatalf("success should fully close: %#v", st["A"])
+	}
+
+	// Stale probe lease is reclaimable (probeTTL elapsed).
+	old = unixSeconds(time.Now().Add(-5 * time.Second))
+	stale := unixSeconds(time.Now().Add(-1 * time.Second))
+	c.withLock(func() {
+		c.writeAtomic(map[string]providerState{"A": {Failures: 2, OpenedAt: &old, ProbeAt: &stale}})
+	})
+	if !c.tryAcquire(ctx, "A") {
+		t.Fatal("stale probe lease should be reclaimable")
 	}
 }
 
@@ -138,8 +209,8 @@ func TestRouterCandidatesStrategies(t *testing.T) {
 	}
 
 	// open circuit for A → still returns enabled when all open (fallback)
-	r.circuit.record("A", false)
-	r.circuit.record("B", false)
+	r.circuit.record(context.Background(), "A", false)
+	r.circuit.record(context.Background(), "B", false)
 	all := r.candidates("")
 	if len(all) != 2 {
 		t.Fatalf("all open fallback %#v", all)
@@ -174,6 +245,7 @@ func TestRouterChatSuccessFailoverAndExhaust(t *testing.T) {
 		},
 	}
 	r := NewRouter(cfg, NewClient(cfg))
+	r.retry.sleep = noSleep
 	res, err := r.Chat(context.Background(), []map[string]any{{"role": "user", "content": "hi"}}, nil, "")
 	if err != nil {
 		t.Fatal(err)
@@ -405,6 +477,40 @@ func TestLooksLikeChatCompletion(t *testing.T) {
 	}
 }
 
+func TestParseResponsesStringContentAndStatus(t *testing.T) {
+	res := parseResponsesPayload(config.LLMProvider{ID: "P", Model: "m", API: "responses"}, map[string]any{
+		"status": "incomplete",
+		"output": []any{
+			map[string]any{"type": "reasoning", "summary": []any{
+				map[string]any{"type": "summary_text", "text": "plan"},
+			}},
+			map[string]any{"type": "message", "role": "assistant", "content": "hello from string"},
+		},
+	})
+	if res.Text != "hello from string" {
+		t.Fatalf("text=%q", res.Text)
+	}
+	if res.Status != "incomplete" {
+		t.Fatalf("status=%q", res.Status)
+	}
+	if res.Reasoning != "plan" {
+		t.Fatalf("reasoning=%q", res.Reasoning)
+	}
+	// Reasoning-only: empty text preserved (worker nudges separately).
+	empty := parseResponsesPayload(config.LLMProvider{ID: "P", Model: "m", API: "responses"}, map[string]any{
+		"status": "completed",
+		"output": []any{
+			map[string]any{"type": "reasoning", "text": "will call tools"},
+		},
+	})
+	if empty.Text != "" {
+		t.Fatalf("expected empty text, got %q", empty.Text)
+	}
+	if empty.Reasoning != "will call tools" {
+		t.Fatalf("reasoning=%q", empty.Reasoning)
+	}
+}
+
 func TestParseResponsesOutputTextAndArgsMap(t *testing.T) {
 	res := parseResponsesPayload(config.LLMProvider{ID: "P", Model: "m", API: "responses"}, map[string]any{
 		"output_text": "fallback",
@@ -517,16 +623,15 @@ func TestParseSSEResponsesIncompleteErrorAndBareFailed(t *testing.T) {
 		`data: {"type":"response.output_item.done","item":{"type":"reasoning","summary":[{"type":"summary_text","text":"keep"}]}}`,
 		"",
 		"event: response.incomplete",
-		`data: {"type":"response.incomplete","response":{"status":"incomplete","output":[{"type":"message","content":[{"type":"output_text","text":"partial"}]}],"usage":{"input_tokens":2},"error":{"message":""}}}`,
+		`data: {"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"content_filter"},"output":[{"type":"message","content":[{"type":"output_text","text":"partial"}]}],"usage":{"input_tokens":2},"error":{"message":""}}}`,
 		"",
 	}, "\n")
-	payload, err := parseSSEToPayload(strings.NewReader(raw))
-	if err != nil {
-		t.Fatal(err)
+	_, err := parseSSEToPayload(strings.NewReader(raw))
+	if err == nil || !errors.Is(err, ErrSSETransport) {
+		t.Fatalf("want ErrSSETransport, got %v", err)
 	}
-	res := parseResponsesPayload(config.LLMProvider{ID: "P", Model: "m", API: "responses"}, payload)
-	if res.Text != "partial" {
-		t.Fatalf("text=%q", res.Text)
+	if !strings.Contains(err.Error(), "content_filter") {
+		t.Fatalf("want incomplete reason, got %v", err)
 	}
 
 	_, err = parseSSEToPayload(strings.NewReader(strings.Join([]string{
@@ -539,12 +644,105 @@ func TestParseSSEResponsesIncompleteErrorAndBareFailed(t *testing.T) {
 	}
 
 	// chat chunk without object but with choices+delta
-	payload, err = parseSSEToPayload(strings.NewReader(`data: {"choices":[{"delta":{"content":"z"}}]}`+"\n\n"))
+	payload, err := parseSSEToPayload(strings.NewReader(`data: {"choices":[{"delta":{"content":"z"}}]}` + "\n\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if parseChatCompletionPayload(config.LLMProvider{ID: "P", Model: "m"}, payload).Text != "z" {
 		t.Fatalf("%#v", payload)
+	}
+}
+
+func TestParseSSEResponsesEarlyCloseBeforeCompleted(t *testing.T) {
+	// Codex stream_no_completed: output_item.done without response.completed.
+	raw := strings.Join([]string{
+		"event: response.output_item.done",
+		`data: {"type":"response.output_item.done","item":{"type":"message","content":[{"type":"output_text","text":"partial"}]}}`,
+		"",
+	}, "\n")
+	_, err := parseSSEToPayload(strings.NewReader(raw))
+	if err == nil || !errors.Is(err, ErrSSETransport) {
+		t.Fatalf("want ErrSSETransport, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "closed before response.completed") {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestRouterRetriesTruncatedResponsesSSE(t *testing.T) {
+	// Codex stream_no_completed: first attempt ends without response.completed; second succeeds.
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		if hits == 1 {
+			_, _ = io.WriteString(w, strings.Join([]string{
+				"event: response.output_item.done",
+				`data: {"type":"response.output_item.done","item":{"type":"message","content":[{"type":"output_text","text":"partial"}]}}`,
+				"",
+			}, "\n"))
+			return
+		}
+		_, _ = io.WriteString(w, strings.Join([]string{
+			"event: response.output_item.done",
+			`data: {"type":"response.output_item.done","item":{"type":"message","content":[{"type":"output_text","text":"ok after retry"}]}}`,
+			"",
+			"event: response.completed",
+			`data: {"type":"response.completed","response":{"status":"completed"}}`,
+			"",
+		}, "\n"))
+	}))
+	defer srv.Close()
+
+	root := t.TempDir()
+	streamOn := true
+	cfg := Config{
+		StorageRoot: root, Strategy: "failover", ActiveProvider: "A",
+		TotalAttemptBudget: 4, RetryStatuses: []int{429, 500},
+		Stream: &streamOn,
+		Providers: map[string]config.LLMProvider{
+			"A": {ID: "A", Enabled: true, APIKey: "k", BaseURL: srv.URL, Model: "m", API: "responses", TimeoutSec: 5, MaxAttempts: 2, MaxOutputTokens: 32},
+		},
+	}
+	r := NewRouter(cfg, NewClient(cfg))
+	r.retry.sleep = noSleep
+	res, err := r.Chat(context.Background(), []map[string]any{{"role": "user", "content": "hi"}}, nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Text != "ok after retry" {
+		t.Fatalf("text=%q", res.Text)
+	}
+	if hits != 2 {
+		t.Fatalf("expected 2 attempts after truncated SSE, hits=%d", hits)
+	}
+}
+
+func TestClientMarksTruncatedSSETransient(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, strings.Join([]string{
+			"event: response.output_text.delta",
+			`data: {"type":"response.output_text.delta","delta":"x"}`,
+			"",
+		}, "\n"))
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{Stream: boolPtr(true)})
+	p := config.LLMProvider{ID: "A", BaseURL: srv.URL, APIKey: "k", Model: "m", API: "responses", TimeoutSec: 5}
+	_, err := c.postJSON(context.Background(), p, "responses", map[string]any{"model": "m"})
+	if err == nil {
+		t.Fatal("expected transport error")
+	}
+	le, ok := err.(*Error)
+	if !ok || !le.Transient {
+		t.Fatalf("want Transient Error, got %#v", err)
+	}
+	if !isSSETransportErr(err) {
+		t.Fatalf("want SSE transport, got %v", err)
 	}
 }
 
@@ -564,11 +762,14 @@ func TestRouterBudgetExhaustReturnsLast(t *testing.T) {
 		},
 	}
 	r := NewRouter(cfg, NewClient(cfg))
+	r.retry.sleep = noSleep
 	_, err := r.Chat(context.Background(), []map[string]any{{"role": "user", "content": "hi"}}, nil, "")
 	if err == nil {
 		t.Fatal("want error")
 	}
 }
+
+func noSleep(context.Context, time.Duration) error { return nil }
 
 func TestLooksLikeSSEDataPrefix(t *testing.T) {
 	if !looksLikeSSE("application/json", []byte("data: {}\n")) {

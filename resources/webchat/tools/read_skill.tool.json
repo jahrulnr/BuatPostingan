@@ -1,0 +1,17 @@
+{
+  "type": "function",
+  "name": "read_skill",
+  "description": "Read the full SKILL.md body for one skill by name (after list_skills). Follow the returned instructions for this turn. Name must be a single kebab-case segment; path escapes are rejected. Skills are trusted project content rooted under BP_SKILLS_ROOT only.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "Skill directory / frontmatter name (e.g. writing-post)."
+      }
+    },
+    "required": ["name"],
+    "additionalProperties": false
+  },
+  "strict": true
+}

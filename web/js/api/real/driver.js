@@ -157,7 +157,15 @@ export function subscribeEventsImpl(api, req) {
         'turn.completed',
         'turn.failed',
         'item.completed',
+        'item.delta',
+        'item.updated',
+        'conversation.updated',
     ];
+    es.onopen = function () {
+        if (typeof req.onOpen === 'function') {
+            req.onOpen();
+        }
+    };
     names.forEach(function (name) {
         es.addEventListener(name, function (e) {
             let data = {};

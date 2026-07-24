@@ -26,7 +26,7 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./vendor/bootstrap-icons/font/bootstrap-icons.css">
     <link rel="stylesheet" href="./css/shell.css?v=20260724-ide2">
-    <link rel="stylesheet" href="./css/webchat.css?v=20260724-model1">
+    <link rel="stylesheet" href="./css/webchat.css?v=20260725-sse1">
     <link rel="stylesheet" href="./css/webchat-conversations.css?v=20260724-ide2">
     <link rel="stylesheet" href="./css/settings.css?v=20260724-settings1">
 </head>
@@ -109,6 +109,9 @@
                                 <p>Ajukan pertanyaan — AI menjawab dari knowledge base (reader only).</p>
                             </div>
                         </div>
+                        <button type="button" class="webchat-new-activity" id="chatNewActivity" hidden>
+                            New activity <span aria-hidden="true">↓</span>
+                        </button>
                         <div class="webchat-status" id="chatStatus" data-state="ready">Ready</div>
                         <div class="webchat-composer">
                             <div class="composer-attachments" id="composerAttachments" hidden></div>
@@ -337,6 +340,6 @@
     </script>
     <script src="./vendor/marked/marked.umd.js"></script>
     <script src="./vendor/dompurify/purify.min.js"></script>
-    <script type="module" src="./js/app.js?v=20260724-settings1"></script>
+    <script type="module" src="./js/app.js?v=20260725-sse1"></script>
 </body>
 </html>

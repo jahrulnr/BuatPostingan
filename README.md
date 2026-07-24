@@ -59,6 +59,7 @@ BP_LLM_OPENROUTER_API=responses   # or chat; SSE streaming is supported for both
 | `BP_DOCS_ROOT` | `docs/webchat` |
 | `BP_PROMPTS_ROOT` | `resources/webchat/prompts` |
 | `BP_TOOLS_ROOT` | `resources/webchat/tools` |
+| `BP_SKILLS_ROOT` | `resources/webchat/skills` |
 | `BP_LLM_STUB` | `true` if no provider API key |
 | `BP_LLM_STREAM` | `true` (SSE; auto-fallback to JSON if unsupported) |
 

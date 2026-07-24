@@ -13,10 +13,12 @@ delivery → usecase → domain ← infrastructure
 Deep dives:
 
 - [`turn-loop.md`](turn-loop.md) — StartTurn → worker → tools → JSONL → SSE  
+- [`realtime-streaming.md`](realtime-streaming.md) — token deltas, SSE notify, perceived-latency vs industry  
 - [`llm-providers.md`](llm-providers.md) — stub, OpenAI-compatible `chat`/`responses`, router  
 - [`llm-model-picker.md`](llm-model-picker.md) — composer model/effort picker + `/models`  
 - [`settings-config.md`](settings-config.md) — JSON settings UI + `/api/settings`  
 - [`observability.md`](observability.md) — `trace_id` + slog boundaries  
+- [`codex-gap-analysis.md`](codex-gap-analysis.md) — Codex vs BP feature gaps (P0–P2) for reader/instructor  
 - [`../operations/runbook.md`](../operations/runbook.md) — local run  
 
 ## Layout
@@ -82,7 +84,7 @@ Handlers call `webchat.Usecase` only. Concrete service: `webchat.NewService(Deps
 ## Runtime wiring (`cmd/app`)
 
 1. Ensure storage dirs; `docs.NewIndex` (+ Reindex) + Gate log  
-2. `tools.NewRegistry` (allowlist: search_docs, list_dir, read_file, grep, read_attachment, read_image, web_search, web_fetch)  
+2. `tools.NewRegistry` (allowlist: search_docs, list_dir, read_file, grep, read_attachment, read_image, web_search, web_fetch, list_skills, read_skill, list_mcp_tools, call_mcp_tool) + optional `mcp.NewManager`  
 3. `llm.NewClient` + `llm.NewRouter` (failover / circuit)  
 4. `worker.New` + `sse.NewStreamer`  
 5. `webchat.NewService(Deps{…})` → HTTP server  
@@ -103,9 +105,15 @@ Allowlist (hardcoded in `tools.Allowlist`; schemas from disk):
 | `read_image` | Image upload metadata; pixels auto-injected into multimodal LLM user messages when under vision size limits |
 | `web_search` | Public metasearch via [searchwire](https://github.com/jahrulnr/searchwire) (Brave/Startpage/Wikipedia/GitHub); query string only |
 | `web_fetch` | SSRF-safe HTTP GET of public http(s) URLs → title + truncated text |
+| `list_skills` | Catalog of project skills (`name` + `description` only) under `BP_SKILLS_ROOT` |
+| `read_skill` | Full `SKILL.md` body for one skill by kebab-case name (skills-root jail) |
+| `list_mcp_tools` | Catalog tools from configured MCP servers (progressive; see [mcp-support.md](mcp-support.md)) |
+| `call_mcp_tool` | Invoke one MCP tool; mutations default-denied |
 
 - Schemas: `resources/webchat/tools/{name}.tool.json` (`BP_TOOLS_ROOT`)  
+- Skills: `resources/webchat/skills/<name>/SKILL.md` (`BP_SKILLS_ROOT`) — see [skills-tools.md](skills-tools.md)  
 - **Local-dev FS:** `list_dir` / `read_file` / `grep` use the real host filesystem (absolute paths including `/` allowed; optional `Options.FSRoot` is a relative-path base for tests only — not a jail). **Insecure for multi-tenant production.**  
+- **Skills jail:** `list_skills` / `read_skill` resolve only under `BP_SKILLS_ROOT` (even in local-dev)  
 - Docs corpus for `search_docs` = `BP_DOCS_ROOT` (default `docs/webchat`) — indexing only; does not jail other FS tools  
 - Attachments = `{BP_STORAGE_ROOT}/attachments/{threadId}/` — tools require worker thread context + `attachment_id`  
 - `web_fetch` blocks localhost/private/link-local/metadata IPs; max body 2 MiB; text/html(+text) only  

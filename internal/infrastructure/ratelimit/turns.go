@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"syscall"
 	"time"
 
 	"buatpostingan/internal/domain/service"
@@ -48,10 +47,10 @@ func (t *TurnLimiter) Assert(ctx context.Context, adminUserID int64) (int, error
 		return 0, err
 	}
 	defer f.Close()
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+	if err := flockExclusive(f); err != nil {
 		return 0, err
 	}
-	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	defer flockUnlock(f)
 
 	now := float64(time.Now().UnixNano()) / 1e9
 	events, err := readEvents(f)

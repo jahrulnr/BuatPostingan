@@ -628,23 +628,75 @@ func TestRunAgentLLMErrorAndEmptyText(t *testing.T) {
 		t.Fatalf("got=%v", typesOf(store))
 	}
 
+	// Two empty rounds: first nudges, second still empty → runtime placeholder + warn path.
 	store2 := &fakeStore{}
 	w2 := New(Deps{
 		Config: config.Config{LLMStub: false, PromptsRoot: root},
 		Store:  store2, Locks: &fakeLock{}, Interrupt: &fakeInterrupt{},
-		Tools: &fakeTools{}, LLM: &scriptLLM{resps: []service.LLMResult{{Text: "   "}}},
+		Tools: &fakeTools{}, LLM: &scriptLLM{resps: []service.LLMResult{
+			{Text: "   ", Reasoning: "planning…", Model: service.ModelRef{Provider: "P", ID: "m", API: "responses"}, Status: "completed"},
+			{Text: "", Reasoning: "still thinking", Model: service.ModelRef{Provider: "P", ID: "m", API: "responses"}, Status: "completed"},
+		}},
 	})
 	w2.process(context.Background(), sampleJob())
 	store2.mu.Lock()
 	var text string
+	var origin string
+	var agentCount int
+	var reasonCount int
 	for _, it := range store2.items {
-		if it.Type == enum.ItemAgentMessage {
+		switch it.Type {
+		case enum.ItemAgentMessage:
+			agentCount++
 			text, _ = it.Payload["text"].(string)
+			origin, _ = it.Payload["origin"].(string)
+		case enum.ItemReasoning:
+			reasonCount++
 		}
 	}
 	store2.mu.Unlock()
 	if text != "(empty model response)" {
 		t.Fatalf("text=%q", text)
+	}
+	if origin != "runtime" {
+		t.Fatalf("origin=%q", origin)
+	}
+	if agentCount != 1 {
+		t.Fatalf("agentCount=%d", agentCount)
+	}
+	if reasonCount < 1 {
+		t.Fatalf("expected reasoning items, got %d", reasonCount)
+	}
+}
+
+func TestEmptyModelResponseNudgeRecovers(t *testing.T) {
+	root := t.TempDir()
+	mustWritePrompt(t, root)
+	store := &fakeStore{}
+	llm := &scriptLLM{resps: []service.LLMResult{
+		{Text: "", Reasoning: "will answer next"},
+		{Text: "Jawaban setelah nudge"},
+	}}
+	w := New(Deps{
+		Config: config.Config{LLMStub: false, PromptsRoot: root},
+		Store:  store, Locks: &fakeLock{}, Interrupt: &fakeInterrupt{},
+		Tools: &fakeTools{}, LLM: llm,
+	})
+	w.process(context.Background(), sampleJob())
+	store.mu.Lock()
+	var text string
+	for _, it := range store.items {
+		if it.Type == enum.ItemAgentMessage {
+			text, _ = it.Payload["text"].(string)
+		}
+	}
+	calls := llm.calls
+	store.mu.Unlock()
+	if text != "Jawaban setelah nudge" {
+		t.Fatalf("text=%q", text)
+	}
+	if calls != 2 {
+		t.Fatalf("expected 2 LLM rounds (empty+nudge), got %d", calls)
 	}
 }
 

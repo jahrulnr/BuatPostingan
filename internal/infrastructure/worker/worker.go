@@ -32,6 +32,7 @@ type Worker struct {
 	llm         service.LLMRouter
 	attachments repository.AttachmentStore
 	vision      visionGate
+	hub         service.ThreadEventHub
 }
 
 var _ service.TurnWorker = (*Worker)(nil)
@@ -48,6 +49,8 @@ type Deps struct {
 	Attachments repository.AttachmentStore
 	// Vision optional; when nil, pixels are allowed (tests / legacy).
 	Vision visionGate
+	// Hub optional; when set, LLM text deltas are published as ephemeral SSE.
+	Hub service.ThreadEventHub
 }
 
 func New(deps Deps) *Worker {
@@ -61,6 +64,7 @@ func New(deps Deps) *Worker {
 		llm:         deps.LLM,
 		attachments: deps.Attachments,
 		vision:      deps.Vision,
+		hub:         deps.Hub,
 	}
 }
 
@@ -116,6 +120,7 @@ func (w *Worker) process(ctx context.Context, job service.TurnJob) {
 					"code":    "job_error",
 					"message": "panic in turn worker",
 				},
+				"trace_id": logging.TraceID(ctx),
 			})
 		}
 	}()
@@ -134,6 +139,7 @@ func (w *Worker) process(ctx context.Context, job service.TurnJob) {
 				"code":    "job_error",
 				"message": msg,
 			},
+			"trace_id": logging.TraceID(ctx),
 		})
 	} else {
 		logging.Info(ctx, "webchat.turn_completed",
@@ -148,7 +154,8 @@ func (w *Worker) run(ctx context.Context, job service.TurnJob) error {
 		text, ok := w.findTurnUserText(ctx, job)
 		if !ok {
 			_, err := w.append(ctx, job, enum.ItemTurnFailed, map[string]any{
-				"error": map[string]any{"code": "not_found", "message": "turn missing user_message"},
+				"error":    map[string]any{"code": "not_found", "message": "turn missing user_message"},
+				"trace_id": logging.TraceID(ctx),
 			})
 			return err
 		}
@@ -229,7 +236,11 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 	if err != nil {
 		return err
 	}
-	messages := w.buildMessages(ctx, job.ThreadID, snap.Items)
+	items, err := w.maybeCompact(ctx, job, snap.Items)
+	if err != nil {
+		return err
+	}
+	messages := w.buildMessages(ctx, job.ThreadID, items)
 	docCount := 0
 	if w.docs != nil {
 		if gate, gerr := w.docs.Gate(ctx); gerr == nil {
@@ -261,18 +272,44 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 	rounds := 0
 	var prevToolFingerprint string
 	identicalToolRounds := 0
+	emptyNudged := false
 
 	for rounds < maxRounds {
 		rounds++
 		if interrupted, _ := w.interrupt.IsRequested(ctx, job.ThreadID, job.TurnID); interrupted {
 			_ = w.interrupt.Clear(ctx, job.ThreadID, job.TurnID)
 			_, err := w.append(ctx, job, enum.ItemTurnFailed, map[string]any{
-				"error": map[string]any{"code": "interrupted", "message": "Stopped by user"},
+				"error":    map[string]any{"code": "interrupted", "message": "Stopped by user"},
+				"trace_id": logging.TraceID(ctx),
 			})
 			return err
 		}
 
-		resp, err := w.llm.Chat(chatCtx, messages, schemas, pinned)
+		draftItemID := idgen.ItemID()
+		streamedText := false
+		roundCtx := chatCtx
+		if w.hub != nil {
+			turnID := job.TurnID.String()
+			threadID := job.ThreadID
+			itemID := draftItemID
+			roundCtx = llm.WithStreamHooks(chatCtx, &llm.StreamHooks{
+				OnTextDelta: func(delta string) {
+					if delta == "" {
+						return
+					}
+					streamedText = true
+					w.hub.PublishEphemeral(threadID, "item.delta", map[string]any{
+						"type":    "agent_message",
+						"turn_id": turnID,
+						"item_id": itemID,
+						"field":   "text",
+						"delta":   delta,
+					})
+				},
+			})
+		}
+
+		resp, err := w.llm.Chat(roundCtx, messages, schemas, pinned)
 		if err != nil {
 			return err
 		}
@@ -391,11 +428,59 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 			continue
 		}
 
-		text := resp.Text
-		if strings.TrimSpace(text) == "" {
+		text := strings.TrimSpace(resp.Text)
+		if text == "" {
+			hasReasoning := strings.TrimSpace(resp.Reasoning) != ""
+			logging.Warn(ctx, "webchat.empty_model_response",
+				"thread", job.ThreadID.String(),
+				"turn", job.TurnID.String(),
+				"round", rounds,
+				"provider", resp.Model.Provider,
+				"model", resp.Model.ID,
+				"api", resp.Model.API,
+				"has_reasoning", hasReasoning,
+				"reasoning_chars", utf8.RuneCountInString(resp.Reasoning),
+				"tool_calls_len", len(resp.ToolCalls),
+				"finish_reason", resp.Status,
+				"nudged", emptyNudged,
+			)
+			// Reasoning-only / truncated rounds: give the model one chance to answer or tool-call.
+			if !emptyNudged && rounds < maxRounds {
+				emptyNudged = true
+				asst := map[string]any{"role": "assistant", "content": ""}
+				if hasReasoning {
+					asst["reasoning"] = resp.Reasoning
+				}
+				messages = append(messages, asst)
+				messages = append(messages, map[string]any{
+					"role": "system",
+					"content": "You produced reasoning but no user-facing answer and no tool call. " +
+						"Answer the user now in plain text, or call a tool with concrete arguments.",
+				})
+				logging.Info(ctx, "webchat.empty_response_nudge",
+					"thread", job.ThreadID.String(),
+					"turn", job.TurnID.String(),
+					"round", rounds,
+				)
+				continue
+			}
 			text = "(empty model response)"
+			if _, err := w.appendID(ctx, job, enum.ItemAgentMessage, "", map[string]any{
+				"text":     text,
+				"origin":   "runtime",
+				"model":    modelMetadata(resp, "response"),
+				"trace_id": logging.TraceID(ctx),
+			}); err != nil {
+				return err
+			}
+			lastToolOnly = false
+			break
 		}
-		if _, err := w.append(ctx, job, enum.ItemAgentMessage, map[string]any{
+		agentItemID := ""
+		if streamedText {
+			agentItemID = draftItemID
+		}
+		if _, err := w.appendID(ctx, job, enum.ItemAgentMessage, agentItemID, map[string]any{
 			"text":  text,
 			"model": modelMetadata(resp, "response"),
 		}); err != nil {
@@ -450,27 +535,18 @@ func (w *Worker) markActiveTurn(ctx context.Context, job service.TurnJob) error 
 	return w.store.AppendConversationMeta(ctx, meta)
 }
 
-func (w *Worker) maybeAutoTitle(ctx context.Context, job service.TurnJob) {
-	prev, ok, err := w.store.ResolveConversation(ctx, job.ThreadID)
-	if err != nil || !ok {
-		return
-	}
-	if prev.TitleSource != enum.TitlePending && prev.TitleSource != "" {
-		return
-	}
-	title, err := valueobject.NewTitle(truncateRunes(job.Message, 60))
-	if err != nil {
-		return
-	}
-	prev.Title = &title
-	prev.TitleSource = enum.TitleAuto
-	prev.UpdatedAt = time.Now().UTC()
-	prev.LastActivityAt = prev.UpdatedAt
-	_ = w.store.AppendConversationMeta(ctx, prev)
+func (w *Worker) append(ctx context.Context, job service.TurnJob, typ enum.ItemType, payload map[string]any) (entity.TranscriptItem, error) {
+	return w.appendID(ctx, job, typ, "", payload)
 }
 
-func (w *Worker) append(ctx context.Context, job service.TurnJob, typ enum.ItemType, payload map[string]any) (entity.TranscriptItem, error) {
-	id, err := valueobject.NewItemID(idgen.ItemID())
+func (w *Worker) appendID(ctx context.Context, job service.TurnJob, typ enum.ItemType, itemID string, payload map[string]any) (entity.TranscriptItem, error) {
+	var id valueobject.ItemID
+	var err error
+	if strings.TrimSpace(itemID) != "" {
+		id, err = valueobject.NewItemID(itemID)
+	} else {
+		id, err = valueobject.NewItemID(idgen.ItemID())
+	}
 	if err != nil {
 		return entity.TranscriptItem{}, err
 	}
@@ -541,21 +617,45 @@ func (w *Worker) buildMessages(ctx context.Context, threadID valueobject.ThreadI
 }
 
 func buildMessages(items []entity.TranscriptItem, loader *visionLoader) []map[string]any {
-	var msgs []map[string]any
+	lastCompact := -1
 	for i, it := range items {
 		if it.Type == enum.ItemContextCompact {
-			text, _ := it.Payload["text"].(string)
-			msgs = []map[string]any{{
-				"role":    "system",
-				"content": "Conversation summary:\n" + text,
-			}}
-			for _, prev := range items[:i] {
-				if prev.TurnID != it.TurnID {
-					continue
-				}
-				appendMessageFromItem(&msgs, prev, loader)
-			}
+			lastCompact = i
+		}
+	}
+	if lastCompact < 0 {
+		var msgs []map[string]any
+		for _, it := range items {
+			appendMessageFromItem(&msgs, it, loader)
+		}
+		return msgs
+	}
+
+	compact := items[lastCompact]
+	text, _ := compact.Payload["text"].(string)
+	throughSeq := asUint64(compact.Payload["compacted_through_seq"])
+
+	msgs := []map[string]any{{
+		"role":    "system",
+		"content": "Conversation summary:\n" + text,
+	}}
+	for i, it := range items {
+		if it.Type == enum.ItemContextCompact {
 			continue
+		}
+		if throughSeq > 0 {
+			if it.Seq > 0 && it.Seq <= throughSeq {
+				continue
+			}
+			if it.Seq == 0 && i < lastCompact {
+				continue
+			}
+		} else if i < lastCompact {
+			// Legacy checkpoints without compacted_through_seq: keep same-turn
+			// items before the compact event (AIPedia-compatible).
+			if it.TurnID != compact.TurnID {
+				continue
+			}
 		}
 		appendMessageFromItem(&msgs, it, loader)
 	}

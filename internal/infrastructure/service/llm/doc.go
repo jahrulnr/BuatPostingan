@@ -15,7 +15,11 @@ type Config struct {
 	CircuitFailureThreshold int
 	CircuitCooldownSec      int
 	RetryStatuses           []int
-	Providers               map[string]config.LLMProvider
+	// Retry backoff between transient attempts.
+	RetryBaseDelayMS int
+	RetryMaxDelayMS  int
+	RetryJitter      float64
+	Providers        map[string]config.LLMProvider
 	// Stream requests stream=true when non-nil. Nil defaults to true (SSE preferred).
 	Stream *bool
 	// Vision is BP_LLM_VISION (auto|on|off).
@@ -34,6 +38,9 @@ func FromApp(cfg config.Config) Config {
 		CircuitFailureThreshold: cfg.LLMCircuitFailureThreshold,
 		CircuitCooldownSec:      cfg.LLMCircuitCooldownSec,
 		RetryStatuses:           cfg.LLMRetryStatuses,
+		RetryBaseDelayMS:        cfg.LLMRetryBaseDelayMS,
+		RetryMaxDelayMS:         cfg.LLMRetryMaxDelayMS,
+		RetryJitter:             cfg.LLMRetryJitter,
 		Providers:               cfg.LLMProviders,
 		Stream:                  &stream,
 		Vision:                  config.ParseVisionMode(cfg.LLMVision),

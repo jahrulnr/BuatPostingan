@@ -167,18 +167,7 @@ func parseResponsesPayload(p config.LLMProvider, payload map[string]any) service
 			name, _ := item["name"].(string)
 			toolCalls = append(toolCalls, service.ToolCall{CallID: callID, Name: name, Arguments: args})
 		case "message":
-			content, _ := item["content"].([]any)
-			for _, b := range content {
-				block, _ := b.(map[string]any)
-				if block == nil {
-					continue
-				}
-				if block["type"] == "output_text" || block["type"] == "text" {
-					if t, ok := block["text"].(string); ok {
-						assistantText += t
-					}
-				}
-			}
+			assistantText += extractMessageText(item)
 		}
 	}
 	if assistantText == "" {
@@ -187,6 +176,7 @@ func parseResponsesPayload(p config.LLMProvider, payload map[string]any) service
 		}
 	}
 	usage, _ := payload["usage"].(map[string]any)
+	status, _ := payload["status"].(string)
 	return service.LLMResult{
 		Text:       assistantText,
 		ToolCalls:  toolCalls,
@@ -194,7 +184,45 @@ func parseResponsesPayload(p config.LLMProvider, payload map[string]any) service
 		Model:      modelRef(p),
 		Usage:      mapUsage(usage),
 		ProviderID: p.ID,
+		Status:     status,
 	}
+}
+
+// extractMessageText pulls assistant-visible text from a Responses message item.
+// Handles content as string or parts (output_text / text); ignores reasoning-only blocks.
+func extractMessageText(item map[string]any) string {
+	if item == nil {
+		return ""
+	}
+	switch c := item["content"].(type) {
+	case string:
+		return c
+	case []any:
+		var out string
+		for _, b := range c {
+			block, _ := b.(map[string]any)
+			if block == nil {
+				continue
+			}
+			typ, _ := block["type"].(string)
+			switch typ {
+			case "output_text", "text", "summary_text":
+				if t, ok := block["text"].(string); ok {
+					out += t
+				}
+			case "":
+				// Untyped part with text only.
+				if t, ok := block["text"].(string); ok {
+					out += t
+				}
+			}
+		}
+		return out
+	}
+	if t, ok := item["text"].(string); ok {
+		return t
+	}
+	return ""
 }
 
 func (c *Client) postJSON(ctx context.Context, p config.LLMProvider, path string, body map[string]any) (map[string]any, error) {
@@ -247,11 +275,18 @@ func (c *Client) postJSONStream(ctx context.Context, p config.LLMProvider, path 
 		rest, _ := io.ReadAll(br)
 		snippet = truncateBody(rest, 800)
 		transient := resp.StatusCode == 0 || c.isTransient(resp.StatusCode)
+		var retryAfter time.Duration
+		if transient {
+			if d, ok := parseRetryAfter(resp.Header.Get("Retry-After"), time.Now()); ok {
+				retryAfter = d
+			}
+		}
 		httpErr := &Error{
-			Provider:  p.ID,
-			Status:    resp.StatusCode,
-			Transient: transient,
-			Msg:       fmt.Sprintf("status=%d content-type=%s body=%s", resp.StatusCode, ctype, snippet),
+			Provider:   p.ID,
+			Status:     resp.StatusCode,
+			Transient:  transient,
+			RetryAfter: retryAfter,
+			Msg:        fmt.Sprintf("status=%d content-type=%s body=%s", resp.StatusCode, ctype, snippet),
 		}
 		if stream && allowFallback && isStreamUnsupported(httpErr) {
 			logging.Warn(ctx, "webchat.llm.stream_fallback",
@@ -262,8 +297,18 @@ func (c *Client) postJSONStream(ctx context.Context, p config.LLMProvider, path 
 	}
 
 	if looksLikeSSE(ctype, prefix) {
-		payload, err := parseSSEToPayload(br)
+		payload, err := parseSSEToPayloadWithHooks(br, StreamHooksFromContext(ctx))
 		if err != nil {
+			// Codex CodexErr::Stream: incomplete / early close / mid-stream read → Transient.
+			if errors.Is(err, ErrSSETransport) {
+				return nil, &Error{
+					Provider:  p.ID,
+					Status:    resp.StatusCode,
+					Cause:     err,
+					Transient: true,
+					Msg:       fmt.Sprintf("SSE_TRANSPORT status=%d content-type=%s err=%v", resp.StatusCode, ctype, err),
+				}
+			}
 			return nil, &Error{
 				Provider: p.ID,
 				Status:   resp.StatusCode,
@@ -440,8 +485,9 @@ func parseChatCompletionPayload(p config.LLMProvider, payload map[string]any) se
 		msg = map[string]any{}
 	}
 	toolCalls := parseChatToolCalls(msg)
-	text, _ := msg["content"].(string)
+	text := extractChatContentText(msg["content"])
 	usage, _ := payload["usage"].(map[string]any)
+	status, _ := choice["finish_reason"].(string)
 	return service.LLMResult{
 		Text:       text,
 		ToolCalls:  toolCalls,
@@ -449,6 +495,31 @@ func parseChatCompletionPayload(p config.LLMProvider, payload map[string]any) se
 		Model:      modelRef(p),
 		Usage:      mapUsage(usage),
 		ProviderID: p.ID,
+		Status:     status,
+	}
+}
+
+func extractChatContentText(content any) string {
+	switch c := content.(type) {
+	case string:
+		return c
+	case []any:
+		var out string
+		for _, raw := range c {
+			part, _ := raw.(map[string]any)
+			if part == nil {
+				continue
+			}
+			typ, _ := part["type"].(string)
+			if typ == "text" || typ == "output_text" || typ == "" {
+				if t, ok := part["text"].(string); ok {
+					out += t
+				}
+			}
+		}
+		return out
+	default:
+		return ""
 	}
 }
 

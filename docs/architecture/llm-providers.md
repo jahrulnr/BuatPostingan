@@ -15,20 +15,43 @@ Default stub when no key is intentional (ready-to-use local turns). Set a key an
 
 ## Provider slots (config)
 
-Providers are **named slots**, not hardcoded vendor packages. `BP_LLM_PROVIDERS` is a comma list of IDs (default `OPENROUTER`). For each `ID`:
+Providers are **named slots**, not hardcoded vendor packages. Configure them in `storage/config.json` under `llm.providers[]` (preferred — see [settings-config.md](settings-config.md)). Env (`BP_LLM_PROVIDERS` + `BP_LLM_<ID>_*`) still works as bootstrap and is what runs before `config.json` exists or has no providers.
 
-| Env | Meaning |
-|---|---|
-| `BP_LLM_<ID>_BASE_URL` | Base URL without trailing slash (client appends path) |
-| `…_API_KEY` | Bearer token |
-| `…_MODEL` | Model id string (e.g. `openai/gpt-4o-mini`) |
-| `…_API` | `responses` (default) or `chat` |
-| `…_TIMEOUT_SEC` | Per-request HTTP timeout (default 60) |
-| `…_MAX_ATTEMPTS` | Attempts on this provider before failover (default 1) |
-| `…_ENABLED` | Include in candidate set (default true) |
-| `…_WEIGHT`, `…_CONTEXT_WINDOW`, `…_MAX_OUTPUT_TOKENS`, `…_MAX_INPUT_TOKENS` | Sizing / optional weight |
+For each `ID`:
 
-Example:
+| Knob | Env | JSON (`llm.providers[]`) |
+|---|---|---|
+| Base URL | `BP_LLM_<ID>_BASE_URL` | `base_url` (no trailing slash) |
+| Bearer token | `BP_LLM_<ID>_API_KEY` | `api_key` |
+| Model id | `BP_LLM_<ID>_MODEL` | first `models[].id` |
+| Dialect | `BP_LLM_<ID>_API` | `api` (`responses` default, or `chat`) |
+| HTTP timeout | `BP_LLM_<ID>_TIMEOUT_SEC` | `timeout_sec` (default 60) |
+| Per-provider attempts | `BP_LLM_<ID>_MAX_ATTEMPTS` | `max_attempts` (default 1) |
+| Enable toggle | `BP_LLM_<ID>_ENABLED` | `enabled` |
+| Weight / sizing | `BP_LLM_<ID>_WEIGHT`, `…_CONTEXT_WINDOW`, `…_MAX_OUTPUT_TOKENS`, `…_MAX_INPUT_TOKENS` | `weight` (sizing uses defaults in v1) |
+
+Example (`storage/config.json`):
+
+```json
+{
+  "llm": {
+    "stub": false,
+    "providers": [
+      {
+        "id": "OPENROUTER",
+        "name": "OpenRouter",
+        "api": "responses",
+        "base_url": "https://openrouter.ai/api/v1",
+        "api_key": "sk-or-...",
+        "enabled": true,
+        "models": [ { "id": "openai/gpt-4o-mini" } ]
+      }
+    ]
+  }
+}
+```
+
+Legacy env equivalent (still honored when no file providers are configured):
 
 ```bash
 BP_LLM_STUB=false
@@ -39,7 +62,7 @@ BP_LLM_OPENROUTER_MODEL=openai/gpt-4o-mini
 BP_LLM_OPENROUTER_API=responses
 ```
 
-Add another slot by listing it and defining the same `BP_LLM_<ID>_*` keys (still OpenAI-shaped). Invalid `API` values fall back to `responses`.
+Add another slot by adding another `providers[]` entry (or listing the ID and defining the same `BP_LLM_<ID>_*` keys — still OpenAI-shaped). Invalid `api` values fall back to `responses`.
 
 ## API dialects
 
@@ -59,7 +82,7 @@ Add another slot by listing it and defining the same `BP_LLM_<ID>_*` keys (still
 
 ### Streaming
 
-Controlled by **`BP_LLM_STREAM`** (bool, **default `true`**). Global only (no per-provider override).
+Controlled by **`BP_LLM_STREAM`** / **`llm.stream`** in `storage/config.json` (bool, **default `true`**). Global only (no per-provider override).
 
 When enabled (default):
 
@@ -74,28 +97,49 @@ When disabled (`BP_LLM_STREAM=false`):
 
 **Auto-fallback:** if stream was requested and the provider rejects streaming (HTTP 4xx whose body mentions stream/streaming unsupported, or a JSON error object about stream — not auth/quota 401/402/403), the client **retries once** with `stream=false` and logs `webchat.llm stream_fallback …`.
 
+**Transport retry (Codex-like):** Responses SSE that ends without `response.completed`, emits `response.incomplete`, or dies mid-read is marked **Transient** (`SSE_TRANSPORT` / `ErrSSETransport`). The existing router budget (`BP_LLM_TOTAL_ATTEMPT_BUDGET` + per-provider `MaxAttempts`) retries the same LLM request — no parallel retry stack. This is separate from the worker empty-response nudge (semantic, after a completed round).
+
 Prefer leaving stream on for local OpenAI-compatible proxies that degrade Responses when forced non-stream. Use `BP_LLM_STREAM=false` only when you know the upstream cannot SSE.
 
 **Important:** application SSE to the browser (`/events`) is **not** LLM token streaming. It tails durable JSONL seq after the worker appends items. LLM SSE is internal to the client→provider hop.
 
 ## Router + circuit
 
-`llm.NewRouter` wraps the client:
+`llm.NewRouter` wraps the client. These knobs live in `storage/config.json` under `llm.*` (preferred) with env (`BP_LLM_*`) as bootstrap fallback — see [settings-config.md](settings-config.md).
 
-| Setting | Env | Default | Role |
-|---|---|---|---|
-| Strategy | `BP_LLM_STRATEGY` | `failover` | `failover` \| `round_robin` \| `switch` |
-| Active provider | `BP_LLM_ACTIVE_PROVIDER` | first enabled (sorted) | Preferred head of candidate list |
-| Attempt budget | `BP_LLM_TOTAL_ATTEMPT_BUDGET` | 4 | Cap across providers |
-| Circuit threshold | `BP_LLM_CIRCUIT_FAILURE_THRESHOLD` | 3 | Open after N failures |
-| Circuit cooldown | `BP_LLM_CIRCUIT_COOLDOWN_SEC` | 60 | Skip open providers until cool |
-| Retry HTTP statuses | `BP_LLM_RETRY_STATUSES` | 408,409,413,425,429,500–504 | Transient → retry/failover |
+| Setting | Env | JSON | Default | Role |
+|---|---|---|---|---|
+| Strategy | `BP_LLM_STRATEGY` | `llm.strategy` | `failover` | `failover` \| `round_robin` \| `switch` |
+| Active provider | `BP_LLM_ACTIVE_PROVIDER` | `llm.active_provider` | first enabled (sorted) | Preferred head of candidate list |
+| Attempt budget | `BP_LLM_TOTAL_ATTEMPT_BUDGET` | `llm.total_attempt_budget` | 4 | Cap across providers |
+| Circuit threshold | `BP_LLM_CIRCUIT_FAILURE_THRESHOLD` | `llm.circuit_failure_threshold` | 3 | Open after N failures |
+| Circuit cooldown | `BP_LLM_CIRCUIT_COOLDOWN_SEC` | `llm.circuit_cooldown_sec` | 60 | Skip open providers until cool |
+| Retry HTTP statuses | `BP_LLM_RETRY_STATUSES` | — (env-only) | 408,409,413,425,429,500–504 | Transient → retry/failover |
+| Retry base delay | `BP_LLM_RETRY_BASE_DELAY_MS` | `llm.retry_base_delay_ms` | 250 | First backoff step |
+| Retry max delay | `BP_LLM_RETRY_MAX_DELAY_MS` | `llm.retry_max_delay_ms` | 5000 | Backoff ceiling |
+| Retry jitter | `BP_LLM_RETRY_JITTER` | `llm.retry_jitter` | 0.2 | ±fraction around each step |
 
 - **failover:** try active first, then others; pin successful provider for later rounds in the same turn
 - **round_robin:** rotate via `storage/.../llm/round_robin.cursor`
 - **switch:** only `ActiveProvider`
 - Non-transient errors stop immediately (no failover)
+- Transient errors (retry HTTP statuses, connect/timeout, **SSE transport incomplete**) retry within the provider's `MaxAttempts`, then failover, until the total budget is spent
 - Circuit state lives under `{StorageRoot}/llm/`
+
+### Retry backoff
+
+Between transient attempts the router waits `base·2^(n-1)` (retry `n`, 1-based) perturbed by `±jitter`, capped at the max delay — never an immediate re-hit. A provider **`Retry-After`** header (delta-seconds *or* HTTP-date) overrides the computed delay, still capped by the max. Waits honor `context` cancellation/deadline: once the turn context is done the router never sleeps and returns the last provider error. Each wait logs `webchat.llm.retry_backoff` (WARN, `trace_id`) with `provider`, `attempt`, `delay_ms`, `retry_after_ms`, `status`, and `kind` (`sse_transport` \| `http_status` \| `connect`).
+
+### Circuit (half-open, cross-process)
+
+The per-provider circuit is a **closed → open → half-open → closed/open** machine persisted to `{StorageRoot}/llm/provider_state.json`:
+
+- **closed** — normal; transient failures accumulate. At `FailureThreshold` the circuit **opens** (records `opened_at`).
+- **open** — within `CooldownSec` the provider is dropped from the candidate list (fail fast / fail over).
+- **half-open** — after cooldown a single probe is leased (`probe_at`); concurrent turns fail fast on that provider and use an alternate. A stale probe lease (older than the cooldown-derived TTL) is reclaimable so a crashed probe never wedges the provider.
+- **probe result** — success fully closes and resets failures; a transient failure reopens with a fresh cooldown.
+
+Only transient/provider failures count; **auth/validation errors (401/402/403, 4xx) never trip the circuit**. Writes are atomic (temp file + rename) under an advisory file lock (`flock` on `provider_state.lock`, Linux/macOS) plus an in-process mutex, so goroutines and separate processes cannot corrupt or clobber state. A missing or corrupt file recovers safely as all-closed with a `webchat.llm.circuit … state=corrupt_reset` WARN. Transitions log `webchat.llm.circuit` (WARN/INFO, `trace_id`) with `state` (`open` \| `closed` \| `half_open_probe`) and `reason`. If all providers are open, the router falls back to trying them anyway (degraded last resort) rather than locking the user out.
 
 ## Model ref
 
@@ -113,7 +157,7 @@ Image attachments and `BP_LLM_VISION`: see [LLM vision](llm-vision.md).
 
 ## Reasoning effort
 
-`BP_LLM_EFFORT` (default `auto`): see [LLM effort](llm-effort.md). Applied on both chat completions and Responses when the active model advertises support; omitted otherwise.
+`BP_LLM_EFFORT` / `llm.effort` in `storage/config.json` (default `auto`): see [LLM effort](llm-effort.md). Applied on both chat completions and Responses when the active model advertises support; omitted otherwise.
 
 ## Related
 

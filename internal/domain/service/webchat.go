@@ -32,12 +32,34 @@ type DocsIndex interface {
 }
 
 // EventStreamer tails durable JSONL and emits SSE-shaped events (AIPedia WebchatEventStreamer).
+// May also forward ephemeral (non-seq) events such as item.delta from an in-process hub.
 type EventStreamer interface {
 	Subscribe(ctx context.Context, threadID valueobject.ThreadID, afterSeq uint64, emit EventEmitFn) error
 }
 
 // EventEmitFn is one SSE application event.
 type EventEmitFn func(eventName string, payload map[string]any) error
+
+// ThreadEventHub is in-process pub/sub for SSE wakeups and ephemeral deltas.
+// Durable JSONL remains the seq source of truth; hub only reduces poll latency.
+type ThreadEventHub interface {
+	Notify(threadID valueobject.ThreadID)
+	PublishEphemeral(threadID valueobject.ThreadID, eventName string, payload map[string]any)
+	Subscribe(threadID valueobject.ThreadID) ThreadEventSub
+}
+
+// ThreadEventSub is one SSE subscriber's fan-in from the hub.
+type ThreadEventSub interface {
+	Notify() <-chan struct{}
+	Ephemeral() <-chan EphemeralEvent
+	Close()
+}
+
+// EphemeralEvent is a non-durable SSE frame (no seq / Last-Event-ID).
+type EphemeralEvent struct {
+	Name    string
+	Payload map[string]any
+}
 
 // TurnWorker runs the agent loop off the HTTP request (queue / goroutine pool).
 type TurnWorker interface {
@@ -84,6 +106,9 @@ type LLMResult struct {
 	Model      ModelRef
 	Usage      TokenUsage
 	ProviderID string
+	// Status is provider finish hint when present (e.g. Responses status,
+	// chat finish_reason). Empty when the upstream omitted it.
+	Status string
 }
 
 type ToolCall struct {

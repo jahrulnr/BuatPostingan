@@ -1,0 +1,16 @@
+{
+  "type": "function",
+  "name": "list_mcp_tools",
+  "description": "List tools from configured MCP servers (name + description + optional input_schema). Call when an external/operator-wired capability may help and local tools are insufficient. Prefer search_docs / skills / web_* for product and public-web questions. Progressive disclosure — use call_mcp_tool after choosing a tool. Mutating MCP tools are marked and blocked by default.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "server": {
+        "type": "string",
+        "description": "Optional MCP server id. Omit to list all enabled servers."
+      }
+    },
+    "additionalProperties": false
+  },
+  "strict": false
+}

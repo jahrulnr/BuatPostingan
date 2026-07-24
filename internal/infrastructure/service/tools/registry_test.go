@@ -67,8 +67,8 @@ func TestSearchDocsEnvelopeWhenIndexReady(t *testing.T) {
 	env, err := reg.Execute(context.Background(), service.ToolCall{
 		Name: "search_docs",
 		Arguments: map[string]any{
-			"query":  "menulis postingan judul checklist",
-			"top_k":  "3", // string → healer
+			"query":    "menulis postingan judul checklist",
+			"top_k":    "3", // string → healer
 			"language": "id",
 		},
 	})
@@ -201,9 +201,36 @@ func TestSchemasOnlyAllowlisted(t *testing.T) {
 	if len(schemas) != len(tools.Allowlist) {
 		t.Fatalf("want %d schemas, got %d", len(tools.Allowlist), len(schemas))
 	}
+	assertToolRequiredFields(t, schemas, "call_mcp_tool", "server", "tool", "arguments")
 	env, _ := reg.Execute(context.Background(), service.ToolCall{Name: "list_modules", Arguments: map[string]any{}})
 	if env.OK || env.Error["code"] != "tool_not_allowed" {
 		t.Fatalf("list_modules should be blocked: %+v", env)
+	}
+}
+
+func assertToolRequiredFields(t *testing.T, schemas []map[string]any, toolName string, fields ...string) {
+	t.Helper()
+	var callMCP map[string]any
+	for _, schema := range schemas {
+		fn, _ := schema["function"].(map[string]any)
+		if fn["name"] == toolName {
+			callMCP = fn
+			break
+		}
+	}
+	params, _ := callMCP["parameters"].(map[string]any)
+	required, _ := params["required"].([]any)
+	for _, want := range fields {
+		found := false
+		for _, value := range required {
+			if value == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("%s required fields missing %q: %#v", toolName, want, required)
+		}
 	}
 }
 

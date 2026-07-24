@@ -3,15 +3,25 @@ package llm
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 )
 
+// ErrSSETransport marks incomplete / mid-stream SSE failures (Codex CodexErr::Stream).
+// Router treats these as Transient and retries within MaxAttempts / TotalAttemptBudget.
+var ErrSSETransport = errors.New("sse transport")
+
 // parseSSEToPayload consumes an OpenAI-compatible text/event-stream body and
 // assembles a non-stream JSON-shaped payload (Responses or chat.completion)
 // that the existing parsers understand.
 func parseSSEToPayload(r io.Reader) (map[string]any, error) {
+	return parseSSEToPayloadWithHooks(r, nil)
+}
+
+// parseSSEToPayloadWithHooks is like parseSSEToPayload but invokes hooks on text deltas.
+func parseSSEToPayloadWithHooks(r io.Reader, hooks *StreamHooks) (map[string]any, error) {
 	sc := bufio.NewScanner(r)
 	buf := make([]byte, 0, 64*1024)
 	sc.Buffer(buf, 2<<20) // large data: lines (tool args / long deltas)
@@ -19,7 +29,7 @@ func parseSSEToPayload(r io.Reader) (map[string]any, error) {
 	var (
 		eventName string
 		dataLines []string
-		ass       sseAssembler
+		ass       = sseAssembler{hooks: hooks}
 	)
 	flush := func() error {
 		if len(dataLines) == 0 {
@@ -66,7 +76,7 @@ func parseSSEToPayload(r io.Reader) (map[string]any, error) {
 		return nil, err
 	}
 	if err := sc.Err(); err != nil {
-		return nil, fmt.Errorf("sse read: %w", err)
+		return nil, fmt.Errorf("%w: sse read: %w", ErrSSETransport, err)
 	}
 	return ass.payload()
 }
@@ -74,18 +84,31 @@ func parseSSEToPayload(r io.Reader) (map[string]any, error) {
 type sseAssembler struct {
 	gotResponses bool
 	gotChat      bool
+	hooks        *StreamHooks
 
-	output         []map[string]any
-	textDeltas     strings.Builder
-	textDone       string
-	reasoningDelta strings.Builder
-	reasoningDone  string
-	usage          map[string]any
-	failedMsg      string
+	output           []map[string]any
+	textDeltas       strings.Builder
+	textDone         string
+	reasoningDelta   strings.Builder
+	reasoningDone    string
+	usage            map[string]any
+	failedMsg        string
+	status           string
+	sawCompleted     bool
+	sawIncomplete    bool
+	incompleteReason string
 
 	chatContent   strings.Builder
 	chatReasoning strings.Builder
 	chatTools     map[int]*sseChatTool
+	finishReason  string
+}
+
+func (a *sseAssembler) emitTextDelta(delta string) {
+	if a == nil || delta == "" || a.hooks == nil || a.hooks.OnTextDelta == nil {
+		return
+	}
+	a.hooks.OnTextDelta(delta)
 }
 
 type sseChatTool struct {
@@ -133,6 +156,7 @@ func (a *sseAssembler) feedResponses(typ string, obj map[string]any) {
 	case "response.output_text.delta":
 		if d, ok := obj["delta"].(string); ok {
 			a.textDeltas.WriteString(d)
+			a.emitTextDelta(d)
 		}
 	case "response.output_text.done":
 		if t, ok := obj["text"].(string); ok {
@@ -146,24 +170,20 @@ func (a *sseAssembler) feedResponses(typ string, obj map[string]any) {
 		if t, ok := obj["text"].(string); ok {
 			a.reasoningDone = t
 		}
-	case "response.completed", "response.incomplete":
+	case "response.completed":
+		a.sawCompleted = true
+		a.applyTerminalResponse(obj, "completed")
+	case "response.incomplete":
+		// Codex: response.incomplete → ApiError::Stream (retryable), not a success payload.
+		a.sawIncomplete = true
+		a.incompleteReason = "unknown"
 		if resp, ok := obj["response"].(map[string]any); ok && resp != nil {
-			if usage, ok := resp["usage"].(map[string]any); ok {
-				a.usage = usage
-			}
-			if out, ok := resp["output"].([]any); ok && len(out) > 0 {
-				a.output = a.output[:0]
-				for _, raw := range out {
-					if m, ok := raw.(map[string]any); ok {
-						a.output = append(a.output, m)
-					}
+			if details, ok := resp["incomplete_details"].(map[string]any); ok {
+				if r, ok := details["reason"].(string); ok && strings.TrimSpace(r) != "" {
+					a.incompleteReason = strings.TrimSpace(r)
 				}
 			}
-			if errObj, ok := resp["error"].(map[string]any); ok && errObj != nil {
-				if msg, ok := errObj["message"].(string); ok && msg != "" {
-					a.failedMsg = msg
-				}
-			}
+			a.applyTerminalResponse(obj, "incomplete")
 		}
 	case "response.failed":
 		if resp, ok := obj["response"].(map[string]any); ok {
@@ -175,6 +195,35 @@ func (a *sseAssembler) feedResponses(typ string, obj map[string]any) {
 		}
 		if a.failedMsg == "" {
 			a.failedMsg = "response.failed"
+		}
+	}
+}
+
+func (a *sseAssembler) applyTerminalResponse(obj map[string]any, defaultStatus string) {
+	resp, ok := obj["response"].(map[string]any)
+	if !ok || resp == nil {
+		a.status = defaultStatus
+		return
+	}
+	if s, ok := resp["status"].(string); ok && s != "" {
+		a.status = s
+	} else {
+		a.status = defaultStatus
+	}
+	if usage, ok := resp["usage"].(map[string]any); ok {
+		a.usage = usage
+	}
+	if out, ok := resp["output"].([]any); ok && len(out) > 0 {
+		a.output = a.output[:0]
+		for _, raw := range out {
+			if m, ok := raw.(map[string]any); ok {
+				a.output = append(a.output, m)
+			}
+		}
+	}
+	if errObj, ok := resp["error"].(map[string]any); ok && errObj != nil {
+		if msg, ok := errObj["message"].(string); ok && msg != "" {
+			a.failedMsg = msg
 		}
 	}
 }
@@ -204,11 +253,15 @@ func (a *sseAssembler) feedChat(obj map[string]any) {
 	}
 	if c, ok := delta["content"].(string); ok {
 		a.chatContent.WriteString(c)
+		a.emitTextDelta(c)
 	}
 	for _, key := range []string{"reasoning", "reasoning_content", "thinking"} {
 		if s, ok := delta[key].(string); ok {
 			a.chatReasoning.WriteString(s)
 		}
+	}
+	if fr, ok := ch["finish_reason"].(string); ok && fr != "" {
+		a.finishReason = fr
 	}
 	rawTCs, _ := delta["tool_calls"].([]any)
 	if len(rawTCs) == 0 {
@@ -248,6 +301,17 @@ func (a *sseAssembler) payload() (map[string]any, error) {
 		return nil, fmt.Errorf("sse response failed: %s", a.failedMsg)
 	}
 	if a.gotResponses {
+		// Codex: stream closed before response.completed → CodexErr::Stream (retryable).
+		if a.sawIncomplete {
+			reason := a.incompleteReason
+			if reason == "" {
+				reason = "unknown"
+			}
+			return nil, fmt.Errorf("%w: Incomplete response returned, reason: %s", ErrSSETransport, reason)
+		}
+		if !a.sawCompleted {
+			return nil, fmt.Errorf("%w: closed before response.completed", ErrSSETransport)
+		}
 		return a.responsesPayload(), nil
 	}
 	if a.gotChat {
@@ -300,8 +364,16 @@ func (a *sseAssembler) responsesPayload() map[string]any {
 			},
 		}, output...)
 	}
+	status := a.status
+	if status == "" {
+		status = "completed"
+	}
+	if a.failedMsg != "" {
+		status = "failed"
+	}
 	return map[string]any{
 		"object":      "response",
+		"status":      status,
 		"output":      output,
 		"output_text": text,
 		"usage":       a.usage,
@@ -345,10 +417,14 @@ func (a *sseAssembler) chatPayload() map[string]any {
 			}
 		}
 	}
+	choice := map[string]any{"message": msg}
+	if a.finishReason != "" {
+		choice["finish_reason"] = a.finishReason
+	}
 	return map[string]any{
 		"object": "chat.completion",
 		"choices": []any{
-			map[string]any{"message": msg},
+			choice,
 		},
 		"usage": a.usage,
 	}

@@ -2,16 +2,8 @@ package jsonl
 
 import (
 	"os"
-	"syscall"
+	"path/filepath"
 )
-
-func flockExclusive(f *os.File) error {
-	return syscall.Flock(int(f.Fd()), syscall.LOCK_EX)
-}
-
-func flockUnlock(f *os.File) error {
-	return syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-}
 
 func withFileLock(path string, fn func(f *os.File) error) error {
 	if err := os.MkdirAll(dirOf(path), 0o775); err != nil {
@@ -29,11 +21,8 @@ func withFileLock(path string, fn func(f *os.File) error) error {
 	return fn(f)
 }
 
+// dirOf returns the directory portion of path. Uses filepath.Dir so the
+// OS-native separator is honored (forward slash on unix, backslash on windows).
 func dirOf(path string) string {
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' {
-			return path[:i]
-		}
-	}
-	return "."
+	return filepath.Dir(path)
 }

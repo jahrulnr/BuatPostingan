@@ -32,34 +32,34 @@ func NewService(store repository.SettingsStore, envCfg config.Config, reloader R
 
 // Snapshot is GET /api/settings.
 type Snapshot struct {
-	Source    string                   `json:"source"` // file | env
-	ConfigPath string                  `json:"config_path"`
-	Users     []entity.SettingsUser    `json:"users"`
-	LLM       LLMPublic                `json:"llm"`
+	Source     string                `json:"source"` // file | env
+	ConfigPath string                `json:"config_path"`
+	Users      []entity.SettingsUser `json:"users"`
+	LLM        LLMPublic             `json:"llm"`
 }
 
 // LLMPublic is masked LLM settings for API.
 type LLMPublic struct {
-	Strategy       string            `json:"strategy"`
-	ActiveProvider string            `json:"active_provider"`
-	Stub           bool              `json:"stub"`
-	Providers      []ProviderPublic  `json:"providers"`
+	Strategy       string           `json:"strategy"`
+	ActiveProvider string           `json:"active_provider"`
+	Stub           bool             `json:"stub"`
+	Providers      []ProviderPublic `json:"providers"`
 }
 
 // ProviderPublic never includes raw api_key.
 type ProviderPublic struct {
-	ID            string                 `json:"id"`
-	Name          string                 `json:"name"`
-	Prefix        string                 `json:"prefix,omitempty"`
-	API           string                 `json:"api"`
-	BaseURL       string                 `json:"base_url"`
-	APIKeySet     bool                   `json:"api_key_set"`
-	APIKeyMasked  string                 `json:"api_key_masked,omitempty"`
-	Enabled       bool                   `json:"enabled"`
-	Models        []entity.SettingsModel `json:"models"`
-	TimeoutSec    int                    `json:"timeout_sec,omitempty"`
-	MaxAttempts   int                    `json:"max_attempts,omitempty"`
-	Weight        int                    `json:"weight,omitempty"`
+	ID           string                 `json:"id"`
+	Name         string                 `json:"name"`
+	Prefix       string                 `json:"prefix,omitempty"`
+	API          string                 `json:"api"`
+	BaseURL      string                 `json:"base_url"`
+	APIKeySet    bool                   `json:"api_key_set"`
+	APIKeyMasked string                 `json:"api_key_masked,omitempty"`
+	Enabled      bool                   `json:"enabled"`
+	Models       []entity.SettingsModel `json:"models"`
+	TimeoutSec   int                    `json:"timeout_sec,omitempty"`
+	MaxAttempts  int                    `json:"max_attempts,omitempty"`
+	Weight       int                    `json:"weight,omitempty"`
 }
 
 func (s *Service) GetSnapshot(ctx context.Context) (Snapshot, error) {
@@ -510,6 +510,7 @@ func (s *Service) loadOrSeedLocked(ctx context.Context) (entity.SettingsFile, st
 			ActiveProvider: s.envCfg.LLMActiveProvider,
 			Providers:      config.RuntimeProvidersToFile(s.envCfg.LLMProviders),
 		},
+		MCP: config.DefaultLocalDevMCP(),
 	}
 	return doc, "env", nil
 }

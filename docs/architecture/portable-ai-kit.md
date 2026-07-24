@@ -26,6 +26,8 @@ Related: [Architecture](README.md) · [Turn loop](turn-loop.md) · [LLM provider
 | `delivery/presenter/` | Contract-stable JSON/SSE shapes |
 | `resources/webchat/prompts/` | system / developer / user templates *(edit product voice)* |
 | `resources/webchat/tools/` | `*.tool.json` schemas |
+| `resources/webchat/skills/` | Agent skills (`<name>/SKILL.md`) for `list_skills` / `read_skill` |
+| `internal/infrastructure/service/mcp/` | MCP client manager (stdio); meta-tools `list_mcp_tools` / `call_mcp_tool` |
 
 Optional FE widget kit (same API, no product chrome):
 
@@ -51,7 +53,7 @@ Optional FE widget kit (same API, no product chrome):
 1. **Go module rename** — replace import prefix `buatpostingan/...` (or use `replace` / go.work later).
 2. **DI entry** — mirror `cmd/app/main.go`: mkdir storage subs, `docs.NewIndex` + Reindex, `tools.NewRegistry`, `llm` client/router, `worker.New`, `sse.NewStreamer`, `webchat.NewService`, then mount HTTP.
 3. **Config** — set roots via env (`BP_*` in this repo). After copy, either keep `BP_*` or rename the prefix in `internal/config` to your product:
-   - `BP_STORAGE_ROOT`, `BP_DOCS_ROOT`, `BP_PROMPTS_ROOT`, `BP_TOOLS_ROOT`
+   - `BP_STORAGE_ROOT`, `BP_DOCS_ROOT`, `BP_PROMPTS_ROOT`, `BP_TOOLS_ROOT`, `BP_SKILLS_ROOT`
    - LLM: `BP_LLM_*` / provider keys; stub when no key
 4. **Knowledge** — consumer’s own Markdown under docs root (not BuatPostingan writing guides unless wanted).
 5. **HTTP mount** — call `httpdelivery.MountWebchatAPI(mux, uc)` (+ optional `MountHealthz` / `MountStaticWeb`). Do not require product `web/` static files.

@@ -13,6 +13,7 @@ import (
 	"buatpostingan/internal/infrastructure/repository/jsonl"
 	"buatpostingan/internal/infrastructure/service/docs"
 	"buatpostingan/internal/infrastructure/service/llm"
+	"buatpostingan/internal/infrastructure/service/mcp"
 	"buatpostingan/internal/infrastructure/service/tools"
 	"buatpostingan/internal/infrastructure/sse"
 	"buatpostingan/internal/infrastructure/worker"
@@ -48,7 +49,9 @@ func main() {
 		_ = os.MkdirAll(filepath.Join(cfg.StorageRoot, sub), 0o775)
 	}
 
-	store := jsonl.NewStore(cfg.StorageRoot)
+	hub := sse.NewHub()
+	rawStore := jsonl.NewStore(cfg.StorageRoot)
+	store := &sse.NotifyingStore{Inner: rawStore, Hub: hub}
 	locks := jsonl.NewLock(cfg.StorageRoot, cfg.LockTTL)
 	intr := jsonl.NewInterrupt(cfg.StorageRoot)
 	floor := jsonl.NewSpeakFloor(store, cfg.SpeakFloorTTL)
@@ -92,16 +95,32 @@ func main() {
 	effortPolicy := llm.NewEffortPolicy(llmCfg)
 	modelCatalog := llm.NewCatalog(cfg, visionPolicy, effortPolicy)
 
+	mcpMgr := mcp.NewManager(cfg)
+	logging.Info(ctx, "mcp manager",
+		"enabled", cfg.MCPEnabled,
+		"servers", len(cfg.MCPServers),
+	)
+	if cfg.MCPEnabled && len(cfg.MCPServers) == 0 {
+		logging.Warn(ctx, "mcp enabled with no servers",
+			"hint", "add mcp.servers to storage/config.json (see storage/config.example.json); make mcp-echo; restart make be",
+			"path", cfgPath,
+		)
+	}
+
 	reg, err := tools.NewRegistry(cfg.ToolsRoot, docsIndex, tools.Options{
 		TopK:        cfg.DocsTopK,
 		Attachments: attStore,
 		Vision:      visionPolicy,
+		SkillsRoot:  cfg.SkillsRoot,
+		GitHubToken: cfg.GitHubToken,
+		MCP:         mcpMgr,
 		// FSRoot empty: list_dir/read_file/grep have full host FS access (local-dev).
 	})
 	if err != nil {
 		logging.Error(ctx, "tools.registry", err)
 		os.Exit(1)
 	}
+	defer func() { _ = mcpMgr.Close() }()
 
 	tw := worker.New(worker.Deps{
 		Config:      cfg,
@@ -113,10 +132,11 @@ func main() {
 		LLM:         llmRouter,
 		Attachments: attStore,
 		Vision:      visionPolicy,
+		Hub:         hub,
 	})
 	llmRuntime := llm.NewRuntime(llmRouter, modelCatalog, visionPolicy, effortPolicy, tw)
 	settingsSvc := settingsuc.NewService(settingsStore, envCfg, llmRuntime)
-	events := sse.NewStreamer(store)
+	events := sse.NewStreamer(store, hub)
 
 	logging.Info(ctx, "webchat ready",
 		"llm_stub", cfg.LLMStub,

@@ -81,3 +81,57 @@ func TestLoadMissing(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestSaveLoadNewSections(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	s := NewStore(path)
+
+	rounds := 4
+	streamOff := false
+	compact := false
+	topK := 8
+	minScore := 0.7
+	doc := entity.SettingsFile{
+		Version:    1,
+		SkillsRoot: "custom/skills",
+		Limits:     entity.SettingsLimits{MaxToolRounds: &rounds},
+		LLM: entity.SettingsLLM{
+			Stream: &streamOff,
+			Providers: []entity.SettingsProvider{
+				{ID: "LOCAL", API: "responses", BaseURL: "http://x/v1", Enabled: true, Models: []entity.SettingsModel{{ID: "m"}}},
+			},
+		},
+		Context:   entity.SettingsContext{CompactionEnabled: &compact, MaxInputTokens: &[]int{20000}[0]},
+		Docs:      entity.SettingsDocs{TopK: &topK, MinScore: &minScore, AppID: "kit"},
+		WebSearch: entity.SettingsWebSearch{GitHubToken: "ghp_x"},
+	}
+	if err := s.Save(nil, doc); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Load(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.SkillsRoot != "custom/skills" {
+		t.Fatalf("skills_root: %q", got.SkillsRoot)
+	}
+	if got.Limits.MaxToolRounds == nil || *got.Limits.MaxToolRounds != 4 {
+		t.Fatalf("limits: %+v", got.Limits)
+	}
+	if got.LLM.Stream == nil || *got.LLM.Stream {
+		t.Fatalf("llm.stream: %+v", got.LLM.Stream)
+	}
+	if got.Context.CompactionEnabled == nil || *got.Context.CompactionEnabled {
+		t.Fatalf("context.compaction: %+v", got.Context.CompactionEnabled)
+	}
+	if got.Context.MaxInputTokens == nil || *got.Context.MaxInputTokens != 20000 {
+		t.Fatalf("context.max_input: %+v", got.Context.MaxInputTokens)
+	}
+	if got.Docs.TopK == nil || *got.Docs.TopK != 8 || got.Docs.MinScore == nil || *got.Docs.MinScore != 0.7 {
+		t.Fatalf("docs: %+v", got.Docs)
+	}
+	if got.WebSearch.GitHubToken != "ghp_x" {
+		t.Fatalf("web_search: %+v", got.WebSearch)
+	}
+}

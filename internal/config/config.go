@@ -16,6 +16,7 @@ type Config struct {
 	DocsRoot    string
 	PromptsRoot string
 	ToolsRoot   string
+	SkillsRoot  string
 
 	WriteEnabled        bool
 	MaxToolRounds       int
@@ -24,10 +25,10 @@ type Config struct {
 	TurnRateLimitPerMin int
 	TurnJobTimeoutSec   int
 
-	LLMStub                    bool
-	LLMStream                  bool // request stream=true (default); false → JSON non-stream
+	LLMStub   bool
+	LLMStream bool // request stream=true (default); false → JSON non-stream
 	// LLMVision: auto|on|off — gate multimodal image parts (default auto).
-	LLMVision                  string
+	LLMVision string
 	// LLMEffort: auto|none|minimal|low|medium|high|xhigh|max — reasoning effort (default auto).
 	LLMEffort                  string
 	LLMStrategy                string
@@ -36,7 +37,11 @@ type Config struct {
 	LLMCircuitFailureThreshold int
 	LLMCircuitCooldownSec      int
 	LLMRetryStatuses           []int
-	LLMProviders               map[string]LLMProvider
+	// Retry backoff between transient attempts (exp + bounded jitter, capped).
+	LLMRetryBaseDelayMS int
+	LLMRetryMaxDelayMS  int
+	LLMRetryJitter      float64
+	LLMProviders        map[string]LLMProvider
 	// LLMModelLists is optional provider→model ids from config.json (picker expand).
 	LLMModelLists map[string][]string
 
@@ -50,6 +55,30 @@ type Config struct {
 	DocsMinScore     float64
 	DocsFuzzyEnabled bool
 	DocsAppID        string
+
+	// GitHubToken (env: BP_GITHUB_TOKEN / GITHUB_TOKEN) — optional web_search rate limit.
+	GitHubToken string
+
+	// MCP (Model Context Protocol) — servers usually come from config.json.
+	MCPEnabled           bool
+	MCPConnectTimeoutSec int
+	MCPCallTimeoutSec    int
+	MCPServers           []MCPServer
+}
+
+// MCPServer is a runtime MCP server slot (stdio MVP).
+type MCPServer struct {
+	ID             string
+	Transport      string // stdio | sse | http
+	Command        string
+	Args           []string
+	Env            map[string]string
+	URL            string
+	Enabled        bool
+	Trusted        bool
+	AllowTools     []string
+	DenyTools      []string
+	AllowMutations bool
 }
 
 // LLMProvider is one OpenAI-compatible upstream.
@@ -104,6 +133,7 @@ func Load() Config {
 		DocsRoot:    getenvFirst("BP_DOCS_ROOT", "docs/webchat"),
 		PromptsRoot: getenvFirst("BP_PROMPTS_ROOT", "resources/webchat/prompts"),
 		ToolsRoot:   getenvFirst("BP_TOOLS_ROOT", "resources/webchat/tools"),
+		SkillsRoot:  getenvFirst("BP_SKILLS_ROOT", "resources/webchat/skills"),
 
 		WriteEnabled:        false, // hard false — reader/instructor only
 		MaxToolRounds:       getenvIntFirst([]string{"BP_MAX_TOOL_ROUNDS"}, 8),
@@ -122,9 +152,12 @@ func Load() Config {
 		LLMCircuitFailureThreshold: getenvIntFirst([]string{"BP_LLM_CIRCUIT_FAILURE_THRESHOLD"}, 3),
 		LLMCircuitCooldownSec:      getenvIntFirst([]string{"BP_LLM_CIRCUIT_COOLDOWN_SEC"}, 60),
 		LLMRetryStatuses:           parseIntList(getenvFirst("BP_LLM_RETRY_STATUSES", "408,409,413,425,429,500,502,503,504")),
+		LLMRetryBaseDelayMS:        getenvIntFirst([]string{"BP_LLM_RETRY_BASE_DELAY_MS"}, 250),
+		LLMRetryMaxDelayMS:         getenvIntFirst([]string{"BP_LLM_RETRY_MAX_DELAY_MS"}, 5000),
+		LLMRetryJitter:             getenvFloatFirst([]string{"BP_LLM_RETRY_JITTER"}, 0.2),
 		LLMProviders:               providers,
 
-		ContextCompactionEnabled: getenvBoolFirst([]string{"BP_CONTEXT_COMPACTION_ENABLED"}, false),
+		ContextCompactionEnabled: getenvBoolFirst([]string{"BP_CONTEXT_COMPACTION_ENABLED"}, true),
 		ContextMaxInputTokens:    getenvIntFirst([]string{"BP_CONTEXT_MAX_INPUT_TOKENS"}, 12000),
 		ContextReserveTokens:     getenvIntFirst([]string{"BP_CONTEXT_RESERVE_TOKENS"}, 3000),
 		ContextRecentTurns:       getenvIntFirst([]string{"BP_CONTEXT_RECENT_TURNS"}, 4),
@@ -134,6 +167,13 @@ func Load() Config {
 		DocsMinScore:     getenvFloatFirst([]string{"BP_DOCS_MIN_SCORE"}, 0.5),
 		DocsFuzzyEnabled: getenvBoolFirst([]string{"BP_DOCS_FUZZY_ENABLED"}, true),
 		DocsAppID:        getenvFirst("BP_DOCS_APP_ID", "buatpostingan"),
+
+		GitHubToken: getenvFirst("BP_GITHUB_TOKEN", "GITHUB_TOKEN", ""),
+
+		MCPEnabled:           getenvBoolFirst([]string{"BP_MCP_ENABLED"}, true),
+		MCPConnectTimeoutSec: getenvIntFirst([]string{"BP_MCP_CONNECT_TIMEOUT_SEC"}, 15),
+		MCPCallTimeoutSec:    getenvIntFirst([]string{"BP_MCP_CALL_TIMEOUT_SEC"}, 30),
+		MCPServers:           nil,
 	}
 
 	switch cfg.LLMStrategy {

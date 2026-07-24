@@ -22,10 +22,32 @@ func (c Config) ConfigPath() string {
 	return filepath.Clean(filepath.Join(filepath.Dir(root), "config.json"))
 }
 
-// ApplySettingsFile overlays file LLM providers onto env-based Config when
-// providers are non-empty. Users are not part of Config (settings usecase only).
+// ApplySettingsFile overlays file settings onto env-based Config.
+//
+// Merge policy (JSON is SoT for product knobs; env remains bootstrap):
+//   - providers: file providers replace env map when non-empty (unchanged).
+//   - llm globals (stream/vision/effort/circuit/retry): pointer-set wins; omit
+//     keeps the env-derived default.
+//   - limits / context / docs / web_search / skills_root: pointer-set wins;
+//     omit keeps the env-derived default. This keeps old/missing files working.
+//   - users are not part of Config (settings usecase only).
+//
+// Env bootstrap still works when the file is missing or pre-dates these
+// sections: every new field uses a pointer (or non-zero string) so an absent
+// key leaves the env value untouched.
 func ApplySettingsFile(base Config, doc entity.SettingsFile) Config {
-	out := base
+	out := applyMCPFromFile(base, doc)
+	out = applyLLMGlobalsFromFile(out, doc.LLM)
+	out = applyLimitsFromFile(out, doc.Limits)
+	out = applyContextFromFile(out, doc.Context)
+	out = applyDocsFromFile(out, doc.Docs)
+	if ws := strings.TrimSpace(doc.WebSearch.GitHubToken); ws != "" {
+		out.GitHubToken = ws
+	}
+	if sr := strings.TrimSpace(doc.SkillsRoot); sr != "" {
+		out.SkillsRoot = sr
+	}
+
 	if len(doc.LLM.Providers) == 0 {
 		return out
 	}
@@ -94,6 +116,183 @@ func ApplySettingsFile(base Config, doc entity.SettingsFile) Config {
 		out.LLMStub = !anyKey
 	}
 	return out
+}
+
+// applyLLMGlobalsFromFile overlays LLM global knobs (stream/vision/effort/
+// circuit/retry backoff). Pointer-set wins; omit keeps env default. Applied
+// even when providers come from env (so globals move to JSON independently).
+func applyLLMGlobalsFromFile(base Config, llm entity.SettingsLLM) Config {
+	out := base
+	if llm.Stream != nil {
+		out.LLMStream = *llm.Stream
+	}
+	if v := strings.TrimSpace(llm.Vision); v != "" {
+		out.LLMVision = ParseVisionMode(v)
+	}
+	if e := strings.TrimSpace(llm.Effort); e != "" {
+		out.LLMEffort = ParseEffortMode(e)
+	}
+	if llm.TotalAttemptBudget != nil && *llm.TotalAttemptBudget > 0 {
+		out.LLMTotalAttemptBudget = *llm.TotalAttemptBudget
+	}
+	if llm.CircuitFailureThreshold != nil && *llm.CircuitFailureThreshold > 0 {
+		out.LLMCircuitFailureThreshold = *llm.CircuitFailureThreshold
+	}
+	if llm.CircuitCooldownSec != nil && *llm.CircuitCooldownSec > 0 {
+		out.LLMCircuitCooldownSec = *llm.CircuitCooldownSec
+	}
+	if llm.RetryBaseDelayMS != nil && *llm.RetryBaseDelayMS > 0 {
+		out.LLMRetryBaseDelayMS = *llm.RetryBaseDelayMS
+	}
+	if llm.RetryMaxDelayMS != nil && *llm.RetryMaxDelayMS > 0 {
+		out.LLMRetryMaxDelayMS = *llm.RetryMaxDelayMS
+	}
+	if llm.RetryJitter != nil && *llm.RetryJitter >= 0 {
+		out.LLMRetryJitter = *llm.RetryJitter
+	}
+	if s := strings.ToLower(strings.TrimSpace(llm.Strategy)); s != "" {
+		switch s {
+		case "failover", "round_robin", "switch":
+			out.LLMStrategy = s
+		}
+	}
+	if ap := strings.ToUpper(strings.TrimSpace(llm.ActiveProvider)); ap != "" {
+		out.LLMActiveProvider = ap
+	}
+	if llm.Stub != nil {
+		out.LLMStub = *llm.Stub
+	}
+	return out
+}
+
+func applyLimitsFromFile(base Config, limits entity.SettingsLimits) Config {
+	out := base
+	if limits.MaxToolRounds != nil && *limits.MaxToolRounds > 0 {
+		out.MaxToolRounds = *limits.MaxToolRounds
+	}
+	if limits.SpeakFloorTTLSec != nil && *limits.SpeakFloorTTLSec > 0 {
+		out.SpeakFloorTTL = *limits.SpeakFloorTTLSec
+	}
+	if limits.LockTTLSec != nil && *limits.LockTTLSec > 0 {
+		out.LockTTL = *limits.LockTTLSec
+	}
+	if limits.TurnRateLimitPerMin != nil && *limits.TurnRateLimitPerMin > 0 {
+		out.TurnRateLimitPerMin = *limits.TurnRateLimitPerMin
+	}
+	if limits.TurnJobTimeoutSec != nil && *limits.TurnJobTimeoutSec > 0 {
+		out.TurnJobTimeoutSec = *limits.TurnJobTimeoutSec
+	}
+	return out
+}
+
+func applyContextFromFile(base Config, ctx entity.SettingsContext) Config {
+	out := base
+	if ctx.CompactionEnabled != nil {
+		out.ContextCompactionEnabled = *ctx.CompactionEnabled
+	}
+	if ctx.MaxInputTokens != nil && *ctx.MaxInputTokens > 0 {
+		out.ContextMaxInputTokens = *ctx.MaxInputTokens
+	}
+	if ctx.ReserveTokens != nil && *ctx.ReserveTokens > 0 {
+		out.ContextReserveTokens = *ctx.ReserveTokens
+	}
+	if ctx.RecentTurns != nil && *ctx.RecentTurns > 0 {
+		out.ContextRecentTurns = *ctx.RecentTurns
+	}
+	if ctx.SummaryMaxChars != nil && *ctx.SummaryMaxChars > 0 {
+		out.ContextSummaryMaxChars = *ctx.SummaryMaxChars
+	}
+	return out
+}
+
+func applyDocsFromFile(base Config, docs entity.SettingsDocs) Config {
+	out := base
+	if docs.TopK != nil && *docs.TopK > 0 {
+		out.DocsTopK = *docs.TopK
+	}
+	if docs.MinScore != nil && *docs.MinScore >= 0 {
+		out.DocsMinScore = *docs.MinScore
+	}
+	if docs.FuzzyEnabled != nil {
+		out.DocsFuzzyEnabled = *docs.FuzzyEnabled
+	}
+	if app := strings.TrimSpace(docs.AppID); app != "" {
+		out.DocsAppID = app
+	}
+	return out
+}
+
+func applyMCPFromFile(base Config, doc entity.SettingsFile) Config {
+	out := base
+	if doc.MCP.Enabled != nil {
+		out.MCPEnabled = *doc.MCP.Enabled
+	}
+	if doc.MCP.ConnectTimeoutSec > 0 {
+		out.MCPConnectTimeoutSec = doc.MCP.ConnectTimeoutSec
+	}
+	if doc.MCP.CallTimeoutSec > 0 {
+		out.MCPCallTimeoutSec = doc.MCP.CallTimeoutSec
+	}
+	if doc.MCP.Servers == nil {
+		return out
+	}
+	servers := make([]MCPServer, 0, len(doc.MCP.Servers))
+	for _, s := range doc.MCP.Servers {
+		id := strings.TrimSpace(s.ID)
+		if id == "" {
+			continue
+		}
+		transport := strings.ToLower(strings.TrimSpace(s.Transport))
+		if transport == "" {
+			transport = "stdio"
+		}
+		env := map[string]string{}
+		for k, v := range s.Env {
+			k = strings.TrimSpace(k)
+			if k == "" {
+				continue
+			}
+			env[k] = v
+		}
+		servers = append(servers, MCPServer{
+			ID:             id,
+			Transport:      transport,
+			Command:        strings.TrimSpace(s.Command),
+			Args:           append([]string(nil), s.Args...),
+			Env:            env,
+			URL:            strings.TrimSpace(s.URL),
+			Enabled:        s.Enabled,
+			Trusted:        s.Trusted,
+			AllowTools:     append([]string(nil), s.AllowTools...),
+			DenyTools:      append([]string(nil), s.DenyTools...),
+			AllowMutations: s.AllowMutations,
+		})
+	}
+	out.MCPServers = servers
+	return out
+}
+
+// DefaultLocalDevMCP returns the sample echo server block from config.example.json
+// for seeding new settings documents (not applied at process start unless written).
+func DefaultLocalDevMCP() entity.SettingsMCP {
+	enabled := true
+	return entity.SettingsMCP{
+		Enabled:           &enabled,
+		ConnectTimeoutSec: 15,
+		CallTimeoutSec:    30,
+		Servers: []entity.SettingsMCPServer{{
+			ID:             "echo",
+			Transport:      "stdio",
+			Command:        "./bin/mcp-echo",
+			Args:           []string{},
+			Env:            map[string]string{},
+			Enabled:        true,
+			Trusted:        true,
+			AllowTools:     []string{"echo"},
+			DenyTools:      []string{},
+			AllowMutations: false,
+		}},
+	}
 }
 
 // FileProviderToRuntime maps settings JSON → LLMProvider slot.

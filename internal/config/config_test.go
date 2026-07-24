@@ -17,6 +17,7 @@ func clearLLMEnv(t *testing.T) {
 		"BP_DOCS_ROOT",
 		"BP_PROMPTS_ROOT",
 		"BP_TOOLS_ROOT",
+		"BP_SKILLS_ROOT",
 		"BP_MAX_TOOL_ROUNDS",
 		"BP_SPEAK_FLOOR_TTL_SEC",
 		"BP_LOCK_TTL_SEC",

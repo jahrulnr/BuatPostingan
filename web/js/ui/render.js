@@ -1,5 +1,15 @@
 /** DOM rendering helpers for chat bubbles (markdown, disclosures, errors). */
 
+import { isNearBottom } from './stream-reliability.js';
+
+function finishActivity(messagesEl, shouldFollow) {
+    if (shouldFollow) {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        return;
+    }
+    messagesEl.dispatchEvent(new CustomEvent('webchat:new-activity'));
+}
+
 export function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text == null ? '' : String(text);
@@ -146,6 +156,10 @@ export function welcomeHtml(productName) {
 export function paintActionBubble(messagesEl, state) {
     const bubble = state.art && state.art.querySelector('.msg__bubble');
     if (!bubble) return;
+    const shouldFollow = state._followActivity == null
+        ? isNearBottom(messagesEl)
+        : !!state._followActivity;
+    delete state._followActivity;
 
     let inner = '';
     if (state.kind === 'think') {
@@ -169,16 +183,27 @@ export function paintActionBubble(messagesEl, state) {
             items: tools,
         });
     } else if (state.kind === 'message') {
-        inner = state.text
-            ? modelBadge(state.responseModel) + '<div class="msg__text">' + formatMarkdown(state.text) + '</div>'
-            : '';
+        if (state.text) {
+            const body = state.streaming
+                ? escapeHtml(state.text).replace(/\n/g, '<br>')
+                : formatMarkdown(state.text);
+            inner = modelBadge(state.responseModel) + '<div class="msg__text">' + body + '</div>';
+        } else {
+            inner = '';
+        }
     }
 
-    bubble.innerHTML = inner || '<div class="typing" aria-label="Thinking"><span></span><span></span><span></span></div>';
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    bubble.innerHTML = inner || (
+        '<div class="typing" role="status" aria-label="Thinking">' +
+        '<span class="typing__label">Thinking…</span>' +
+        '<span class="typing__dots" aria-hidden="true"><i></i><i></i><i></i></span>' +
+        '</div>'
+    );
+    finishActivity(messagesEl, shouldFollow);
 }
 
 export function appendUserMessage(messagesEl, text, who, mine, id, attachments) {
+    const shouldFollow = isNearBottom(messagesEl);
     const welcome = messagesEl.querySelector('.chat-welcome');
     if (welcome) welcome.remove();
     const art = document.createElement('article');
@@ -193,7 +218,7 @@ export function appendUserMessage(messagesEl, text, who, mine, id, attachments) 
         attachHtml +
         '</div>';
     messagesEl.appendChild(art);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    finishActivity(messagesEl, shouldFollow);
     return art;
 }
 
@@ -252,6 +277,7 @@ function formatBytes(n) {
 }
 
 export function appendError(messagesEl, detail, turnId, retryable, traceId) {
+    const shouldFollow = isNearBottom(messagesEl);
     const welcome = messagesEl.querySelector('.chat-welcome');
     if (welcome) welcome.remove();
     const art = document.createElement('article');
@@ -279,6 +305,6 @@ export function appendError(messagesEl, detail, turnId, retryable, traceId) {
         '</div></div>' +
         actions + '</div></div>';
     messagesEl.appendChild(art);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    finishActivity(messagesEl, shouldFollow);
     return art;
 }

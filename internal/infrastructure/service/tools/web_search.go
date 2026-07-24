@@ -46,14 +46,22 @@ type WebSearchSourceError struct {
 }
 
 type searchwireSearcher struct {
-	timeout time.Duration
+	timeout     time.Duration
+	githubToken string
 }
 
-func newSearchwireSearcher(timeout time.Duration) *searchwireSearcher {
+func newSearchwireSearcher(timeout time.Duration, githubToken string) *searchwireSearcher {
 	if timeout <= 0 {
 		timeout = defaultWebSearchTimeout
 	}
-	return &searchwireSearcher{timeout: timeout}
+	return &searchwireSearcher{timeout: timeout, githubToken: githubToken}
+}
+
+func (s *searchwireSearcher) resolveGitHubToken() string {
+	if t := strings.TrimSpace(s.githubToken); t != "" {
+		return t
+	}
+	return githubTokenFromEnv()
 }
 
 func (s *searchwireSearcher) Search(ctx context.Context, query string, limit int) (*WebSearchResponse, error) {
@@ -67,7 +75,7 @@ func (s *searchwireSearcher) Search(ctx context.Context, query string, limit int
 		Limit:   limit,
 		Timeout: s.timeout,
 		GitHub: searchwire.GitHubConfig{
-			Token: githubTokenFromEnv(),
+			Token: s.resolveGitHubToken(),
 		},
 	}
 	resp, err := searchwire.New(cfg).Search(ctx, query)
@@ -121,7 +129,7 @@ func (r *Registry) execWebSearch(ctx context.Context, args map[string]any) servi
 
 	searcher := r.webSearch
 	if searcher == nil {
-		searcher = newSearchwireSearcher(0)
+		searcher = newSearchwireSearcher(0, r.githubToken)
 	}
 
 	resp, err := searcher.Search(ctx, query, limit)

@@ -37,9 +37,15 @@ func TestParseSSEResponsesAssemblesTextAndTools(t *testing.T) {
 		"",
 	}, "\n")
 
-	payload, err := parseSSEToPayload(strings.NewReader(raw))
+	var deltas []string
+	payload, err := parseSSEToPayloadWithHooks(strings.NewReader(raw), &StreamHooks{
+		OnTextDelta: func(d string) { deltas = append(deltas, d) },
+	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(deltas) != 2 || deltas[0] != "hello" || deltas[1] != " world" {
+		t.Fatalf("deltas=%v", deltas)
 	}
 	p := config.LLMProvider{ID: "OPENROUTER", Model: "m", API: "responses"}
 	res := parseResponsesPayload(p, payload)

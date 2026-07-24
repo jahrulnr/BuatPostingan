@@ -1,0 +1,11 @@
+{
+  "type": "function",
+  "name": "list_skills",
+  "description": "List available agent skills under BP_SKILLS_ROOT (name + description only). Call when a procedural or multi-step product workflow may have a matching skill. Do not load full skill bodies here — use read_skill after choosing a name. Skills are trusted project workflow docs.",
+  "parameters": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+  },
+  "strict": true
+}

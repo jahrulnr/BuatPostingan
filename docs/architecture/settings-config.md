@@ -31,10 +31,27 @@ Committed template: `storage/config.example.json`. Runtime file is **gitignored*
   "users": [
     { "id": "usr_owner", "name": "Owner", "role": "owner" }
   ],
+  "skills_root": "resources/webchat/skills",
+  "limits": {
+    "max_tool_rounds": 8,
+    "speak_floor_ttl_sec": 600,
+    "lock_ttl_sec": 300,
+    "turn_rate_limit_per_min": 10,
+    "turn_job_timeout_sec": 120
+  },
   "llm": {
     "strategy": "failover",
     "active_provider": "OPENROUTER",
     "stub": null,
+    "stream": true,
+    "vision": "auto",
+    "effort": "auto",
+    "total_attempt_budget": 4,
+    "circuit_failure_threshold": 3,
+    "circuit_cooldown_sec": 60,
+    "retry_base_delay_ms": 250,
+    "retry_max_delay_ms": 5000,
+    "retry_jitter": 0.2,
     "providers": [
       {
         "id": "OPENROUTER",
@@ -53,7 +70,24 @@ Committed template: `storage/config.example.json`. Runtime file is **gitignored*
         "weight": 1
       }
     ]
-  }
+  },
+  "context": {
+    "compaction_enabled": true,
+    "max_input_tokens": 12000,
+    "reserve_tokens": 3000,
+    "recent_turns": 4,
+    "summary_max_chars": 12000
+  },
+  "docs": {
+    "top_k": 5,
+    "min_score": 0.5,
+    "fuzzy_enabled": true,
+    "app_id": "buatpostingan"
+  },
+  "web_search": {
+    "github_token": ""
+  },
+  "mcp": { "...": "see mcp-support.md" }
 }
 ```
 
@@ -62,26 +96,37 @@ Committed template: `storage/config.example.json`. Runtime file is **gitignored*
 | Area | Fields | Rules |
 |---|---|---|
 | **User** | `id`, `name`, `role` | `role` ∈ `owner` \| `admin` \| `member`. IDs opaque (`usr_…`). No passwords in v1. |
+| **skills_root** | string | Jailed root for `list_skills` / `read_skill` (env: `BP_SKILLS_ROOT`). |
+| **limits** | `max_tool_rounds`, `speak_floor_ttl_sec`, `lock_ttl_sec`, `turn_rate_limit_per_min`, `turn_job_timeout_sec` | Pointer fields — omit a key to keep the env default. |
+| **llm.strategy / active_provider / stub** | see provider notes | `stub` null → stub follows “no usable key → stub”. |
+| **llm globals** | `stream`, `vision` (`auto`\|`on`\|`off`), `effort` (`auto`\|`none`\|`minimal`\|`low`\|`medium`\|`high`\|`xhigh`\|`max`), `total_attempt_budget`, `circuit_failure_threshold`, `circuit_cooldown_sec`, `retry_base_delay_ms`, `retry_max_delay_ms`, `retry_jitter` | Pointer fields — omit keeps env default. Invalid `vision` / `effort` fall back to `auto`. |
 | **Provider** | `id`, `name`, `prefix`, `api`, `base_url`, `api_key`, `api_keys[]`, `enabled`, `models[]`, sizing | `id` uppercased slot (router key). `api` ∈ `chat` \| `responses`. Phase 1 uses **one** `api_key`; `api_keys` reserved for future round-robin without schema break. |
 | **Model** | `id`, `label?` | First model id maps to runtime `LLMProvider.Model` (primary). Extra models are picker allowlist entries for the same provider slot. |
-| **llm.stub** | `bool` or omit/`null` | When set, overrides env stub default. When null, stub follows “no usable key → stub”. |
+| **context** | `compaction_enabled`, `max_input_tokens`, `reserve_tokens`, `recent_turns`, `summary_max_chars` | Pointer fields — omit keeps env default. |
+| **docs** | `top_k`, `min_score`, `fuzzy_enabled`, `app_id` | Pointer fields (except `app_id`) — omit keeps env default. |
+| **web_search** | `github_token` | Optional GitHub rate-limit token (env: `BP_GITHUB_TOKEN` / `GITHUB_TOKEN`). Empty string is valid. |
+| **mcp** | `enabled`, `connect_timeout_sec`, `call_timeout_sec`, `servers[]` | See [mcp-support.md](mcp-support.md). |
 
 ## Env ↔ file merge
 
-**Recommended policy (implemented):**
+**Policy (JSON SoT for product knobs; env is the bootstrap):**
 
-1. Always load env via `config.Load()` (paths, timeouts, circuit, vision/effort globals, etc.).
-2. If `config.json` is **missing** or **unreadable** → env providers only (today’s behavior).
-3. If file exists and `llm.providers` is **non-empty** → file providers **replace** env provider map for runtime. Strategy / active provider / stub come from file when present.
-4. If file exists but `llm.providers` is **empty** → keep env providers (bootstrap); users still load from file.
-5. First successful Settings write creates the file (seeded with current runtime providers converted to schema, keys included on disk only).
+1. Always load env via `config.Load()` (paths, retry statuses, stub toggle, and the historical defaults for every knob above).
+2. `config.ApplySettingsFile(envCfg, doc)` overlays the JSON document:
+   - **Pointer fields** (limits / context / docs / llm globals): set in JSON → override env; **omitted** → env default wins.
+   - **providers**: file providers replace the env map when non-empty. Strategy / active provider / stub come from file when present.
+   - **string fields** (`skills_root`, `docs.app_id`, `web_search.github_token`): non-empty → override env; empty → env default.
+3. If `config.json` is **missing** or **unreadable** → env-only (today’s behavior). Old files without the new sections keep working because every new field is a pointer / omitempty string.
+4. First successful Settings write creates the file (seeded with current runtime providers + sections).
 
-Globals that stay env-only in v1: `BP_LLM_STREAM`, `BP_LLM_VISION`, `BP_LLM_EFFORT`, circuit thresholds, storage/docs roots. Strategy/active can move to file when providers come from file.
+Env-only (never in JSON): `BP_HTTP_ADDR`, `BP_WEB_ROOT`, `BP_STORAGE_ROOT`, `BP_DOCS_ROOT`, `BP_PROMPTS_ROOT`, `BP_TOOLS_ROOT`, `BP_CONFIG_PATH`, `BP_LLM_RETRY_STATUSES`, `BP_LLM_STUB`. Paths/addr are process-level; retry statuses are a fixed operational policy; stub stays in env as the bootstrap toggle. Every other historical `BP_*` knob is now configurable via `storage/config.json`.
+
+**MCP:** optional `mcp` object on the same file (`mcp.servers[]`, timeouts). Applied by `ApplySettingsFile` even when `llm.providers` is empty. Env `BP_MCP_ENABLED` defaults **true**, but with no `mcp.servers` the catalog is empty (`list_mcp_tools` returns a `hint`). First settings seed (no file yet) includes the sample echo server from `DefaultLocalDevMCP` / `config.example.json`; existing files without `mcp` are left alone — copy the block and **restart** `make be`. See [mcp-support.md](mcp-support.md). MCP timeouts can now also come from `mcp.connect_timeout_sec` / `mcp.call_timeout_sec` in the JSON; env `BP_MCP_CONNECT_TIMEOUT_SEC` / `BP_MCP_CALL_TIMEOUT_SEC` remain as bootstrap fallback.
 
 ```
 env (bootstrap) ──► runtime Config
                       ▲
-config.json ──────────┘  (wins for providers when non-empty)
+config.json ──────────┘  (JSON wins when keys are present; omit → env default)
 ```
 
 ## API design
@@ -149,7 +194,6 @@ Button only: clear local prefs (`bp.theme`, `bp.modelId`, `bp.effort`, `bp.mockM
 - Real auth / sessions
 - Multi-key round-robin UI (`api_keys` stored empty)
 - Speed submenu / connection health probes beyond stub import
-- Moving vision/effort globals into the JSON file
 
 ## Related
 

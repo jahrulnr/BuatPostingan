@@ -23,13 +23,13 @@ sequenceDiagram
   UC->>W: Enqueue(job) → 202-ish queued
   UC-->>FE: turn_id, seq_head, status=queued
 
-  FE->>HTTP: GET …/events?after_seq=
-  HTTP->>SSE: Subscribe (poll JSONL ~500ms)
+  FE->>HTTP: GET …/events?after_seq=lastAppliedSeq
+  HTTP->>SSE: Subscribe (hub notify + 1.5s safety poll)
 
   W->>Store: append user_message, turn.started
   loop rounds ≤ MaxToolRounds
     W->>W: interrupt flag?
-    W->>LLM: Chat(messages, schemas, pinned)
+    W->>LLM: Chat(messages, schemas, pinned) (+ OnTextDelta → item.delta)
     alt tool_calls
       loop each tool (sequential)
         W->>Store: tool_call
@@ -41,7 +41,8 @@ sequenceDiagram
       W->>Store: turn.completed
     end
   end
-  SSE-->>FE: item.completed / turn.*
+  SSE-->>FE: item.delta (ephemeral) / item.completed / turn.*
+  Note over FE,SSE: disconnect → capped backoff+jitter → resume durable seq
   W->>Lock: Release + clear active turn
 ```
 
@@ -81,16 +82,17 @@ One canned `agent_message` (`(stub) received: …`) + `turn.completed`. No tools
 ### Agent loop
 
 1. Load tool schemas from registry; build messages from JSONL + inject prompts (`resources/webchat/prompts`)  
-2. For `rounds` = 1…`MaxToolRounds` (default 8):  
+2. **Context compaction** (optional): when `BP_CONTEXT_COMPACTION_ENABLED=true` and not stub, estimate transcript tokens (`chars/4`). If over `MAX_INPUT − RESERVE`, summarize older turns via `llm.Router` (prompt `compact.md`), append durable `context_compacted` (`compacted_through_seq`), keep the last `BP_CONTEXT_RECENT_TURNS` raw (never drop the latest user turn). Stub / disabled / LLM failure: no-op or extractive fallback — turn still proceeds (`webchat.compact` log).  
+3. For `rounds` = 1…`MaxToolRounds` (default 8):  
    - If interrupt flag → `turn.failed` (`interrupted`) and stop  
-   - `llm.Chat` (router; pin successful provider for later rounds)  
+   - `llm.Chat` (router; pin successful provider for later rounds). Transient SSE transport drops (`SSE_TRANSPORT` — incomplete / early close / mid-stream) retry inside the router budget before the worker sees failure.  
    - Optional `reasoning` item  
    - If **tool_calls**: append each `tool_call`, **Execute sequentially**, append `tool_result` envelopes, feed tool role messages back; continue  
    - Identical tool fingerprint twice → nudge; three times → runtime stop message + break  
-   - Else append `agent_message` and break  
-3. If exhausted rounds while still tool-only → runtime “max tool rounds” message  
-4. Always finish with `turn.completed` (usage + model metadata when available)  
-5. Maybe auto-title conversation from first user message  
+   - Else append `agent_message` and break (empty/reasoning-only rounds may nudge once — semantic, not transport)  
+4. If exhausted rounds while still tool-only → runtime “max tool rounds” message  
+5. Always finish with `turn.completed` (usage + model metadata when available)  
+6. **Auto-title**: if `title_source` is still pending — stub truncates first user text sync; real LLM schedules an async goroutine (inherits turn `trace_id`, fallback `system`) that titles ≤6 words, writes meta `title_source=auto`, and may emit ephemeral `conversation.updated`. Manual titles are never overwritten; title failure never fails the turn.  
 
 Soft tool failures become envelopes (`ok: false`); they do not panic the turn. Hard LLM/store errors become `turn.failed`.
 
@@ -100,18 +102,24 @@ Soft tool failures become envelopes (`ok: false`); they do not panic the turn. H
 
 ## SSE mirror
 
-`sse.Streamer` polls `ThreadStore.GetThread(afterSeq)` every **500ms** and maps item types:
+`sse.Streamer` wakes primarily from an in-process **hub** (`Notify` on durable JSONL append; `PublishEphemeral` for live deltas). A **1.5s** safety ticker covers missed wakes. JSONL remains the durable seq source of truth.
 
-| JSONL type | SSE event |
-|---|---|
-| `turn.started` / `completed` / `failed` / `resumed` | `turn.*` |
-| `user_message`, `agent_message`, `tool_call`, `tool_result`, `reasoning` | `item.completed` (payload wraps `item`) |
-| other | `item.updated` |
+| Source | SSE event | Seq / `id:` |
+|---|---|---|
+| JSONL `turn.*` | `turn.*` | yes |
+| JSONL `user_message`, `agent_message`, `tool_call`, `tool_result`, `reasoning` | `item.completed` (wraps `item`) | yes |
+| LLM text while generating | `item.delta` (`field=text`) | **no** (ephemeral) |
+| other JSONL | `item.updated` | yes |
 
-HTTP adapter sends keepalive SSE comments (~15s). This is **not** token streaming from the LLM.
+HTTP adapter sends keepalive SSE comments (~15s).
+
+Worker path: provider SSE → `OnTextDelta` → hub `item.delta` → final durable `agent_message` + `item.completed`. Details and FE rules: [realtime-streaming.md](realtime-streaming.md).
+
+The FE keeps a durable cursor per thread. It ignores durable events at or below that cursor, never advances it for `item.delta`, and reconnects an active turn with `after_seq=<lastAppliedSeq>`. A stream generation guard blocks callbacks after thread switch, completion, or interruption. While waiting for the first reasoning/tool/text item, one “Thinking…” placeholder occupies the future assistant bubble; final durable content reconciles it. Timeline updates auto-follow only when the reader is near the bottom.
 
 ## Related
 
+- [Realtime streaming](realtime-streaming.md) — deltas, durable resume, reconnect, and perceived-latency UX
 - [LLM providers](llm-providers.md) — what `llm.Chat` hits  
 - [Architecture](README.md) — tools allowlist, JSONL layout, FE bubbles  
 - [Runbook](../operations/runbook.md) — how to exercise stub vs real turns locally  

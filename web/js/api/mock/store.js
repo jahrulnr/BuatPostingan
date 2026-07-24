@@ -362,29 +362,48 @@ export function createStore(fixtures) {
                     '3. Tulis draft, lalu sunting\n\n' +
                     '_Sumber: search_docs (mock)_'
                 );
-            pushEvent(thread, 'item.completed', {
-                type: 'agent_message',
-                turn_id: turnId,
-                text: reply,
-                model: { provider: 'mock', id: 'chat-sim' },
-            });
-            if (!thread.title) {
-                thread.title = String(userText || firstAtt && firstAtt.filename || 'Chat').trim().slice(0, 48) || 'New chat';
-                thread.title_source = 'auto';
+            const draftId = uid('itm');
+            // Fake token stream before durable item.completed (parity with real BE).
+            const chunks = [];
+            for (let i = 0; i < reply.length; i += 12) {
+                chunks.push(reply.slice(i, i + 12));
             }
-        });
-
-        schedule(turnId, 1900, function () {
-            pushEvent(thread, 'turn.completed', {
-                type: 'turn.completed',
-                turn_id: turnId,
-                usage: { input_tokens: 120, output_tokens: 180 },
-                model: { provider: 'mock', id: 'chat-sim' },
+            chunks.forEach(function (chunk, idx) {
+                schedule(turnId, 1600 + idx * 35, function () {
+                    emitToSubscribers(thread.thread_id, 'item.delta', {
+                        type: 'agent_message',
+                        turn_id: turnId,
+                        item_id: draftId,
+                        field: 'text',
+                        delta: chunk,
+                    });
+                });
             });
-            thread.busy = false;
-            thread.active_turn_id = null;
-            thread.active_turn_initiator_admin_id = null;
-            clearTurnTimers(turnId);
+            schedule(turnId, 1600 + chunks.length * 35 + 40, function () {
+                pushEvent(thread, 'item.completed', {
+                    type: 'agent_message',
+                    id: draftId,
+                    turn_id: turnId,
+                    text: reply,
+                    model: { provider: 'mock', id: 'chat-sim' },
+                });
+                if (!thread.title) {
+                    thread.title = String(userText || firstAtt && firstAtt.filename || 'Chat').trim().slice(0, 48) || 'New chat';
+                    thread.title_source = 'auto';
+                }
+                schedule(turnId, 200, function () {
+                    pushEvent(thread, 'turn.completed', {
+                        type: 'turn.completed',
+                        turn_id: turnId,
+                        usage: { input_tokens: 120, output_tokens: 180 },
+                        model: { provider: 'mock', id: 'chat-sim' },
+                    });
+                    thread.busy = false;
+                    thread.active_turn_id = null;
+                    thread.active_turn_initiator_admin_id = null;
+                    clearTurnTimers(turnId);
+                });
+            });
         });
     }
 

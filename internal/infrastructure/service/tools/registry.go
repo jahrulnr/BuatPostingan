@@ -14,6 +14,7 @@ import (
 	"buatpostingan/internal/domain/repository"
 	"buatpostingan/internal/domain/service"
 	"buatpostingan/internal/infrastructure/service/docs"
+	mcpmgr "buatpostingan/internal/infrastructure/service/mcp"
 )
 
 var _ service.ToolRegistry = (*Registry)(nil)
@@ -44,6 +45,22 @@ type Options struct {
 	// Empty = unrestricted real filesystem (relative → process cwd; absolute incl. "/").
 	// Non-empty is a relative-path default only — not a sandbox jail. Prefer empty for local dev.
 	FSRoot string
+	// SkillsRoot is the jail root for list_skills / read_skill (default BP_SKILLS_ROOT).
+	// Missing/empty → soft empty catalog / skills_unavailable (not a process crash).
+	SkillsRoot string
+	// GitHubToken is the optional web_search rate-limit token (env: BP_GITHUB_TOKEN
+	// / GITHUB_TOKEN; also configurable via config.json → web_search.github_token).
+	GitHubToken string
+	// MCP is optional; when nil/disabled, list_mcp_tools / call_mcp_tool soft-fail.
+	MCP MCPClient
+}
+
+// MCPClient is the subset of the MCP manager used by meta-tools.
+type MCPClient interface {
+	Enabled() bool
+	ServerIDs() []string
+	ListTools(ctx context.Context, serverID string) (tools []mcpmgr.ToolInfo, serverErrors map[string]string)
+	CallTool(ctx context.Context, serverID, toolName string, args map[string]any) (mcpmgr.CallResult, error)
 }
 
 // Registry loads *.tool.json schemas and executes allowlisted tools.
@@ -51,11 +68,14 @@ type Registry struct {
 	toolsRoot   string
 	index       DocsIndex
 	fs          *workspaceFS
+	skills      *skillsFS
 	attachments repository.AttachmentStore
 	webSearch   WebSearcher
 	fetchClient *http.Client
 	vision      VisionPixelsGate
 	topK        int
+	githubToken string
+	mcp         MCPClient
 	schemas     map[string]map[string]any // name -> raw tool json
 }
 
@@ -70,6 +90,10 @@ func NewRegistry(toolsRoot string, index DocsIndex, opts Options) (*Registry, er
 	if err != nil {
 		return nil, err
 	}
+	skills, err := newSkillsFS(opts.SkillsRoot)
+	if err != nil {
+		return nil, err
+	}
 	topK := opts.TopK
 	if topK <= 0 {
 		topK = DefaultTopK
@@ -78,11 +102,14 @@ func NewRegistry(toolsRoot string, index DocsIndex, opts Options) (*Registry, er
 		toolsRoot:   toolsRoot,
 		index:       index,
 		fs:          fs,
+		skills:      skills,
 		attachments: opts.Attachments,
 		webSearch:   opts.WebSearch,
 		fetchClient: opts.FetchClient,
 		vision:      opts.Vision,
 		topK:        topK,
+		githubToken: opts.GitHubToken,
+		mcp:         opts.MCP,
 		schemas:     map[string]map[string]any{},
 	}
 	if err := r.loadSchemas(); err != nil {
@@ -135,7 +162,7 @@ func toOpenAI(schema map[string]any) map[string]any {
 		"function": map[string]any{
 			"name":        name,
 			"description": desc,
-			"parameters":   params,
+			"parameters":  params,
 		},
 	}
 }
@@ -198,6 +225,42 @@ func (r *Registry) Execute(ctx context.Context, call service.ToolCall) (service.
 			env.Meta = map[string]any{}
 		}
 		env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
+		return env, nil
+	case "list_skills":
+		env := r.execListSkills(args)
+		if env.Meta == nil {
+			env.Meta = map[string]any{}
+		}
+		if _, ok := env.Meta["took_ms"]; !ok {
+			env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
+		}
+		return env, nil
+	case "read_skill":
+		env := r.execReadSkill(args)
+		if env.Meta == nil {
+			env.Meta = map[string]any{}
+		}
+		if _, ok := env.Meta["took_ms"]; !ok {
+			env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
+		}
+		return env, nil
+	case "list_mcp_tools":
+		env := r.execListMCPTools(ctx, args)
+		if env.Meta == nil {
+			env.Meta = map[string]any{}
+		}
+		if _, ok := env.Meta["took_ms"]; !ok {
+			env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
+		}
+		return env, nil
+	case "call_mcp_tool":
+		env := r.execCallMCPTool(ctx, args)
+		if env.Meta == nil {
+			env.Meta = map[string]any{}
+		}
+		if _, ok := env.Meta["took_ms"]; !ok {
+			env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
+		}
 		return env, nil
 	default:
 		return r.fail("unknown_tool", "Unknown tool", name, started), nil
@@ -280,9 +343,9 @@ func (r *Registry) execSearchDocs(ctx context.Context, args map[string]any) serv
 	if err != nil {
 		gate, _ := r.index.Gate(ctx)
 		return service.ToolEnvelope{
-			OK:   false,
-			Tool: "search_docs",
-			Data: nil,
+			OK:    false,
+			Tool:  "search_docs",
+			Data:  nil,
 			Error: map[string]any{"code": "tool_error", "message": "search failed"},
 			Meta: map[string]any{
 				"truncated":         false,
@@ -362,4 +425,3 @@ func (r *Registry) fail(code, message, name string, started time.Time) service.T
 		},
 	}
 }
-

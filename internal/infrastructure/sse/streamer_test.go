@@ -62,8 +62,8 @@ func (m *memStore) ClearActiveTurn(context.Context, valueobject.ThreadID) error 
 }
 
 func TestNewStreamer(t *testing.T) {
-	s := NewStreamer(&memStore{})
-	if s == nil || s.pollEvery != 500*time.Millisecond {
+	s := NewStreamer(&memStore{}, nil)
+	if s == nil || s.pollEvery != 1500*time.Millisecond {
 		t.Fatalf("got %#v", s)
 	}
 }
@@ -138,7 +138,7 @@ func TestEmitNewAdvancesCursorAndSkipsOld(t *testing.T) {
 		{Seq: 2, ThreadID: tid, TurnID: turn, Type: enum.ItemAgentMessage, ID: "itm_2", At: time.Now().UTC(), Payload: map[string]any{"text": "b"}},
 		{Seq: 3, ThreadID: tid, TurnID: turn, Type: enum.ItemTurnCompleted, ID: "itm_3", At: time.Now().UTC()},
 	}}
-	s := NewStreamer(store)
+	s := NewStreamer(store, nil)
 	var got []string
 	cursor := uint64(1)
 	if err := s.emitNew(context.Background(), tid, &cursor, func(ev string, _ map[string]any) error {
@@ -156,7 +156,7 @@ func TestEmitNewAdvancesCursorAndSkipsOld(t *testing.T) {
 }
 
 func TestEmitNewStoreError(t *testing.T) {
-	s := NewStreamer(&memStore{err: errors.New("boom")})
+	s := NewStreamer(&memStore{err: errors.New("boom")}, nil)
 	cursor := uint64(0)
 	err := s.emitNew(context.Background(), "thr_x", &cursor, func(string, map[string]any) error { return nil })
 	if err == nil || err.Error() != "boom" {
@@ -169,7 +169,7 @@ func TestEmitNewEmitError(t *testing.T) {
 	store := &memStore{items: []entity.TranscriptItem{
 		{Seq: 1, ThreadID: tid, Type: enum.ItemTurnStarted, ID: "itm_1", At: time.Now().UTC()},
 	}}
-	s := NewStreamer(store)
+	s := NewStreamer(store, nil)
 	cursor := uint64(0)
 	want := errors.New("emit fail")
 	err := s.emitNew(context.Background(), tid, &cursor, func(string, map[string]any) error { return want })
@@ -186,7 +186,7 @@ func TestSubscribeCancelsAfterEmit(t *testing.T) {
 	store := &memStore{items: []entity.TranscriptItem{
 		{Seq: 5, ThreadID: tid, Type: enum.ItemTurnStarted, ID: "itm_1", At: time.Now().UTC()},
 	}}
-	s := NewStreamer(store)
+	s := NewStreamer(store, nil)
 	s.pollEvery = 20 * time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -218,7 +218,7 @@ func TestSubscribeCancelsAfterEmit(t *testing.T) {
 func TestSubscribeHitsTickerThenCancel(t *testing.T) {
 	tid, _ := valueobject.NewThreadID("thr_2")
 	store := &memStore{}
-	s := NewStreamer(store)
+	s := NewStreamer(store, nil)
 	s.pollEvery = 15 * time.Millisecond
 	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
 	defer cancel()

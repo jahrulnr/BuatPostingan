@@ -53,6 +53,11 @@ func injectPrompts(promptsRoot string, messages []map[string]any, vars promptVar
 	for _, msg := range messages {
 		role, _ := msg["role"].(string)
 		if role == "system" || role == "developer" {
+			// Keep durable compaction checkpoints; drop other history system noise.
+			content, _ := msg["content"].(string)
+			if strings.HasPrefix(content, "Conversation summary:") {
+				out = append(out, msg)
+			}
 			continue
 		}
 		out = append(out, msg)

@@ -12,27 +12,44 @@ import (
 	"buatpostingan/internal/domain/valueobject"
 )
 
-// Streamer implements service.EventStreamer by polling ThreadStore.
+// Streamer implements service.EventStreamer via hub notify + slow safety poll.
 type Streamer struct {
 	store     repository.ThreadStore
+	hub       *Hub
 	pollEvery time.Duration
 }
 
 var _ service.EventStreamer = (*Streamer)(nil)
 
-func NewStreamer(store repository.ThreadStore) *Streamer {
+// NewStreamer creates an EventStreamer. hub may be nil (safety poll only).
+func NewStreamer(store repository.ThreadStore, hub *Hub) *Streamer {
 	return &Streamer{
-		store:     store,
-		pollEvery: 500 * time.Millisecond,
+		store: store,
+		hub:   hub,
+		// Safety net for missed wakes — primary path is hub.Notify on append.
+		pollEvery: 1500 * time.Millisecond,
 	}
 }
 
-// Subscribe polls JSONL and emits mapped events until ctx is cancelled.
+// Subscribe emits durable JSONL events (with seq) and ephemeral hub deltas (no seq).
 // Keepalive `: ping` is handled by the HTTP adapter (WriteSSEComment every 15s).
 func (s *Streamer) Subscribe(ctx context.Context, threadID valueobject.ThreadID, afterSeq uint64, emit service.EventEmitFn) error {
 	cursor := afterSeq
 	ticker := time.NewTicker(s.pollEvery)
 	defer ticker.Stop()
+
+	var sub service.ThreadEventSub
+	if s.hub != nil {
+		sub = s.hub.Subscribe(threadID)
+		defer sub.Close()
+	}
+
+	var notifyCh <-chan struct{}
+	var ephemeralCh <-chan service.EphemeralEvent
+	if sub != nil {
+		notifyCh = sub.Notify()
+		ephemeralCh = sub.Ephemeral()
+	}
 
 	for {
 		if err := s.emitNew(ctx, threadID, &cursor, emit); err != nil {
@@ -41,6 +58,22 @@ func (s *Streamer) Subscribe(ctx context.Context, threadID valueobject.ThreadID,
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-notifyCh:
+			// Durable append wake — loop emits new seqs.
+		case ev, ok := <-ephemeralCh:
+			if !ok {
+				ephemeralCh = nil
+				continue
+			}
+			payload := ev.Payload
+			if payload == nil {
+				payload = map[string]any{}
+			}
+			// Ephemeral frames must not carry durable seq (FE must not advance cursor).
+			delete(payload, "seq")
+			if err := emit(ev.Name, payload); err != nil {
+				return err
+			}
 		case <-ticker.C:
 		}
 	}

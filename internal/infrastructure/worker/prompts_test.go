@@ -53,6 +53,21 @@ func TestInjectPrompts(t *testing.T) {
 	if msgs[2]["role"] != "user" || msgs[2]["content"] != "hello" {
 		t.Fatalf("user=%#v", msgs[2])
 	}
+
+	msgs, err = injectPrompts(root, []map[string]any{
+		{"role": "system", "content": "Conversation summary:\nprior context"},
+		{"role": "user", "content": "latest"},
+	}, promptVars{AdminDisplayName: "Ada", AvailableTools: "search_docs"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 4 {
+		t.Fatalf("want sys+dev+summary+user got %d %#v", len(msgs), msgs)
+	}
+	sum, _ := msgs[2]["content"].(string)
+	if !strings.HasPrefix(sum, "Conversation summary:") {
+		t.Fatalf("summary stripped: %#v", msgs)
+	}
 }
 
 func TestInjectPromptsMissingFiles(t *testing.T) {

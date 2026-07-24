@@ -1,8 +1,9 @@
-.PHONY: run run-be be run-fe fe build test tidy vet dockerize up down
+.PHONY: run run-be be run-fe fe build test tidy vet dockerize up down mcp-echo
 
 NAME=buatpostingan
 APP=./cmd/app
 BIN=bin/buatpostingan
+MCP_ECHO_BIN=bin/mcp-echo
 NETWORK_NAME=app_network
 
 WEB_DIR=web
@@ -19,6 +20,10 @@ run-be be:
 build:
 	mkdir -p bin
 	go build -o $(BIN) $(APP)
+
+mcp-echo:
+	mkdir -p bin
+	go build -o $(MCP_ECHO_BIN) ./cmd/mcp-echo
 
 test:
 	go test ./...

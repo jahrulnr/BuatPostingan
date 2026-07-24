@@ -30,7 +30,7 @@ handler := httpdelivery.TraceMiddleware(mux)
 - **ERROR** at boundaries only:
   - HTTP adapter: `writeErr` → `BoundaryHTTPError` (5xx / unknown; skips 4xx noise)
   - Worker: `webchat.turn_failed` / `webchat.turn_panic`
-  - Important infra (LLM hard failures bubble to turn_failed; stream_fallback is WARN)
+  - Important infra (LLM hard failures bubble to turn_failed; `stream_fallback`, `retry_backoff`, and circuit transitions are WARN)
 - Do not re-log the same error on every wrap layer.
 
 Example line shape (text handler on stderr):
@@ -55,12 +55,38 @@ rg 'trace_id=system'
 3. Useful ops once you have the id:
 
 ```bash
-rg 'trace_id=tr_…' | rg 'webchat\.(turn_failed|turn_start|tool|llm)'
+rg 'trace_id=tr_…' | rg 'webchat\.(turn_failed|turn_start|tool|llm|empty_model_response|reasoning|retry_backoff|stream_fallback|circuit)'
+```
+
+**LLM reliability signals:**
+
+```bash
+rg 'webchat.llm.retry_backoff'   # WARN per transient retry: provider, attempt, delay_ms, retry_after_ms, status, kind
+rg 'webchat.llm.circuit'         # provider circuit transitions: state=open|closed|half_open_probe|corrupt_reset, reason
+```
+
+## Finding model “Thinking” / reasoning text
+
+Reasoning is **not** in Go/JS source. It is durable transcript data:
+
+```bash
+# thoughts live in JSONL under storage (gitignored runtime data)
+rg 'The user is asking' storage/webchat/threads/
+
+# or open the thread file the UI was on
+rg '"type":"reasoning"' storage/webchat/threads/thr_….jsonl
+```
+
+Workspace search of the repo (default exclude of `storage/`) will miss them. Empty assistant bubbles after Thinking usually mean a **reasoning-only** LLM round (no `output_text`, no tool call). Look for:
+
+```bash
+rg 'webchat.empty_model_response'   # WARN with trace_id, provider, model, has_reasoning
+rg '\(empty model response\)' storage/webchat/threads/
 ```
 
 ## Frontend
 
-Real driver sends a fresh `X-Trace-Id` per request (`web/js/api/real/driver.js`). On HTTP failure, Failed bubbles show `trace: …` when the response exposes `X-Trace-Id` (CORS: `Access-Control-Expose-Headers`).
+Real driver sends a fresh `X-Trace-Id` per request (`web/js/api/real/driver.js`). On HTTP failure, Failed bubbles show `trace: …` when the response exposes `X-Trace-Id` (CORS: `Access-Control-Expose-Headers`). Durable `turn.failed` / runtime empty-agent items also carry `trace_id` for the same UI.
 
 ## Related
 
