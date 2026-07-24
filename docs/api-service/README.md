@@ -1,7 +1,8 @@
 # API service notes
 
-Authoritative HTTP/SSE shapes for the FE real driver live in the sibling
-contracts pack when available (`AI-ApiContracts/wec-cms-webchat/api/`).
+HTTP/SSE shapes for the FE real driver are implemented under `/api/webchat`
+(see [`../architecture/README.md`](../architecture/README.md) ports table and
+[`../architecture/turn-loop.md`](../architecture/turn-loop.md)).
 
-This service exposes the same surface under `/api/webchat` (see
-`docs/architecture/README.md`).
+Presenter helpers live in `delivery/presenter/`. Mount without static FE via
+`MountWebchatAPI(mux, uc)` — see [`../architecture/portable-ai-kit.md`](../architecture/portable-ai-kit.md).

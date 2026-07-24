@@ -12,7 +12,8 @@ AI assistant for drafting posts — webchat UI + Go Clean Architecture backend.
 | [`internal/`](internal/) | Resep dapur: domain, usecase, infrastructure, config, pkg |
 | [`resources/webchat/`](resources/webchat/) | Prompts + tool JSON |
 | [`docs/webchat/`](docs/webchat/) | Knowledge Markdown corpus |
-| [`docs/architecture/`](docs/architecture/README.md) | CA map |
+| [`docs/`](docs/README.md) | Docs index (architecture, turn loop, LLM, runbook) |
+| [`docs/architecture/`](docs/architecture/README.md) | CA map + tools / persistence / FE |
 | [`docs/architecture/portable-ai-kit.md`](docs/architecture/portable-ai-kit.md) | What to copy for reuse in other products |
 
 ## Frontend
@@ -59,4 +60,4 @@ BP_LLM_OPENROUTER_API=responses   # or chat; SSE streaming is supported for both
 | `BP_TOOLS_ROOT` | `resources/webchat/tools` |
 | `BP_LLM_STUB` | `true` if no provider API key |
 
-See [`.env.example`](.env.example) and [`docs/architecture/README.md`](docs/architecture/README.md).
+See [`.env.example`](.env.example), [`docs/operations/runbook.md`](docs/operations/runbook.md), and [`docs/architecture/llm-providers.md`](docs/architecture/llm-providers.md).

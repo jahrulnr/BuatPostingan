@@ -2,7 +2,9 @@
 
 **Verdict: Partial.** The Go webchat stack is structured for reuse (ports + adapters), but it is not a separate Go module yet. Copy-paste into another repo works if you rename the module path and supply product shell + config + knowledge docs.
 
-Do **not** rename `buatpostingan` → a new shared module in this PR. Prefer this kit list + injected config until a second consumer proves the boundary.
+Do **not** rename `buatpostingan` → a new shared module until a second in-tree consumer needs it. Prefer this kit list + injected config.
+
+Related: [Architecture](README.md) · [Turn loop](turn-loop.md) · [LLM providers](llm-providers.md) · [Runbook](../operations/runbook.md)
 
 ## What to copy (AI core)
 

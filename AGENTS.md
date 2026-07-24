@@ -49,6 +49,10 @@ Add endpoints in `web/js/api/mock` + `web/js/api/real` + bind in `web/js/api/ind
 
 Default is **real** (`mockMode=false`) — hits Go BE. Mock via `?mock=1`. Preferred: `make be` + http://localhost:8080/ ; or `make fe` + http://localhost:5173/ (API base auto → `:8080`; override with `?api=`).
 
+## Docs map
+
+Human + agent docs (grounded in current code): [`docs/README.md`](docs/README.md) — architecture, [turn loop](docs/architecture/turn-loop.md), [LLM providers](docs/architecture/llm-providers.md), [runbook](docs/operations/runbook.md), portable kit.
+
 ## Portable AI kit
 
 Reuse over rewrite: treat kitchen + webchat delivery as a **copyable kit**, not a shared Go module yet.
