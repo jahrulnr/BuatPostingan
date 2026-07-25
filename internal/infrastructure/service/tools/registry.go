@@ -53,9 +53,6 @@ type Options struct {
 	GitHubToken string
 	// MCP is optional; when nil/disabled, list_mcp_tools / call_mcp_tool soft-fail.
 	MCP MCPClient
-	// WriteEnabled opts-in write_file / edit_file / delete_file. Default false
-	// preserves the reader/instructor product lock.
-	WriteEnabled bool
 }
 
 // MCPClient is the subset of the MCP manager used by meta-tools.
@@ -68,19 +65,18 @@ type MCPClient interface {
 
 // Registry loads *.tool.json schemas and executes allowlisted tools.
 type Registry struct {
-	toolsRoot    string
-	index        DocsIndex
-	fs           *workspaceFS
-	skills       *skillsFS
-	attachments  repository.AttachmentStore
-	webSearch    WebSearcher
-	fetchClient  *http.Client
-	vision       VisionPixelsGate
-	topK         int
-	githubToken  string
-	mcp          MCPClient
-	writeEnabled bool
-	schemas      map[string]map[string]any // name -> raw tool json
+	toolsRoot   string
+	index       DocsIndex
+	fs          *workspaceFS
+	skills      *skillsFS
+	attachments repository.AttachmentStore
+	webSearch   WebSearcher
+	fetchClient *http.Client
+	vision      VisionPixelsGate
+	topK        int
+	githubToken string
+	mcp         MCPClient
+	schemas     map[string]map[string]any // name -> raw tool json
 }
 
 // NewRegistry constructs a ToolRegistry.
@@ -103,19 +99,18 @@ func NewRegistry(toolsRoot string, index DocsIndex, opts Options) (*Registry, er
 		topK = DefaultTopK
 	}
 	r := &Registry{
-		toolsRoot:    toolsRoot,
-		index:        index,
-		fs:           fs,
-		skills:       skills,
-		attachments:  opts.Attachments,
-		webSearch:    opts.WebSearch,
-		fetchClient:  opts.FetchClient,
-		vision:       opts.Vision,
-		topK:         topK,
-		githubToken:  opts.GitHubToken,
-		mcp:          opts.MCP,
-		writeEnabled: opts.WriteEnabled,
-		schemas:      map[string]map[string]any{},
+		toolsRoot:   toolsRoot,
+		index:       index,
+		fs:          fs,
+		skills:      skills,
+		attachments: opts.Attachments,
+		webSearch:   opts.WebSearch,
+		fetchClient: opts.FetchClient,
+		vision:      opts.Vision,
+		topK:        topK,
+		githubToken: opts.GitHubToken,
+		mcp:         opts.MCP,
+		schemas:     map[string]map[string]any{},
 	}
 	if err := r.loadSchemas(); err != nil {
 		return nil, err
@@ -127,9 +122,6 @@ func errf(msg string) error { return fmt.Errorf("%s", msg) }
 
 func (r *Registry) loadSchemas() error {
 	names := Allowlist
-	if r.writeEnabled {
-		names = append(names, WriteTools...)
-	}
 	for _, name := range names {
 		path := filepath.Join(r.toolsRoot, name+".tool.json")
 		raw, err := os.ReadFile(path)
@@ -149,9 +141,6 @@ func (r *Registry) loadSchemas() error {
 func (r *Registry) Schemas(ctx context.Context) ([]map[string]any, error) {
 	_ = ctx
 	names := Allowlist
-	if r.writeEnabled {
-		names = append(names, WriteTools...)
-	}
 	out := make([]map[string]any, 0, len(names))
 	for _, name := range names {
 		schema, ok := r.schemas[name]
@@ -212,9 +201,6 @@ func (r *Registry) Execute(ctx context.Context, call service.ToolCall) (service.
 		env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
 		return env, nil
 	case "write_file", "edit_file", "delete_file":
-		if !r.writeEnabled {
-			return r.fail("tool_not_allowed", "Write tools are disabled", name, started), nil
-		}
 		env, err := r.execFS(name, args)
 		if err != nil {
 			return r.fail("invalid_path", err.Error(), name, started), nil
@@ -298,13 +284,6 @@ func (r *Registry) allowed(name string) bool {
 	for _, n := range Allowlist {
 		if n == name {
 			return true
-		}
-	}
-	if r.writeEnabled {
-		for _, n := range WriteTools {
-			if n == name {
-				return true
-			}
 		}
 	}
 	return false

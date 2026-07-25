@@ -39,16 +39,12 @@ make be                # :8080 + reflex
 make build && make test
 ```
 
-Without API keys the app starts in **LLM stub** mode (canned replies). For a real model:
+Without API keys the app starts in **LLM stub** mode (canned replies). For a real model, configure providers in `storage/config.json`:
 
 ```bash
-# .env
-BP_LLM_STUB=false
-BP_LLM_OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-BP_LLM_OPENROUTER_API_KEY=sk-or-...
-BP_LLM_OPENROUTER_MODEL=openai/gpt-4o-mini
-BP_LLM_OPENROUTER_API=responses   # or chat; SSE streaming is supported for both
-# BP_LLM_STREAM=true              # default; set false to force non-stream JSON
+cp storage/config.example.json storage/config.json
+# Edit llm.providers[] → set api_key, base_url, models
+# Set BP_LLM_STUB=false in .env (or leave stub for ready-to-use local turns)
 ```
 
 | Var | Default |
@@ -60,7 +56,6 @@ BP_LLM_OPENROUTER_API=responses   # or chat; SSE streaming is supported for both
 | `BP_PROMPTS_ROOT` | `resources/webchat/prompts` |
 | `BP_TOOLS_ROOT` | `resources/webchat/tools` |
 | `BP_SKILLS_ROOT` | `resources/webchat/skills` |
-| `BP_LLM_STUB` | `true` if no provider API key |
-| `BP_LLM_STREAM` | `true` (SSE; auto-fallback to JSON if unsupported) |
+| `BP_LLM_STUB` | `true` (set `false` after configuring providers in `config.json`) |
 
 See [`.env.example`](.env.example), [`docs/operations/runbook.md`](docs/operations/runbook.md), and [`docs/architecture/llm-providers.md`](docs/architecture/llm-providers.md).

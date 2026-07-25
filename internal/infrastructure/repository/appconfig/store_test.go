@@ -93,9 +93,8 @@ func TestSaveLoadNewSections(t *testing.T) {
 	topK := 8
 	minScore := 0.7
 	doc := entity.SettingsFile{
-		Version:    1,
-		SkillsRoot: "custom/skills",
-		Limits:     entity.SettingsLimits{MaxToolRounds: &rounds},
+		Version: 1,
+		Limits:  entity.SettingsLimits{MaxToolRounds: &rounds},
 		LLM: entity.SettingsLLM{
 			Stream: &streamOff,
 			Providers: []entity.SettingsProvider{
@@ -112,9 +111,6 @@ func TestSaveLoadNewSections(t *testing.T) {
 	got, err := s.Load(nil)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if got.SkillsRoot != "custom/skills" {
-		t.Fatalf("skills_root: %q", got.SkillsRoot)
 	}
 	if got.Limits.MaxToolRounds == nil || *got.Limits.MaxToolRounds != 4 {
 		t.Fatalf("limits: %+v", got.Limits)

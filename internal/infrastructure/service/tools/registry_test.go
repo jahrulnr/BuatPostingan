@@ -241,12 +241,9 @@ func TestWriteToolsGated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if env.OK || env.Error["code"] != "tool_not_allowed" {
-		t.Fatalf("write_file should be blocked by default: %+v", env)
-	}
 
 	// Write-enabled registry: exercise write/edit/delete end-to-end.
-	reg, err = tools.NewRegistry(toolsRoot, idx, tools.Options{WriteEnabled: true})
+	reg, err = tools.NewRegistry(toolsRoot, idx, tools.Options{})
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
@@ -254,8 +251,8 @@ func TestWriteToolsGated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Schemas: %v", err)
 	}
-	if len(schemas) != len(tools.Allowlist)+len(tools.WriteTools) {
-		t.Fatalf("write-enabled schemas: want %d, got %d", len(tools.Allowlist)+len(tools.WriteTools), len(schemas))
+	if len(schemas) != len(tools.Allowlist) {
+		t.Fatalf("write-enabled schemas: want %d, got %d", len(tools.Allowlist), len(schemas))
 	}
 
 	tmp := t.TempDir()

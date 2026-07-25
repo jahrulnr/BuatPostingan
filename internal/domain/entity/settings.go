@@ -3,23 +3,25 @@ package entity
 // SettingsFile is the on-disk JSON document (storage/config.json).
 //
 // JSON is the source of truth for product knobs (limits, llm globals, context,
-// docs, web_search, skills root, mcp). Env (BP_*) remains the bootstrap: when a
-// field is omitted (or the file is missing/old), the env-derived default wins.
+// docs, web_search, mcp). Env (BP_*) provides process-level paths and a few
+// env-only toggles; product knobs use hardcoded defaults when JSON omits a key.
+//
+// Env-only (never in JSON): BP_HTTP_ADDR, BP_WEB_ROOT, BP_STORAGE_ROOT,
+// BP_DOCS_ROOT, BP_PROMPTS_ROOT, BP_TOOLS_ROOT, BP_SKILLS_ROOT, BP_CONFIG_PATH,
+// BP_LLM_STUB, BP_LLM_RETRY_STATUSES
 type SettingsFile struct {
-	Version    int               `json:"version"`
-	Users      []SettingsUser    `json:"users"`
-	LLM        SettingsLLM       `json:"llm"`
-	Limits     SettingsLimits    `json:"limits,omitempty"`
-	Context    SettingsContext   `json:"context,omitempty"`
-	Docs       SettingsDocs      `json:"docs,omitempty"`
-	WebSearch  SettingsWebSearch `json:"web_search,omitempty"`
-	SkillsRoot string            `json:"skills_root,omitempty"`
-	MCP        SettingsMCP       `json:"mcp,omitempty"`
+	Version   int               `json:"version"`
+	Users     []SettingsUser    `json:"users"`
+	LLM       SettingsLLM       `json:"llm"`
+	Limits    SettingsLimits    `json:"limits,omitempty"`
+	Context   SettingsContext   `json:"context,omitempty"`
+	Docs      SettingsDocs      `json:"docs,omitempty"`
+	WebSearch SettingsWebSearch `json:"web_search,omitempty"`
+	MCP       SettingsMCP       `json:"mcp,omitempty"`
 }
 
-// SettingsLimits holds turn-loop / concurrency limits (env: BP_MAX_TOOL_ROUNDS,
-// BP_SPEAK_FLOOR_TTL_SEC, BP_LOCK_TTL_SEC, BP_TURN_RATE_LIMIT_PER_MIN,
-// BP_TURN_JOB_TIMEOUT_SEC).
+// SettingsLimits holds turn-loop / concurrency limits (JSON: limits.*).
+// Hardcoded defaults in config.Load() apply when JSON omits a key.
 type SettingsLimits struct {
 	MaxToolRounds       *int `json:"max_tool_rounds,omitempty"`
 	SpeakFloorTTLSec    *int `json:"speak_floor_ttl_sec,omitempty"`
@@ -28,7 +30,8 @@ type SettingsLimits struct {
 	TurnJobTimeoutSec   *int `json:"turn_job_timeout_sec,omitempty"`
 }
 
-// SettingsContext holds context-compaction knobs (env: BP_CONTEXT_*).
+// SettingsContext holds context-compaction knobs (JSON: context.*).
+// Hardcoded defaults in config.Load() apply when JSON omits a key.
 type SettingsContext struct {
 	CompactionEnabled *bool `json:"compaction_enabled,omitempty"`
 	MaxInputTokens    *int  `json:"max_input_tokens,omitempty"`
@@ -37,8 +40,8 @@ type SettingsContext struct {
 	SummaryMaxChars   *int  `json:"summary_max_chars,omitempty"`
 }
 
-// SettingsDocs holds retrieval knobs (env: BP_DOCS_TOP_K, BP_DOCS_MIN_SCORE,
-// BP_DOCS_FUZZY_ENABLED, BP_DOCS_APP_ID).
+// SettingsDocs holds retrieval knobs (JSON: docs.*).
+// Hardcoded defaults in config.Load() apply when JSON omits a key.
 type SettingsDocs struct {
 	TopK         *int     `json:"top_k,omitempty"`
 	MinScore     *float64 `json:"min_score,omitempty"`
@@ -46,7 +49,7 @@ type SettingsDocs struct {
 	AppID        string   `json:"app_id,omitempty"`
 }
 
-// SettingsWebSearch holds optional web_search knobs (env: BP_GITHUB_TOKEN).
+// SettingsWebSearch holds optional web_search knobs (JSON: web_search.github_token).
 type SettingsWebSearch struct {
 	GitHubToken string `json:"github_token,omitempty"`
 }
@@ -81,16 +84,17 @@ type SettingsUser struct {
 	Role string `json:"role"` // owner | admin | member
 }
 
-// SettingsLLM holds strategy + provider slots, plus global LLM knobs that used
-// to be env-only (BP_LLM_TOTAL_ATTEMPT_BUDGET, BP_LLM_CIRCUIT_*, BP_LLM_RETRY_*,
-// BP_LLM_STREAM, BP_LLM_VISION, BP_LLM_EFFORT).
+// SettingsLLM holds strategy + provider slots, plus global LLM knobs (JSON:
+// llm.stream, llm.vision, llm.effort, llm.total_attempt_budget, llm.circuit_*,
+// llm.retry_*). Hardcoded defaults in config.Load() apply when JSON omits a key.
+//
+// Stub is NOT here — it stays env-only (BP_LLM_STUB) for development.
 type SettingsLLM struct {
 	Strategy       string             `json:"strategy,omitempty"`
 	ActiveProvider string             `json:"active_provider,omitempty"`
-	Stub           *bool              `json:"stub"`
 	Providers      []SettingsProvider `json:"providers"`
 
-	// Global knobs (omitempty → omit keeps env default).
+	// Global knobs (omitempty → omit keeps hardcoded default).
 	Stream                  *bool    `json:"stream,omitempty"`
 	Vision                  string   `json:"vision,omitempty"` // auto|on|off
 	Effort                  string   `json:"effort,omitempty"` // auto|none|minimal|low|medium|high|xhigh|max

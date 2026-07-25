@@ -61,17 +61,17 @@ Common chat UIs (Cursor Composer, ChatGPT model menu, Claude project model) use 
 
 | Field | Meaning |
 |---|---|
-| `models[].id` | Picker id (configured `BP_LLM_<ID>_MODEL`, or stub id) |
+| `models[].id` | Picker id (configured model in `config.json`, or stub id) |
 | `models[].provider` | Provider slot id (`OPENROUTER`, …) — never includes API keys |
-| `supports_vision` | Catalog/heuristic (for chips); independent of `BP_LLM_VISION` force mode |
+| `supports_vision` | Catalog/heuristic (for chips); independent of `llm.vision` force mode |
 | `supported_efforts` | Empty → model does not expose effort selection |
-| `default_model_id` | Active provider’s model (`BP_LLM_ACTIVE_PROVIDER`) |
-| `effort.current` | Server default from `BP_LLM_EFFORT` |
+| `default_model_id` | Active provider’s model (`llm.active_provider`) |
+| `effort.current` | Server default from `llm.effort` |
 | `stub` | `true` when LLM stub / canned list |
 
 **Source of truth**
 
-1. Enabled entries in `BP_LLM_PROVIDERS` / `BP_LLM_<ID>_*` (allowlist).
+1. Enabled entries in `llm.providers[]` (`config.json`) — allowlist.
 2. Enrichment via the same `/models` probe used by `EffortPolicy` / `VisionPolicy` when `BaseURL` is reachable.
 3. `BP_LLM_STUB=true` → canned stub models (`stub/default`, `stub/reasoning`, `stub/vision`).
 

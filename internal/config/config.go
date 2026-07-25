@@ -3,12 +3,13 @@ package config
 import (
 	"bufio"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 )
 
-// Config is env-based runtime config (BP_* product env only).
+// Config is runtime config. Process-level knobs come from BP_* env; product
+// knobs are hardcoded defaults overridden by storage/config.json via
+// ApplySettingsFile. LLM providers come solely from config.json.
 type Config struct {
 	HTTPAddr    string
 	WebRoot     string
@@ -18,7 +19,6 @@ type Config struct {
 	ToolsRoot   string
 	SkillsRoot  string
 
-	WriteEnabled        bool
 	MaxToolRounds       int
 	SpeakFloorTTL       int
 	LockTTL             int
@@ -100,33 +100,13 @@ type LLMProvider struct {
 func Load() Config {
 	_ = loadDotEnv(".env")
 
-	providers := loadProviders()
-	anyKey := false
-	for _, p := range providers {
-		if strings.TrimSpace(p.APIKey) != "" {
-			anyKey = true
-			break
-		}
-	}
-
-	stub := getenvBoolFirst([]string{"BP_LLM_STUB"}, !anyKey)
-
-	active := strings.ToUpper(strings.TrimSpace(getenvFirst("BP_LLM_ACTIVE_PROVIDER", "")))
-	if active == "" {
-		ids := make([]string, 0, len(providers))
-		for id := range providers {
-			ids = append(ids, id)
-		}
-		sort.Strings(ids)
-		for _, id := range ids {
-			if providers[id].Enabled {
-				active = id
-				break
-			}
-		}
-	}
+	// No env-based providers — config.json is the sole source for LLM providers.
+	// Stub defaults to true (ready-to-use); set BP_LLM_STUB=false after configuring
+	// providers in storage/config.json.
+	stub := getenvBoolFirst([]string{"BP_LLM_STUB"}, true)
 
 	cfg := Config{
+		// Process-level paths (env-only — never in config.json).
 		HTTPAddr:    getenvFirst("BP_HTTP_ADDR", ":8080"),
 		WebRoot:     getenvFirst("BP_WEB_ROOT", "web"),
 		StorageRoot: getenvFirst("BP_STORAGE_ROOT", "storage/webchat"),
@@ -135,45 +115,42 @@ func Load() Config {
 		ToolsRoot:   getenvFirst("BP_TOOLS_ROOT", "resources/webchat/tools"),
 		SkillsRoot:  getenvFirst("BP_SKILLS_ROOT", "resources/webchat/skills"),
 
-		WriteEnabled:        getenvBoolFirst([]string{"BP_WRITE_ENABLED"}, true),
-		MaxToolRounds:       getenvIntFirst([]string{"BP_MAX_TOOL_ROUNDS"}, 8),
-		SpeakFloorTTL:       getenvIntFirst([]string{"BP_SPEAK_FLOOR_TTL_SEC"}, 600),
-		LockTTL:             getenvIntFirst([]string{"BP_LOCK_TTL_SEC"}, 300),
-		TurnRateLimitPerMin: getenvIntFirst([]string{"BP_TURN_RATE_LIMIT_PER_MIN"}, 10),
-		TurnJobTimeoutSec:   getenvIntFirst([]string{"BP_TURN_JOB_TIMEOUT_SEC"}, 120),
+		// Env-only toggles (not in config.json).
+		LLMStub:          stub,
+		LLMRetryStatuses: parseIntList(getenvFirst("BP_LLM_RETRY_STATUSES", "408,409,413,425,429,500,502,503,504")),
 
-		LLMStub:                    stub,
-		LLMStream:                  getenvBoolFirst([]string{"BP_LLM_STREAM"}, true),
-		LLMVision:                  ParseVisionMode(getenvFirst("BP_LLM_VISION", "auto")),
-		LLMEffort:                  ParseEffortMode(getenvFirst("BP_LLM_EFFORT", "auto")),
-		LLMStrategy:                strings.ToLower(getenvFirst("BP_LLM_STRATEGY", "failover")),
-		LLMActiveProvider:          active,
-		LLMTotalAttemptBudget:      getenvIntFirst([]string{"BP_LLM_TOTAL_ATTEMPT_BUDGET"}, 4),
-		LLMCircuitFailureThreshold: getenvIntFirst([]string{"BP_LLM_CIRCUIT_FAILURE_THRESHOLD"}, 3),
-		LLMCircuitCooldownSec:      getenvIntFirst([]string{"BP_LLM_CIRCUIT_COOLDOWN_SEC"}, 60),
-		LLMRetryStatuses:           parseIntList(getenvFirst("BP_LLM_RETRY_STATUSES", "408,409,413,425,429,500,502,503,504")),
-		LLMRetryBaseDelayMS:        getenvIntFirst([]string{"BP_LLM_RETRY_BASE_DELAY_MS"}, 250),
-		LLMRetryMaxDelayMS:         getenvIntFirst([]string{"BP_LLM_RETRY_MAX_DELAY_MS"}, 5000),
-		LLMRetryJitter:             getenvFloatFirst([]string{"BP_LLM_RETRY_JITTER"}, 0.2),
-		LLMProviders:               providers,
-
-		ContextCompactionEnabled: getenvBoolFirst([]string{"BP_CONTEXT_COMPACTION_ENABLED"}, true),
-		ContextMaxInputTokens:    getenvIntFirst([]string{"BP_CONTEXT_MAX_INPUT_TOKENS"}, 12000),
-		ContextReserveTokens:     getenvIntFirst([]string{"BP_CONTEXT_RESERVE_TOKENS"}, 3000),
-		ContextRecentTurns:       getenvIntFirst([]string{"BP_CONTEXT_RECENT_TURNS"}, 4),
-		ContextSummaryMaxChars:   getenvIntFirst([]string{"BP_CONTEXT_SUMMARY_MAX_CHARS"}, 12000),
-
-		DocsTopK:         getenvIntFirst([]string{"BP_DOCS_TOP_K"}, 5),
-		DocsMinScore:     getenvFloatFirst([]string{"BP_DOCS_MIN_SCORE"}, 0.5),
-		DocsFuzzyEnabled: getenvBoolFirst([]string{"BP_DOCS_FUZZY_ENABLED"}, true),
-		DocsAppID:        getenvFirst("BP_DOCS_APP_ID", "buatpostingan"),
-
-		GitHubToken: getenvFirst("BP_GITHUB_TOKEN", "GITHUB_TOKEN", ""),
-
-		MCPEnabled:           getenvBoolFirst([]string{"BP_MCP_ENABLED"}, true),
-		MCPConnectTimeoutSec: getenvIntFirst([]string{"BP_MCP_CONNECT_TIMEOUT_SEC"}, 15),
-		MCPCallTimeoutSec:    getenvIntFirst([]string{"BP_MCP_CALL_TIMEOUT_SEC"}, 30),
-		MCPServers:           nil,
+		// Product knobs — hardcoded defaults; config.json overrides via ApplySettingsFile.
+		MaxToolRounds:              8,
+		SpeakFloorTTL:              600,
+		LockTTL:                    300,
+		TurnRateLimitPerMin:        10,
+		TurnJobTimeoutSec:          120,
+		LLMStream:                  true,
+		LLMVision:                  "auto",
+		LLMEffort:                  "auto",
+		LLMStrategy:                "failover",
+		LLMActiveProvider:          "",
+		LLMTotalAttemptBudget:      4,
+		LLMCircuitFailureThreshold: 3,
+		LLMCircuitCooldownSec:      60,
+		LLMRetryBaseDelayMS:        250,
+		LLMRetryMaxDelayMS:         5000,
+		LLMRetryJitter:             0.2,
+		LLMProviders:               nil,
+		ContextCompactionEnabled:   true,
+		ContextMaxInputTokens:      12000,
+		ContextReserveTokens:       3000,
+		ContextRecentTurns:         4,
+		ContextSummaryMaxChars:     12000,
+		DocsTopK:                   5,
+		DocsMinScore:               0.5,
+		DocsFuzzyEnabled:           true,
+		DocsAppID:                  "buatpostingan",
+		GitHubToken:                "",
+		MCPEnabled:                 true,
+		MCPConnectTimeoutSec:       15,
+		MCPCallTimeoutSec:          30,
+		MCPServers:                 nil,
 	}
 
 	switch cfg.LLMStrategy {
@@ -184,49 +161,7 @@ func Load() Config {
 	return cfg
 }
 
-func loadProviders() map[string]LLMProvider {
-	raw := getenvFirst("BP_LLM_PROVIDERS", "OPENROUTER")
-	ids := strings.Split(raw, ",")
-	out := make(map[string]LLMProvider, len(ids))
-	for _, rawID := range ids {
-		id := strings.ToUpper(strings.TrimSpace(rawID))
-		if id == "" {
-			continue
-		}
-		prefix := "BP_LLM_" + id + "_"
-		p := LLMProvider{
-			ID:              id,
-			BaseURL:         strings.TrimRight(getenvFirst(prefix+"BASE_URL", ""), "/"),
-			APIKey:          getenvFirst(prefix+"API_KEY", ""),
-			Model:           getenvFirst(prefix+"MODEL", ""),
-			API:             strings.ToLower(getenvFirst(prefix+"API", "responses")),
-			TimeoutSec:      getenvIntFirst([]string{prefix + "TIMEOUT_SEC", "BP_LLM_TIMEOUT_SEC"}, 60),
-			MaxAttempts:     getenvIntFirst([]string{prefix + "MAX_ATTEMPTS"}, 1),
-			Weight:          getenvIntFirst([]string{prefix + "WEIGHT"}, 1),
-			ContextWindow:   getenvIntFirst([]string{prefix + "CONTEXT_WINDOW", "BP_LLM_CONTEXT_WINDOW"}, 131072),
-			MaxOutputTokens: getenvIntFirst([]string{prefix + "MAX_OUTPUT_TOKENS", "BP_LLM_MAX_OUTPUT_TOKENS"}, 4096),
-			MaxInputTokens:  getenvIntFirst([]string{prefix + "MAX_INPUT_TOKENS", "BP_CONTEXT_MAX_INPUT_TOKENS"}, 12000),
-			Enabled:         getenvBoolFirst([]string{prefix + "ENABLED"}, true),
-		}
-		if p.API != "chat" && p.API != "responses" {
-			p.API = "responses"
-		}
-		if p.MaxAttempts < 1 {
-			p.MaxAttempts = 1
-		}
-		budget := p.ContextWindow - p.MaxOutputTokens - 512
-		if budget < 1000 {
-			budget = 1000
-		}
-		if p.MaxInputTokens > budget {
-			p.MaxInputTokens = budget
-		}
-		out[id] = p
-	}
-	return out
-}
-
-// ParseVisionMode normalizes BP_LLM_VISION to auto|on|off (default auto).
+// ParseVisionMode normalizes vision mode to auto|on|off (default auto).
 func ParseVisionMode(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "on", "1", "true", "yes":

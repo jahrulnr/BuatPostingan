@@ -22,19 +22,20 @@ func (c Config) ConfigPath() string {
 	return filepath.Clean(filepath.Join(filepath.Dir(root), "config.json"))
 }
 
-// ApplySettingsFile overlays file settings onto env-based Config.
+// ApplySettingsFile overlays file settings onto the base Config from Load().
 //
-// Merge policy (JSON is SoT for product knobs; env remains bootstrap):
-//   - providers: file providers replace env map when non-empty (unchanged).
+// Merge policy (JSON is SoT for product knobs; base provides hardcoded defaults):
+//   - providers: file providers are the sole source — Load() sets nil. When
+//     JSON has providers, they populate the map; when JSON omits providers,
+//     the map stays nil (stub mode via BP_LLM_STUB).
 //   - llm globals (stream/vision/effort/circuit/retry): pointer-set wins; omit
-//     keeps the env-derived default.
-//   - limits / context / docs / web_search / skills_root: pointer-set wins;
-//     omit keeps the env-derived default. This keeps old/missing files working.
+//     keeps the hardcoded default.
+//   - limits / context / docs / web_search: pointer-set wins; omit keeps the
+//     hardcoded default. This keeps old/missing files working.
 //   - users are not part of Config (settings usecase only).
 //
-// Env bootstrap still works when the file is missing or pre-dates these
-// sections: every new field uses a pointer (or non-zero string) so an absent
-// key leaves the env value untouched.
+// Missing or pre-dating files still work: every field uses a pointer (or
+// non-zero string) so an absent key leaves the hardcoded default untouched.
 func ApplySettingsFile(base Config, doc entity.SettingsFile) Config {
 	out := applyMCPFromFile(base, doc)
 	out = applyLLMGlobalsFromFile(out, doc.LLM)
@@ -43,9 +44,6 @@ func ApplySettingsFile(base Config, doc entity.SettingsFile) Config {
 	out = applyDocsFromFile(out, doc.Docs)
 	if ws := strings.TrimSpace(doc.WebSearch.GitHubToken); ws != "" {
 		out.GitHubToken = ws
-	}
-	if sr := strings.TrimSpace(doc.SkillsRoot); sr != "" {
-		out.SkillsRoot = sr
 	}
 
 	if len(doc.LLM.Providers) == 0 {
@@ -103,24 +101,21 @@ func ApplySettingsFile(base Config, doc entity.SettingsFile) Config {
 			}
 		}
 	}
-	if doc.LLM.Stub != nil {
-		out.LLMStub = *doc.LLM.Stub
-	} else {
-		anyKey := false
-		for _, p := range providers {
-			if strings.TrimSpace(p.APIKey) != "" {
-				anyKey = true
-				break
-			}
+	anyKey := false
+	for _, p := range providers {
+		if strings.TrimSpace(p.APIKey) != "" {
+			anyKey = true
+			break
 		}
-		out.LLMStub = !anyKey
 	}
+	out.LLMStub = !anyKey
 	return out
 }
 
 // applyLLMGlobalsFromFile overlays LLM global knobs (stream/vision/effort/
-// circuit/retry backoff). Pointer-set wins; omit keeps env default. Applied
-// even when providers come from env (so globals move to JSON independently).
+// circuit/retry backoff). Pointer-set wins; omit keeps hardcoded default.
+// Applied even when providers are absent (so globals move to JSON
+// independently).
 func applyLLMGlobalsFromFile(base Config, llm entity.SettingsLLM) Config {
 	out := base
 	if llm.Stream != nil {
@@ -158,9 +153,6 @@ func applyLLMGlobalsFromFile(base Config, llm entity.SettingsLLM) Config {
 	}
 	if ap := strings.ToUpper(strings.TrimSpace(llm.ActiveProvider)); ap != "" {
 		out.LLMActiveProvider = ap
-	}
-	if llm.Stub != nil {
-		out.LLMStub = *llm.Stub
 	}
 	return out
 }

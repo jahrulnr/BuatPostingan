@@ -7,7 +7,6 @@
       "role": "owner"
     }
   ],
-  "skills_root": "resources/webchat/skills",
   "limits": {
     "max_tool_rounds": 8,
     "speak_floor_ttl_sec": 600,
@@ -18,7 +17,6 @@
   "llm": {
     "strategy": "failover",
     "active_provider": "",
-    "stub": null,
     "stream": true,
     "vision": "auto",
     "effort": "auto",

@@ -14,7 +14,7 @@ cp .env.example .env        # optional; Load also reads .env if present
 cp storage/config.example.json storage/config.json   # then edit providers/keys
 ```
 
-Most knobs (limits, llm globals, context, docs, web_search, skills_root, mcp) live in `storage/config.json` — the JSON source of truth. Env (`BP_*`) is now bootstrap only: process paths/addr, `BP_LLM_RETRY_STATUSES`, and `BP_LLM_STUB`. See [settings-config](../architecture/settings-config.md).
+Most knobs (limits, llm globals, context, docs, web_search, skills_root, mcp, providers) live in `storage/config.json` — the JSON source of truth. Env (`BP_*`) is process-level only: paths/addr, `BP_LLM_RETRY_STATUSES`, `BP_LLM_STUB`. See [settings-config](../architecture/settings-config.md).
 
 ## Backend (`make be`)
 
@@ -97,15 +97,15 @@ make be
 }
 ```
 
-(Or use the legacy env: `BP_LLM_STUB=false` + `BP_LLM_OPENROUTER_*` keys.) Restart `make be`. Expect tool rounds (search_docs / list_dir / read_file / grep / read_attachment / read_image / list_skills / read_skill / web_*) when the model calls them. Logs: `webchat.turn_start`, `webchat.tool`, `webchat.reasoning`, `webchat.turn_completed`.
+Restart `make be`. Expect tool rounds (search_docs / list_dir / read_file / grep / read_attachment / read_image / list_skills / read_skill / web_*) when the model calls them. Logs: `webchat.turn_start`, `webchat.tool`, `webchat.reasoning`, `webchat.turn_completed`.
 
 **Skills:** Ask the agent to use a skill (e.g. “pakai skill writing-post untuk outline postingan tentang X”). Expect `list_skills` and/or `read_skill` then `search_docs`. Details: [skills-tools.md](../architecture/skills-tools.md).
 
 **MCP:** Copy `mcp` from `storage/config.example.json` into `storage/config.json`, run `make mcp-echo`, restart `make be`. Ask to list/call MCP tools. If `list_mcp_tools` returns empty `tools` with a `hint`, servers are missing from the runtime config file. Details: [mcp-support.md](../architecture/mcp-support.md).
 
-**Vision (image attach):** With `BP_LLM_VISION=auto` (default) or `on` and a vision-capable model (e.g. `xiaomi/mimo-v2.5`), attach a PNG/JPEG and ask “apa isi gambar ini?”. Worker injects `image_url` / `input_image` data-URL parts (cap 4 MiB / image). Text-only models under `auto` get metadata only. Details: [llm-vision.md](../architecture/llm-vision.md).
+**Vision (image attach):** With `llm.vision=auto` (default) or `on` and a vision-capable model (e.g. `xiaomi/mimo-v2.5`), attach a PNG/JPEG and ask "apa isi gambar ini?". Worker injects `image_url` / `input_image` data-URL parts (cap 4 MiB / image). Text-only models under `auto` get metadata only. Details: [llm-vision.md](../architecture/llm-vision.md).
 
-**Effort (reasoning):** `BP_LLM_EFFORT=auto` (default) probes `/models` and only sends `reasoning.effort` / `reasoning_effort` when the model advertises support. Explicit levels (`medium`, `high`, …) are clamped/omitted the same way. Details: [llm-effort.md](../architecture/llm-effort.md).
+**Effort (reasoning):** `llm.effort=auto` (default) probes `/models` and only sends `reasoning.effort` / `reasoning_effort` when the model advertises support. Explicit levels (`medium`, `high`, …) are clamped/omitted the same way. Details: [llm-effort.md](../architecture/llm-effort.md).
 
 Details: [LLM providers](../architecture/llm-providers.md).
 
@@ -124,7 +124,7 @@ Details: [LLM providers](../architecture/llm-providers.md).
 | POST fail from `:5173` | Hitting static live-server — run `make be`, use auto API base or `?api=` |
 | `make fe` exits “requires Node.js” | Install Node (`npx`), or use `make be` + http://localhost:8080/ without FE livereload |
 | Docs / turns refused | Docs index not usable — check `BP_DOCS_ROOT` + startup Reindex/Gate |
-| Empty model replies on Responses | Prefer `API=responses` + SSE (`BP_LLM_STREAM=true` default); only set `BP_LLM_STREAM=false` if upstream cannot stream. Reasoning-only rounds log `webchat.empty_model_response` (WARN) and nudge once — see [observability](../architecture/observability.md) |
+| Empty model replies on Responses | Prefer `api=responses` + SSE (`llm.stream=true` default); only set `llm.stream=false` if upstream cannot stream. Reasoning-only rounds log `webchat.empty_model_response` (WARN) and nudge once — see [observability](../architecture/observability.md) |
 | Thinking text not in VS Code search | Reasoning is in `storage/webchat/threads/*.jsonl`, not source: `rg 'The user is asking' storage/webchat/threads/` |
 | Mock UI when you wanted real | Remove `?mock=1` / clear `localStorage bp.mockMode` |
 | Tool path errors | Check absolute/relative path exists; FS tools are unrestricted on the host (local-dev) |

@@ -38,7 +38,7 @@ func main() {
 			logging.Info(ctx, "config merged", "path", cfgPath, "providers", len(cfg.LLMProviders), "source", "file")
 		}
 	} else {
-		logging.Info(ctx, "config bootstrap", "path", cfgPath, "note", "no file yet — LLM from env")
+		logging.Info(ctx, "config bootstrap", "path", cfgPath, "note", "no config.json yet — stub mode")
 	}
 
 	if err := os.MkdirAll(cfg.StorageRoot, 0o775); err != nil {
@@ -108,13 +108,12 @@ func main() {
 	}
 
 	reg, err := tools.NewRegistry(cfg.ToolsRoot, docsIndex, tools.Options{
-		TopK:         cfg.DocsTopK,
-		Attachments:  attStore,
-		Vision:       visionPolicy,
-		SkillsRoot:   cfg.SkillsRoot,
-		GitHubToken:  cfg.GitHubToken,
-		MCP:          mcpMgr,
-		WriteEnabled: cfg.WriteEnabled,
+		TopK:        cfg.DocsTopK,
+		Attachments: attStore,
+		Vision:      visionPolicy,
+		SkillsRoot:  cfg.SkillsRoot,
+		GitHubToken: cfg.GitHubToken,
+		MCP:         mcpMgr,
 		// FSRoot empty: list_dir/read_file/grep have full host FS access (local-dev).
 	})
 	if err != nil {

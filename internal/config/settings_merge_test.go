@@ -42,12 +42,10 @@ func TestApplySettingsFileReplacesProviders(t *testing.T) {
 		LLMStrategy: "failover",
 		LLMStub:     false,
 	}
-	stubFalse := false
 	doc := entity.SettingsFile{
 		LLM: entity.SettingsLLM{
 			Strategy:       "switch",
 			ActiveProvider: "LOCAL",
-			Stub:           &stubFalse,
 			Providers: []entity.SettingsProvider{
 				{
 					ID:      "LOCAL",
@@ -73,7 +71,7 @@ func TestApplySettingsFileReplacesProviders(t *testing.T) {
 		t.Fatalf("strategy/active: %s %s", got.LLMStrategy, got.LLMActiveProvider)
 	}
 	if got.LLMStub {
-		t.Fatal("stub should be false")
+		t.Fatal("stub should be false (key present)")
 	}
 }
 
@@ -157,7 +155,7 @@ func TestApplySettingsFileLimitsContextDocsGlobals(t *testing.T) {
 		DocsFuzzyEnabled:           true,
 		DocsAppID:                  "buatpostingan",
 		GitHubToken:                "",
-		SkillsRoot:                 "resources/webchat/skills",
+		SkillsRoot:                 "env/skills",
 	}
 	rounds := 4
 	rate := 30
@@ -179,7 +177,6 @@ func TestApplySettingsFileLimitsContextDocsGlobals(t *testing.T) {
 	minScore := 0.7
 	fuzzy := false
 	doc := entity.SettingsFile{
-		SkillsRoot: "custom/skills",
 		Limits: entity.SettingsLimits{
 			MaxToolRounds:       &rounds,
 			TurnRateLimitPerMin: &rate,
@@ -237,9 +234,6 @@ func TestApplySettingsFileLimitsContextDocsGlobals(t *testing.T) {
 	}
 	if got.GitHubToken != "ghp_secret" {
 		t.Fatalf("github token: %q", got.GitHubToken)
-	}
-	if got.SkillsRoot != "custom/skills" {
-		t.Fatalf("skills root: %q", got.SkillsRoot)
 	}
 }
 
