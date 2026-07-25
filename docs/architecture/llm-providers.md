@@ -162,6 +162,7 @@ Image attachments and `BP_LLM_VISION`: see [LLM vision](llm-vision.md).
 ## Related
 
 - [Turn loop](turn-loop.md) — when Chat is called inside the agent loop
+- [XML / pipe tool calls](xml-tool-calls.md) — fallback parser for models that emit tool calls as text (fenced XML, Anthropic native, `<tool_use>`, Kimi K2 pipe)
 - [LLM vision](llm-vision.md) — multimodal gate + request shapes
 - [LLM effort](llm-effort.md) — reasoning_effort / reasoning.effort policy
 - [Runbook](../operations/runbook.md) — env examples for local stub vs real

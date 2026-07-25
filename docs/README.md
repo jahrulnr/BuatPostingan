@@ -13,6 +13,7 @@ Human + agent documentation grounded in **current code**. Start here, then dive 
 | [LLM vision](architecture/llm-vision.md) | Multimodal image parts, `BP_LLM_VISION`, capability gate |
 | [LLM effort](architecture/llm-effort.md) | Reasoning effort (`BP_LLM_EFFORT`), catalog probe, request shapes |
 | [LLM model picker](architecture/llm-model-picker.md) | Composer model + effort UI, `GET /models`, StartTurn overrides |
+| [XML / pipe tool calls](architecture/xml-tool-calls.md) | Fenced, Anthropic native, `<tool_use>`, Kimi K2 pipe — parsing + stream recovery |
 | [Settings + JSON config](architecture/settings-config.md) | UI settings, `storage/config.json`, env merge, `/api/settings` |
 | [Observability](architecture/observability.md) | `trace_id` middleware, worker propagation, grep failing turns |
 | [Portable AI kit](architecture/portable-ai-kit.md) | What to copy vs leave when reusing the webchat stack |

@@ -382,3 +382,150 @@ func TestRecoverXMLToolCalls_kimiFromStream(t *testing.T) {
 		t.Fatalf("expected city=Paris, got %#v", recovered.ToolCalls[0].Arguments)
 	}
 }
+
+func TestExtractXMLToolCalls_kimiUnicodeDelimiters(t *testing.T) {
+	// Cursor/default Kimi emits fullwidth pipe (U+FF5C) and block underscore (U+2581).
+	text := "Exploring.\n\n\u003c｜tool▁calls▁begin｜\u003e\u003c｜tool▁call▁begin｜\u003e\nGlob\n\u003c｜tool▁sep｜\u003etarget_directory\n/home/jahrulnr\n\u003c｜tool▁sep｜\u003eglob_pattern\n**/*\n\u003c｜tool▁call▁end｜\u003e\u003c｜tool▁calls▁end｜\u003e"
+
+	calls, stripped := extractXMLToolCalls(text)
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(calls))
+	}
+	if calls[0].Name != "Glob" {
+		t.Fatalf("expected Glob, got %s", calls[0].Name)
+	}
+	if calls[0].Arguments["target_directory"] != "/home/jahrulnr" {
+		t.Fatalf("expected target_directory=/home/jahrulnr, got %v", calls[0].Arguments["target_directory"])
+	}
+	if calls[0].Arguments["glob_pattern"] != "**/*" {
+		t.Fatalf("expected glob_pattern=**, got %v", calls[0].Arguments["glob_pattern"])
+	}
+	if strings.Contains(stripped, "tool") && strings.Contains(stripped, "call") {
+		// Should not contain raw tool tokens
+		if strings.Contains(stripped, "tool▁call") || strings.Contains(stripped, "tool_call_begin") {
+			t.Fatalf("stripped text still contains tool tokens: %q", stripped)
+		}
+	}
+}
+
+func TestExtractXMLToolCalls_kimiSpacedTokens(t *testing.T) {
+	// Spaced variant: <  |  tool_call_begin  |  >
+	text := `<  |  tool_calls_section_begin  |  ><  |  tool_call_begin  |  >functions.get_weather:0<  |  tool_call_argument_begin  |  >{"city":"Berlin"}<  |  tool_call_end  |  ><  |  tool_calls_section_end  |  >`
+
+	calls, _ := extractXMLToolCalls(text)
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(calls))
+	}
+	if calls[0].Name != "get_weather" {
+		t.Fatalf("expected get_weather, got %s", calls[0].Name)
+	}
+	if calls[0].Arguments["city"] != "Berlin" {
+		t.Fatalf("expected city=Berlin, got %v", calls[0].Arguments["city"])
+	}
+}
+
+func TestExtractXMLToolCalls_kimiRedactedTokens(t *testing.T) {
+	text := `<|redacted_tool_calls_section_begin|><|redacted_tool_call_begin|>functions.read_file:0<|redacted_tool_call_argument_begin|>{"path":"/tmp/x.go"}<|redacted_tool_call_end|><|redacted_tool_calls_section_end|>`
+
+	calls, _ := extractXMLToolCalls(text)
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(calls))
+	}
+	if calls[0].Name != "read_file" {
+		t.Fatalf("expected read_file, got %s", calls[0].Name)
+	}
+	if calls[0].Arguments["path"] != "/tmp/x.go" {
+		t.Fatalf("expected path=/tmp/x.go, got %v", calls[0].Arguments["path"])
+	}
+}
+
+func TestExtractXMLToolCalls_kimiToolCallsBeginNoSection(t *testing.T) {
+	// Variant: tool_calls_begin (without _section)
+	text := `<|tool_calls_begin|><|tool_call_begin|>functions.search:0<|tool_call_argument_begin|>{"query":"test"}<|tool_call_end|><|tool_calls_end|>`
+
+	calls, _ := extractXMLToolCalls(text)
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(calls))
+	}
+	if calls[0].Name != "search" {
+		t.Fatalf("expected search, got %s", calls[0].Name)
+	}
+	if calls[0].Arguments["query"] != "test" {
+		t.Fatalf("expected query=test, got %v", calls[0].Arguments["query"])
+	}
+}
+
+func TestExtractXMLToolCalls_kimiToolSepMultilineArgs(t *testing.T) {
+	// Args using tool_sep instead of JSON, with multiline key-value pairs.
+	text := `<|tool_calls_section_begin|>
+<|tool_call_begin|>functions.write_file:0<|tool_sep|>path
+/tmp/output.txt
+<|tool_sep|>content
+hello world
+<|tool_call_end|>
+<|tool_calls_section_end|>`
+
+	calls, _ := extractXMLToolCalls(text)
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(calls))
+	}
+	if calls[0].Name != "write_file" {
+		t.Fatalf("expected write_file, got %s", calls[0].Name)
+	}
+	if calls[0].Arguments["path"] != "/tmp/output.txt" {
+		t.Fatalf("expected path=/tmp/output.txt, got %v", calls[0].Arguments["path"])
+	}
+	if calls[0].Arguments["content"] != "hello world" {
+		t.Fatalf("expected content=hello world, got %v", calls[0].Arguments["content"])
+	}
+}
+
+func TestExtractXMLToolCalls_kimiBareCommandFallback(t *testing.T) {
+	// Bare command text (no JSON, no tool_sep key-value) for Shell/exec tools.
+	text := `<|tool_calls_section_begin|>
+<|tool_call_begin|>functions.Shell:0<|tool_sep|>echo hello world<|tool_call_end|>
+<|tool_calls_section_end|>`
+
+	calls, _ := extractXMLToolCalls(text)
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(calls))
+	}
+	if calls[0].Name != "Shell" {
+		t.Fatalf("expected Shell, got %s", calls[0].Name)
+	}
+	// Bare command fallback wraps in "input" key
+	if calls[0].Arguments["input"] != "echo hello world" {
+		t.Fatalf("expected input=echo hello world, got %v", calls[0].Arguments["input"])
+	}
+}
+
+func TestExtractXMLToolCalls_kimiRedactedKimiSuffix(t *testing.T) {
+	// redacted_tool_call_begin_kimi variant
+	text := `<|redacted_tool_calls_begin|><|redacted_tool_call_begin_kimi|>functions.get_weather:0<|redacted_tool_call_argument_begin|>{"city":"Osaka"}<|redacted_tool_call_end_kimi|><|redacted_tool_calls_end|>`
+
+	calls, _ := extractXMLToolCalls(text)
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(calls))
+	}
+	if calls[0].Name != "get_weather" {
+		t.Fatalf("expected get_weather, got %s", calls[0].Name)
+	}
+	if calls[0].Arguments["city"] != "Osaka" {
+		t.Fatalf("expected city=Osaka, got %v", calls[0].Arguments["city"])
+	}
+}
+
+func TestRecoverXMLToolCalls_kimiUnicodeFromStream(t *testing.T) {
+	result := service.LLMResult{ToolCalls: []service.ToolCall{{
+		CallID: "call_api", Name: "Glob", Arguments: map[string]any{},
+	}}}
+	streamed := "\u003c｜tool▁calls▁begin｜\u003e\u003c｜tool▁call▁begin｜\u003e\nGlob\n\u003c｜tool▁sep｜\u003epattern\n*.go\n\u003c｜tool▁call▁end｜\u003e\u003c｜tool▁calls▁end｜\u003e"
+
+	recovered := RecoverXMLToolCalls(result, streamed)
+	if len(recovered.ToolCalls) != 1 {
+		t.Fatalf("expected 1 recovered call, got %#v", recovered.ToolCalls)
+	}
+	if recovered.ToolCalls[0].Arguments["pattern"] != "*.go" {
+		t.Fatalf("expected pattern=*.go, got %#v", recovered.ToolCalls[0].Arguments)
+	}
+}

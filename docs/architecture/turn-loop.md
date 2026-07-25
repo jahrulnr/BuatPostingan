@@ -120,6 +120,7 @@ The FE keeps a durable cursor per thread. It ignores durable events at or below 
 ## Related
 
 - [Realtime streaming](realtime-streaming.md) — deltas, durable resume, reconnect, and perceived-latency UX
-- [LLM providers](llm-providers.md) — what `llm.Chat` hits  
-- [Architecture](README.md) — tools allowlist, JSONL layout, FE bubbles  
-- [Runbook](../operations/runbook.md) — how to exercise stub vs real turns locally  
+- [LLM providers](llm-providers.md) — what `llm.Chat` hits
+- [XML / pipe tool calls](xml-tool-calls.md) — fallback parser for models that emit tool calls as text instead of native JSON
+- [Architecture](README.md) — tools allowlist, JSONL layout, FE bubbles
+- [Runbook](../operations/runbook.md) — how to exercise stub vs real turns locally
