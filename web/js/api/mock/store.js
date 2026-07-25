@@ -165,6 +165,27 @@ export function createStore(fixtures) {
         return { thread_id: threadId, title: clean };
     }
 
+    function deleteThread(threadId) {
+        const thread = threads.get(threadId);
+        if (!thread || thread.deleted) {
+            throw ApiError(404, 'thread_not_found', 'Thread not found');
+        }
+        if (thread.busy) {
+            throw ApiError(409, 'thread_busy', 'Thread busy');
+        }
+        thread.deleted = true;
+        thread.items = [];
+        thread.title = null;
+        thread.title_source = 'pending';
+        thread.floor_holder_admin_id = null;
+        thread.floor_until = 0;
+        thread.active_turn_id = null;
+        thread.active_turn_initiator_admin_id = null;
+        thread.updated_at = nowTs();
+        attachments.delete(threadId);
+        return null;
+    }
+
     function assertCanSpeak(thread, adminUserId) {
         if (!docsIndex.usable) {
             throw ApiError(503, 'docs_index_not_ready', 'Docs index belum siap', {
@@ -552,7 +573,7 @@ export function createStore(fixtures) {
         };
     }
 
-    function retryTurn(threadId, turnId, adminUserId) {
+    function retryTurn(threadId, turnId, adminUserId, model, effort) {
         const thread = threads.get(threadId);
         if (!thread || thread.deleted) {
             throw ApiError(404, 'thread_not_found', 'Thread not found');
@@ -673,6 +694,7 @@ export function createStore(fixtures) {
         createThread,
         getThread,
         renameThread,
+        deleteThread,
         startTurn,
         uploadAttachment,
         listAttachments,

@@ -99,6 +99,10 @@ export const renameThread = mockMode
     ? mock.renameThreadMock
     : real.renameThreadImpl;
 
+export const deleteThread = mockMode
+    ? mock.deleteThreadMock
+    : real.deleteThreadImpl;
+
 export const startTurn = mockMode
     ? mock.startTurnMock
     : real.startTurnImpl;
@@ -178,6 +182,10 @@ export const removeLLMModel = mockMode
 export const importLLMModels = mockMode
     ? mock.importLLMModelsMock
     : real.importLLMModelsImpl;
+
+export const browseDir = mockMode
+    ? mock.browseDirMock
+    : real.browseDirImpl;
 
 /** @type {import('./types.js').ApiContext} */
 export const api = {

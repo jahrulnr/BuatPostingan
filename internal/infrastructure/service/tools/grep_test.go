@@ -26,7 +26,7 @@ func TestGrepRegexMatchAndEmpty(t *testing.T) {
 	findRipgrep = func(string) (string, error) { return "", os.ErrNotExist }
 	t.Cleanup(func() { findRipgrep = prev })
 
-	out, err := fs.grep(map[string]any{
+	out, err := fs.grep(context.Background(), map[string]any{
 		"query":       `regex_token_\d+`,
 		"path":        "",
 		"max_results": 10,
@@ -47,7 +47,7 @@ func TestGrepRegexMatchAndEmpty(t *testing.T) {
 		t.Fatalf("matches=%#v want 2", matches)
 	}
 
-	empty, err := fs.grep(map[string]any{"query": "zzz_no_such", "path": ""})
+	empty, err := fs.grep(context.Background(), map[string]any{"query": "zzz_no_such", "path": ""})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestGrepInvalidPattern(t *testing.T) {
 	findRipgrep = func(string) (string, error) { return "", os.ErrNotExist }
 	t.Cleanup(func() { findRipgrep = prev })
 
-	out, err := fs.grep(map[string]any{"query": "(", "path": ""})
+	out, err := fs.grep(context.Background(), map[string]any{"query": "(", "path": ""})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestGrepRipgrepEngineWhenAvailable(t *testing.T) {
 	findRipgrep = func(string) (string, error) { return rg, nil }
 	t.Cleanup(func() { findRipgrep = prev })
 
-	out, err := fs.grep(map[string]any{
+	out, err := fs.grep(context.Background(), map[string]any{
 		"query": "be.a", // regex: matches "beta"
 		"path":  "",
 	})

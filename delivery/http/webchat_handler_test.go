@@ -8,12 +8,12 @@ import (
 	"testing"
 
 	httpdelivery "buatpostingan/delivery/http"
-	"buatpostingan/internal/usecase/webchat"
 	"buatpostingan/internal/config"
 	"buatpostingan/internal/domain/entity"
 	"buatpostingan/internal/domain/enum"
 	"buatpostingan/internal/domain/valueobject"
 	"buatpostingan/internal/pkg/apperr"
+	"buatpostingan/internal/usecase/webchat"
 )
 
 type listFake struct {
@@ -33,10 +33,13 @@ func (f *listFake) GetThread(context.Context, valueobject.ThreadID, uint64) (ent
 func (f *listFake) RenameThread(context.Context, valueobject.ThreadID, valueobject.Title) (webchat.RenameResult, error) {
 	return webchat.RenameResult{}, apperr.NotImplemented("x")
 }
+func (f *listFake) DeleteThread(context.Context, valueobject.ThreadID) error {
+	return apperr.NotImplemented("x")
+}
 func (f *listFake) StartTurn(context.Context, webchat.StartTurnInput) (webchat.StartTurnResult, error) {
 	return webchat.StartTurnResult{}, apperr.NotImplemented("x")
 }
-func (f *listFake) RetryTurn(context.Context, valueobject.ThreadID, valueobject.TurnID, int64) (webchat.StartTurnResult, error) {
+func (f *listFake) RetryTurn(context.Context, webchat.RetryTurnInput) (webchat.StartTurnResult, error) {
 	return webchat.StartTurnResult{}, apperr.NotImplemented("x")
 }
 func (f *listFake) InterruptTurn(context.Context, valueobject.ThreadID, valueobject.TurnID, int64) error {

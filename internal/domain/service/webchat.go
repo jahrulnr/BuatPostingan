@@ -78,8 +78,14 @@ type TurnJob struct {
 	LockToken     string
 	// ProviderID optionally pins the LLM provider for this turn (from model picker).
 	ProviderID string
+	// Model optionally pins the upstream model id for this turn (from model picker).
+	Model string
 	// Effort optionally overrides BP_LLM_EFFORT for this turn (normalized level or auto).
 	Effort string
+	// Workspace optionally overrides the working directory for this turn.
+	// When non-empty, it replaces {{cwd}} in developer.md and becomes the default
+	// base for relative paths in filesystem tools. Empty = use process cwd / config default.
+	Workspace string
 	// TraceID correlates logs for this turn with the HTTP request that enqueued it.
 	// Empty at enqueue → copied from ctx; still empty → "system".
 	TraceID string

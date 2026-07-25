@@ -40,6 +40,7 @@ export function bootModelPicker(opts) {
     let effort = readLS(LS_EFFORT) || 'auto';
     let open = false;
     let goneToastShown = false;
+    let searchQuery = '';
 
     function readLS(key) {
         try {
@@ -80,18 +81,17 @@ export function bootModelPicker(opts) {
         return model.default_effort || model.supported_efforts[0] || 'auto';
     }
 
-    function shortModelLabel(m) {
+    function modelPillLabel(m) {
         if (!m) return 'Model';
         const id = String(m.id || '');
-        const slash = id.lastIndexOf('/');
-        return slash >= 0 ? id.slice(slash + 1) : (m.label || id || 'Model');
+        return id || m.label || 'Model';
     }
 
     function updatePill() {
         const m = findModel(modelId);
         const effortLabel = effort || 'auto';
-        labelEl.textContent = shortModelLabel(m) + ' · ' + effortLabel;
-        pill.setAttribute('aria-label', 'Model ' + shortModelLabel(m) + ', effort ' + effortLabel);
+        labelEl.textContent = modelPillLabel(m) + ' · ' + effortLabel;
+        pill.setAttribute('aria-label', 'Model ' + modelPillLabel(m) + ', effort ' + effortLabel);
     }
 
     function setOpen(next) {
@@ -99,8 +99,12 @@ export function bootModelPicker(opts) {
         menu.hidden = !open;
         pill.setAttribute('aria-expanded', open ? 'true' : 'false');
         if (open) {
-            const focusable = menu.querySelector('[role="option"], [data-effort]');
-            if (focusable) focusable.focus();
+            const searchEl = menu.querySelector('#modelSearchInput');
+            if (searchEl) searchEl.focus();
+            else {
+                const focusable = menu.querySelector('[role="option"], [data-effort]');
+                if (focusable) focusable.focus();
+            }
         }
     }
 
@@ -131,71 +135,109 @@ export function bootModelPicker(opts) {
             menu.innerHTML = '<div class="composer-model-empty">Loading models…</div>';
             return;
         }
-        const m = findModel(modelId);
-        const showEffort = m && Array.isArray(m.supported_efforts) && m.supported_efforts.length > 0;
-        const effortOpts = showEffort
-            ? ['auto'].concat(m.supported_efforts.filter(function (e) { return e !== 'auto'; }))
-            : ((catalog.effort && catalog.effort.options) || []);
 
         let html = '';
-        if (showEffort || (effortOpts && effortOpts.length)) {
-            html += '<div class="composer-model-section" role="group" aria-label="Reasoning effort">';
-            html += '<div class="composer-model-section__title">Reasoning</div>';
-            html += '<div class="composer-model-efforts">';
-            const list = showEffort ? effortOpts : ['auto'];
-            for (let i = 0; i < list.length; i++) {
-                const e = list[i];
-                const selected = e === effort ? ' aria-selected="true"' : ' aria-selected="false"';
-                html +=
-                    '<button type="button" class="composer-model-effort' +
-                    (e === effort ? ' is-selected' : '') +
-                    '" data-effort="' +
-                    escapeAttr(e) +
-                    '" role="option"' +
-                    selected +
-                    '>' +
-                    escapeHtml(e) +
-                    '</button>';
-            }
-            html += '</div></div>';
-        }
-
         html += '<div class="composer-model-section" role="group" aria-label="Models">';
-        html += '<div class="composer-model-section__title">Model</div>';
-        html += '<ul class="composer-model-list" role="listbox" aria-label="Models">';
+        html += '<div class="composer-model-search">';
+        html += '<i class="bi bi-search composer-model-search__icon" aria-hidden="true"></i>';
+        html += '<input type="text" class="composer-model-search__input" id="modelSearchInput" placeholder="Search models…" autocomplete="off" value="' + escapeAttr(searchQuery) + '">';
+        html += '</div>';
+
+        const q = searchQuery.trim().toLowerCase();
+        const filtered = [];
         for (let i = 0; i < catalog.models.length; i++) {
             const row = catalog.models[i];
             if (row.disabled) continue;
-            const selected = row.id === modelId;
-            const meta = [];
-            if (row.supports_vision) meta.push('vision');
-            if (row.supported_efforts && row.supported_efforts.length) meta.push('effort');
-            html +=
-                '<li><button type="button" class="composer-model-item' +
-                (selected ? ' is-selected' : '') +
-                '" role="option" data-model="' +
-                escapeAttr(row.id) +
-                '"' +
-                (selected ? ' aria-selected="true"' : ' aria-selected="false"') +
-                '><span class="composer-model-item__name">' +
-                escapeHtml(row.label || row.id) +
-                '</span>' +
-                (meta.length
-                    ? '<span class="composer-model-item__meta">' + escapeHtml(meta.join(' · ')) + '</span>'
-                    : '') +
-                '</button></li>';
+            if (q) {
+                const haystack = ((row.label || '') + ' ' + (row.id || '') + ' ' + ((row.provider || '') )).toLowerCase();
+                if (haystack.indexOf(q) === -1) continue;
+            }
+            filtered.push(row);
+        }
+
+        html += '<ul class="composer-model-list" role="listbox" aria-label="Models">';
+        if (filtered.length === 0) {
+            html += '<li class="composer-model-empty">No models match "' + escapeHtml(searchQuery) + '"</li>';
+        } else {
+            for (let i = 0; i < filtered.length; i++) {
+                const row = filtered[i];
+                const selected = row.id === modelId;
+                const meta = [];
+                if (row.supports_vision) meta.push('vision');
+                const hasEffort = row.supported_efforts && row.supported_efforts.length > 0;
+                if (hasEffort) meta.push('reasoning');
+                html +=
+                    '<li class="composer-model-row' + (selected ? ' is-selected' : '') + '">';
+                html +=
+                    '<button type="button" class="composer-model-item' +
+                    (selected ? ' is-selected' : '') +
+                    '" role="option" data-model="' +
+                    escapeAttr(row.id) +
+                    '"' +
+                    (selected ? ' aria-selected="true"' : ' aria-selected="false"') +
+                    '><span class="composer-model-item__name">' +
+                    escapeHtml(row.label || row.id) +
+                    '</span>' +
+                    (meta.length
+                        ? '<span class="composer-model-item__meta">' + escapeHtml(meta.join(' · ')) + '</span>'
+                        : '') +
+                    '</button>';
+                if (hasEffort) {
+                    const efforts = ['auto'].concat(row.supported_efforts.filter(function (e) { return e !== 'auto'; }));
+                    html += '<div class="composer-model-efforts">';
+                    for (let j = 0; j < efforts.length; j++) {
+                        const e = efforts[j];
+                        const isSel = selected && e === effort;
+                        html +=
+                            '<button type="button" class="composer-model-effort' +
+                            (isSel ? ' is-selected' : '') +
+                            '" data-effort="' + escapeAttr(e) +
+                            '" data-model="' + escapeAttr(row.id) +
+                            '"' + (isSel ? ' aria-selected="true"' : ' aria-selected="false"') + '>' +
+                            escapeHtml(e) +
+                            '</button>';
+                    }
+                    html += '</div>';
+                }
+                html += '</li>';
+            }
         }
         html += '</ul></div>';
         menu.innerHTML = html;
+
+        const searchEl = menu.querySelector('#modelSearchInput');
+        if (searchEl) {
+            searchEl.addEventListener('input', function (ev) {
+                searchQuery = ev.target.value || '';
+                renderMenu();
+                const newEl = menu.querySelector('#modelSearchInput');
+                if (newEl) {
+                    newEl.focus();
+                    var len = newEl.value.length;
+                    newEl.setSelectionRange(len, len);
+                }
+            });
+            if (open && !searchQuery) {
+                searchEl.focus();
+            }
+        }
     }
 
     function onMenuClick(ev) {
+        if (ev.target.id === 'modelSearchInput' || ev.target.closest('.composer-model-search')) return;
         const effortBtn = ev.target.closest('[data-effort]');
         if (effortBtn) {
+            const targetModel = effortBtn.getAttribute('data-model') || '';
+            if (targetModel && targetModel !== modelId) {
+                modelId = targetModel;
+                writeLS(LS_MODEL, modelId);
+            }
             effort = clampEffort(findModel(modelId), effortBtn.getAttribute('data-effort'));
             writeLS(LS_EFFORT, effort);
             updatePill();
             renderMenu();
+            setOpen(false);
+            pill.focus();
             return;
         }
         const modelBtn = ev.target.closest('[data-model]');
@@ -204,6 +246,7 @@ export function bootModelPicker(opts) {
             writeLS(LS_MODEL, modelId);
             effort = clampEffort(findModel(modelId), effort);
             writeLS(LS_EFFORT, effort);
+            searchQuery = '';
             updatePill();
             renderMenu();
             setOpen(false);
@@ -232,9 +275,25 @@ export function bootModelPicker(opts) {
     document.addEventListener('pointerdown', onDocPointer);
     document.addEventListener('keydown', onKey);
 
+    function dedupeModels(models) {
+        const seen = {};
+        const out = [];
+        for (let i = 0; i < models.length; i++) {
+            const m = models[i];
+            const key = (m.id || '') + '\x00' + (m.label || '');
+            if (seen[key]) continue;
+            seen[key] = true;
+            out.push(m);
+        }
+        return out;
+    }
+
     async function refresh() {
         try {
             catalog = await opts.listModels(opts.api, {});
+            if (catalog && Array.isArray(catalog.models)) {
+                catalog.models = dedupeModels(catalog.models);
+            }
             applyGoneModelFallback();
         } catch (err) {
             menu.innerHTML = '<div class="composer-model-empty">Models unavailable</div>';

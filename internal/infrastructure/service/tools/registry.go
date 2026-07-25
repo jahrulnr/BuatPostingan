@@ -190,7 +190,7 @@ func (r *Registry) Execute(ctx context.Context, call service.ToolCall) (service.
 		env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
 		return env, nil
 	case "list_dir", "read_file", "grep":
-		env, err := r.execFS(name, args)
+		env, err := r.execFS(ctx, name, args)
 		if err != nil {
 			return r.fail("invalid_path", err.Error(), name, started), nil
 		}
@@ -201,7 +201,7 @@ func (r *Registry) Execute(ctx context.Context, call service.ToolCall) (service.
 		env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
 		return env, nil
 	case "write_file", "edit_file", "delete_file":
-		env, err := r.execFS(name, args)
+		env, err := r.execFS(ctx, name, args)
 		if err != nil {
 			return r.fail("invalid_path", err.Error(), name, started), nil
 		}
@@ -384,22 +384,22 @@ func (r *Registry) execSearchDocs(ctx context.Context, args map[string]any) serv
 	}
 }
 
-func (r *Registry) execFS(name string, args map[string]any) (service.ToolEnvelope, error) {
+func (r *Registry) execFS(ctx context.Context, name string, args map[string]any) (service.ToolEnvelope, error) {
 	var raw map[string]any
 	var err error
 	switch name {
 	case "list_dir":
-		raw, err = r.fs.listDir(args)
+		raw, err = r.fs.listDir(ctx, args)
 	case "read_file":
-		raw, err = r.fs.readFile(args)
+		raw, err = r.fs.readFile(ctx, args)
 	case "grep":
-		raw, err = r.fs.grep(args)
+		raw, err = r.fs.grep(ctx, args)
 	case "write_file":
-		raw, err = r.fs.writeFile(args)
+		raw, err = r.fs.writeFile(ctx, args)
 	case "edit_file":
-		raw, err = r.fs.editFile(args)
+		raw, err = r.fs.editFile(ctx, args)
 	case "delete_file":
-		raw, err = r.fs.deleteFile(args)
+		raw, err = r.fs.deleteFile(ctx, args)
 	default:
 		return service.ToolEnvelope{}, errf("unknown")
 	}

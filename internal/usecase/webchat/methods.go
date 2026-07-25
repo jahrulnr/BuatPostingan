@@ -85,6 +85,10 @@ func (s *Service) RenameThread(ctx context.Context, threadID valueobject.ThreadI
 	return RenameResult{ThreadID: threadID, Title: title}, nil
 }
 
+func (s *Service) DeleteThread(ctx context.Context, threadID valueobject.ThreadID) error {
+	return s.deps.Threads.SoftDeleteThread(ctx, threadID)
+}
+
 func (s *Service) StartTurn(ctx context.Context, in StartTurnInput) (StartTurnResult, error) {
 	// Order mirrors AipediaWebchatController::startTurn
 	// DocsGate → validate → access → rate → floor.assert → redact → lock → floor.acquire → enqueue
@@ -97,7 +101,7 @@ func (s *Service) StartTurn(ctx context.Context, in StartTurnInput) (StartTurnRe
 		msg = "(attached files)"
 	}
 
-	providerID, effort, err := s.resolveTurnOverrides(ctx, in.Model, in.Effort)
+	providerID, modelID, effort, err := s.resolveTurnOverrides(ctx, in.Model, in.Effort)
 	if err != nil {
 		return StartTurnResult{}, err
 	}
@@ -158,7 +162,9 @@ func (s *Service) StartTurn(ctx context.Context, in StartTurnInput) (StartTurnRe
 		IsRetry:       false,
 		LockToken:     lockToken,
 		ProviderID:    providerID,
+		Model:         modelID,
 		Effort:        effort,
+		Workspace:     in.Workspace,
 	}
 	if err := s.deps.Worker.Enqueue(ctx, job); err != nil {
 		_ = s.deps.Locks.Release(ctx, in.ThreadID, lockToken)
@@ -183,23 +189,24 @@ func (s *Service) ListModels(ctx context.Context) (entity.ModelsCatalog, error) 
 	return s.deps.Models.ListModels(ctx)
 }
 
-func (s *Service) resolveTurnOverrides(ctx context.Context, model, effortRaw string) (providerID, effort string, err error) {
+func (s *Service) resolveTurnOverrides(ctx context.Context, model, effortRaw string) (providerID, modelID, effort string, err error) {
 	effort, ok := config.NormalizeEffortOverride(effortRaw)
 	if !ok {
-		return "", "", apperr.Validation("effort not allowed")
+		return "", "", "", apperr.Validation("effort not allowed")
 	}
 	model = strings.TrimSpace(model)
 	if model == "" {
-		return "", effort, nil
+		return "", "", effort, nil
 	}
 	if s.deps.Models == nil {
-		return "", "", apperr.Validation("model not allowed")
+		return "", "", "", apperr.Validation("model not allowed")
 	}
 	providerID, err = s.deps.Models.ResolveModel(ctx, model)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
-	return providerID, effort, nil
+	modelID = model
+	return providerID, modelID, effort, nil
 }
 
 func (s *Service) UploadAttachment(ctx context.Context, in UploadAttachmentInput) (entity.AttachmentMeta, error) {
@@ -260,39 +267,45 @@ func uniqueNonEmpty(ids []string) []string {
 	return out
 }
 
-func (s *Service) RetryTurn(ctx context.Context, threadID valueobject.ThreadID, turnID valueobject.TurnID, adminUserID int64) (StartTurnResult, error) {
+func (s *Service) RetryTurn(ctx context.Context, in RetryTurnInput) (StartTurnResult, error) {
 	if err := s.requireDocsReady(ctx); err != nil {
 		return StartTurnResult{}, err
 	}
-	snap, err := s.deps.Threads.GetThread(ctx, threadID, 0)
+
+	providerID, modelID, effort, err := s.resolveTurnOverrides(ctx, in.Model, in.Effort)
 	if err != nil {
 		return StartTurnResult{}, err
 	}
 
-	userMsg, okUser := findUserMessage(snap.Items, turnID)
+	snap, err := s.deps.Threads.GetThread(ctx, in.ThreadID, 0)
+	if err != nil {
+		return StartTurnResult{}, err
+	}
+
+	userMsg, okUser := findUserMessage(snap.Items, in.TurnID)
 	if !okUser {
 		return StartTurnResult{}, apperr.NotFound("turn user_message not found")
 	}
-	if !isRetryableFailed(snap.Items, turnID) {
+	if !isRetryableFailed(snap.Items, in.TurnID) {
 		return StartTurnResult{}, apperr.NotRetryable("turn not retryable")
 	}
 	initiator := asInt64(userMsg.Payload["admin_user_id"])
-	if initiator != 0 && initiator != adminUserID {
+	if initiator != 0 && initiator != in.AdminUserID {
 		return StartTurnResult{}, apperr.NotInitiator("only initiator can retry")
 	}
-	if err := s.assertRate(ctx, adminUserID); err != nil {
+	if err := s.assertRate(ctx, in.AdminUserID); err != nil {
 		return StartTurnResult{}, err
 	}
-	if err := s.deps.Floor.Assert(ctx, threadID, adminUserID); err != nil {
+	if err := s.deps.Floor.Assert(ctx, in.ThreadID, in.AdminUserID); err != nil {
 		return StartTurnResult{}, err
 	}
 
-	lockToken, err := s.deps.Locks.TryAcquire(ctx, threadID)
+	lockToken, err := s.deps.Locks.TryAcquire(ctx, in.ThreadID)
 	if err != nil {
 		return StartTurnResult{}, err
 	}
-	if err := s.deps.Floor.Acquire(ctx, threadID, adminUserID, turnID); err != nil {
-		_ = s.deps.Locks.Release(ctx, threadID, lockToken)
+	if err := s.deps.Floor.Acquire(ctx, in.ThreadID, in.AdminUserID, in.TurnID); err != nil {
+		_ = s.deps.Locks.Release(ctx, in.ThreadID, lockToken)
 		return StartTurnResult{}, err
 	}
 
@@ -300,23 +313,27 @@ func (s *Service) RetryTurn(ctx context.Context, threadID valueobject.ThreadID, 
 	adminName, _ := userMsg.Payload["admin_display_name"].(string)
 
 	job := service.TurnJob{
-		ThreadID:    threadID,
-		TurnID:      turnID,
-		AdminUserID: adminUserID,
+		ThreadID:    in.ThreadID,
+		TurnID:      in.TurnID,
+		AdminUserID: in.AdminUserID,
 		AdminName:   adminName,
 		Message:     text,
 		IsRetry:     true,
 		LockToken:   lockToken,
+		ProviderID:  providerID,
+		Model:       modelID,
+		Effort:      effort,
+		Workspace:   in.Workspace,
 	}
 	if err := s.deps.Worker.Enqueue(ctx, job); err != nil {
-		_ = s.deps.Locks.Release(ctx, threadID, lockToken)
+		_ = s.deps.Locks.Release(ctx, in.ThreadID, lockToken)
 		return StartTurnResult{}, err
 	}
 
-	holder := adminUserID
+	holder := in.AdminUserID
 	return StartTurnResult{
-		ThreadID:           threadID,
-		TurnID:             turnID,
+		ThreadID:           in.ThreadID,
+		TurnID:             in.TurnID,
 		SeqHead:            snap.SeqHead,
 		Status:             "queued",
 		FloorHolderAdminID: &holder,

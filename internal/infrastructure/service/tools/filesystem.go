@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -48,9 +49,9 @@ func newWorkspaceFS(fsRoot string) (*workspaceFS, error) {
 	return &workspaceFS{base: real}, nil
 }
 
-func (fs *workspaceFS) listDir(args map[string]any) (map[string]any, error) {
+func (fs *workspaceFS) listDir(ctx context.Context, args map[string]any) (map[string]any, error) {
 	requested := asString(args["path"])
-	directory, err := fs.resolvePath(requested)
+	directory, err := fs.resolvePath(ctx, requested)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +78,7 @@ func (fs *workspaceFS) listDir(args map[string]any) (map[string]any, error) {
 		}
 		entry := map[string]any{
 			"name": name,
-			"path": fs.displayPath(full),
+			"path": fs.displayPath(ctx, full),
 			"type": typ,
 		}
 		if infoErr == nil && info != nil {
@@ -113,7 +114,7 @@ func (fs *workspaceFS) listDir(args map[string]any) (map[string]any, error) {
 	}
 	listing := formatLSListing(directory, st, page, total)
 	return okMap(map[string]any{
-		"path":        fs.displayPath(directory),
+		"path":        fs.displayPath(ctx, directory),
 		"entries":     page,
 		"listing":     listing,
 		"offset":      offset,
@@ -177,8 +178,8 @@ func formatLSListing(directory string, dirInfo os.FileInfo, page []map[string]an
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func (fs *workspaceFS) readFile(args map[string]any) (map[string]any, error) {
-	file, err := fs.resolvePath(asString(args["path"]))
+func (fs *workspaceFS) readFile(ctx context.Context, args map[string]any) (map[string]any, error) {
+	file, err := fs.resolvePath(ctx, asString(args["path"]))
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +213,7 @@ func (fs *workspaceFS) readFile(args map[string]any) (map[string]any, error) {
 		next = nil
 	}
 	return okMap(map[string]any{
-		"path":        fs.displayPath(file),
+		"path":        fs.displayPath(ctx, file),
 		"content":     slice,
 		"offset":      offset,
 		"has_more":    hasMore,
@@ -222,7 +223,7 @@ func (fs *workspaceFS) readFile(args map[string]any) (map[string]any, error) {
 	}, hasMore), nil
 }
 
-func (fs *workspaceFS) writeFile(args map[string]any) (map[string]any, error) {
+func (fs *workspaceFS) writeFile(ctx context.Context, args map[string]any) (map[string]any, error) {
 	if strings.TrimSpace(asString(args["path"])) == "" {
 		return failMap("validation", "path is required"), nil
 	}
@@ -230,7 +231,7 @@ func (fs *workspaceFS) writeFile(args map[string]any) (map[string]any, error) {
 		return failMap("validation", "content is required"), nil
 	}
 
-	file, err := fs.resolvePath(asString(args["path"]))
+	file, err := fs.resolvePath(ctx, asString(args["path"]))
 	if err != nil {
 		return nil, err
 	}
@@ -261,12 +262,12 @@ func (fs *workspaceFS) writeFile(args map[string]any) (map[string]any, error) {
 		return failMap("write_failed", fmt.Sprintf("could not write file: %v", werr)), nil
 	}
 	return okMap(map[string]any{
-		"path":          fs.displayPath(file),
+		"path":          fs.displayPath(ctx, file),
 		"written_bytes": len(content),
 	}, false), nil
 }
 
-func (fs *workspaceFS) editFile(args map[string]any) (map[string]any, error) {
+func (fs *workspaceFS) editFile(ctx context.Context, args map[string]any) (map[string]any, error) {
 	if strings.TrimSpace(asString(args["path"])) == "" {
 		return failMap("validation", "path is required"), nil
 	}
@@ -277,7 +278,7 @@ func (fs *workspaceFS) editFile(args map[string]any) (map[string]any, error) {
 		return failMap("validation", "new_string is required"), nil
 	}
 
-	file, err := fs.resolvePath(asString(args["path"]))
+	file, err := fs.resolvePath(ctx, asString(args["path"]))
 	if err != nil {
 		return nil, err
 	}
@@ -316,17 +317,17 @@ func (fs *workspaceFS) editFile(args map[string]any) (map[string]any, error) {
 		return failMap("write_failed", fmt.Sprintf("could not write edited file: %v", err)), nil
 	}
 	return okMap(map[string]any{
-		"path":         fs.displayPath(file),
+		"path":         fs.displayPath(ctx, file),
 		"replacements": count,
 	}, false), nil
 }
 
-func (fs *workspaceFS) deleteFile(args map[string]any) (map[string]any, error) {
+func (fs *workspaceFS) deleteFile(ctx context.Context, args map[string]any) (map[string]any, error) {
 	if strings.TrimSpace(asString(args["path"])) == "" {
 		return failMap("validation", "path is required"), nil
 	}
 
-	file, err := fs.resolvePath(asString(args["path"]))
+	file, err := fs.resolvePath(ctx, asString(args["path"]))
 	if err != nil {
 		return nil, err
 	}
@@ -349,23 +350,25 @@ func (fs *workspaceFS) deleteFile(args map[string]any) (map[string]any, error) {
 		return failMap("delete_failed", fmt.Sprintf("could not delete path: %v", err)), nil
 	}
 	return okMap(map[string]any{
-		"path":    fs.displayPath(file),
+		"path":    fs.displayPath(ctx, file),
 		"deleted": true,
 	}, false), nil
 }
 
 // resolvePath maps a tool path argument to an absolute filesystem path.
 // Absolute paths (including "/") are accepted as-is. Relative paths join the
-// optional base, or resolve via filepath.Abs when base is empty. Symlinks are
-// followed; there is no workspace jail.
-func (fs *workspaceFS) resolvePath(value string) (string, error) {
+// effective base (ctx workspace override > fs.base > process cwd), or resolve
+// via filepath.Abs when no base is available. Symlinks are followed; there is
+// no workspace jail.
+func (fs *workspaceFS) resolvePath(ctx context.Context, value string) (string, error) {
 	path := strings.ReplaceAll(strings.TrimSpace(value), "\\", "/")
 	if strings.Contains(path, "\x00") {
 		return "", fmt.Errorf("invalid path")
 	}
+	base := fs.effectiveBase(ctx)
 	if path == "" || path == "." {
-		if fs.base != "" {
-			return fs.base, nil
+		if base != "" {
+			return base, nil
 		}
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -378,8 +381,8 @@ func (fs *workspaceFS) resolvePath(value string) (string, error) {
 	var candidate string
 	if filepath.IsAbs(native) {
 		candidate = filepath.Clean(native)
-	} else if fs.base != "" {
-		candidate = filepath.Join(fs.base, native)
+	} else if base != "" {
+		candidate = filepath.Join(base, native)
 	} else {
 		abs, err := filepath.Abs(native)
 		if err != nil {
@@ -411,8 +414,17 @@ func (fs *workspaceFS) listFiles(directory string) ([]string, error) {
 	return files, err
 }
 
-func (fs *workspaceFS) displayPath(path string) string {
-	if fs.base != "" {
+// effectiveBase returns the workspace base for this turn: ctx override > fs.base.
+func (fs *workspaceFS) effectiveBase(ctx context.Context) string {
+	if ws := workspaceFrom(ctx); ws != "" {
+		return ws
+	}
+	return fs.base
+}
+
+func (fs *workspaceFS) displayPath(ctx context.Context, path string) string {
+	base := fs.effectiveBase(ctx)
+	if base != "" {
 		if rel, err := filepath.Rel(fs.base, path); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			return filepath.ToSlash(rel)
 		}

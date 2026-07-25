@@ -713,32 +713,81 @@ input:focus-visible {
 .composer-model-efforts {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.28rem;
-    padding: 0 0.2rem 0.2rem;
+    gap: 0.22rem;
+    padding: 0.2rem 0.45rem 0.35rem;
 }
 
 .composer-model-effort {
     border: 1px solid var(--wm-border);
-    border-radius: 0.4rem;
+    border-radius: 0.35rem;
     background: transparent;
-    color: var(--wm-ink);
+    color: var(--wm-muted);
     font-family: var(--wm-mono, var(--wm-font));
-    font-size: 0.68rem;
-    padding: 0.22rem 0.4rem;
+    font-size: 0.62rem;
+    padding: 0.15rem 0.35rem;
     cursor: pointer;
+    transition: border-color 0.12s, background 0.12s, color 0.12s;
 }
 
-.composer-model-effort:hover,
+.composer-model-effort:hover {
+    border-color: color-mix(in oklab, var(--wm-accent) 35%, var(--wm-border));
+    color: var(--wm-accent);
+}
+
 .composer-model-effort.is-selected {
-    border-color: color-mix(in oklab, var(--wm-accent) 45%, var(--wm-border));
+    border-color: color-mix(in oklab, var(--wm-accent) 50%, var(--wm-border));
     background: var(--wm-accent-soft);
     color: var(--wm-accent);
+    font-weight: 600;
 }
 
 .composer-model-list {
     list-style: none;
     margin: 0;
     padding: 0;
+}
+
+.composer-model-row {
+    border-radius: 0.45rem;
+}
+
+.composer-model-row.is-selected {
+    background: color-mix(in oklab, var(--wm-accent) 6%, transparent);
+}
+
+.composer-model-search {
+    position: relative;
+    padding: 0 0.2rem 0.35rem;
+}
+
+.composer-model-search__icon {
+    position: absolute;
+    left: 0.55rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.65rem;
+    color: var(--wm-muted);
+    pointer-events: none;
+}
+
+.composer-model-search__input {
+    width: 100%;
+    padding: 0.3rem 0.5rem 0.3rem 1.4rem;
+    border: 1px solid var(--wm-border);
+    border-radius: 0.4rem;
+    background: var(--bp-surface-2, var(--wm-surface));
+    color: var(--wm-text);
+    font-size: 0.75rem;
+    outline: none;
+    transition: border-color 0.15s var(--wm-ease);
+}
+
+.composer-model-search__input:focus {
+    border-color: color-mix(in oklab, var(--wm-accent) 45%, var(--wm-border));
+}
+
+.composer-model-search__input::placeholder {
+    color: var(--wm-muted);
 }
 
 .composer-model-item {

@@ -132,6 +132,21 @@
                                     </button>
                                     <div class="composer-model-menu" id="modelMenu" hidden></div>
                                 </div>
+                                <div class="composer-model-wrap">
+                                    <button
+                                        type="button"
+                                        class="composer-model-pill"
+                                        id="workspacePill"
+                                        aria-haspopup="dialog"
+                                        aria-expanded="false"
+                                        aria-controls="workspaceDialog"
+                                        data-wc-tooltip="Workspace folder"
+                                    >
+                                        <i class="bi bi-folder2-open" aria-hidden="true"></i>
+                                        <span id="workspacePillLabel">Workspace</span>
+                                        <i class="bi bi-chevron-down composer-model-pill__chev" aria-hidden="true"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="composer-row">
                                 <button type="button" class="composer-attach" id="chatAttach" aria-label="Lampirkan file" data-wc-tooltip="Attach file">
@@ -248,6 +263,33 @@
         </section>
     </div>
 
+    <div class="wc-dialog" id="deleteDialog" hidden>
+        <div class="wc-dialog__backdrop" data-delete-close></div>
+        <section class="wc-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="deleteDialogTitle" tabindex="-1">
+            <div class="wc-dialog__accent" aria-hidden="true"></div>
+            <header class="wc-dialog__header">
+                <div class="wc-dialog__icon" aria-hidden="true"><i class="bi bi-trash3"></i></div>
+                <div>
+                    <span class="wc-dialog__eyebrow">Conversation</span>
+                    <h5 id="deleteDialogTitle">Delete conversation</h5>
+                </div>
+                <button type="button" class="wc-dialog__close" data-delete-close aria-label="Close delete dialog" data-wc-tooltip="Close">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </header>
+            <div class="wc-dialog__form">
+                <p class="wc-dialog__help" id="deleteDialogHelp">This conversation and all its messages will be permanently removed. This action cannot be undone.</p>
+                <div class="wc-dialog__actions">
+                    <button type="button" class="wc-dialog__button wc-dialog__button--ghost" data-delete-close>Cancel</button>
+                    <button type="button" class="wc-dialog__button wc-dialog__button--danger" id="deleteSubmit">
+                        <span>Delete</span>
+                        <i class="bi bi-trash3" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </div>
+
     <div class="wc-dialog" id="attachDialog" hidden>
         <div class="wc-dialog__backdrop" data-attach-close></div>
         <section class="wc-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="attachDialogTitle" tabindex="-1">
@@ -275,6 +317,46 @@
             <p class="wc-dialog__help" id="attachDialogHelp">Maks. 8&nbsp;MB per file. File di-upload saat Anda kirim pesan.</p>
             <div class="wc-dialog__actions">
                 <button type="button" class="wc-dialog__button wc-dialog__button--ghost" data-attach-close>Selesai</button>
+            </div>
+        </section>
+    </div>
+
+    <div class="wc-dialog" id="workspaceDialog" hidden>
+        <div class="wc-dialog__backdrop" data-workspace-close></div>
+        <section class="wc-dialog__panel wc-dialog__panel--wide" role="dialog" aria-modal="true" aria-labelledby="workspaceDialogTitle" tabindex="-1">
+            <div class="wc-dialog__accent" aria-hidden="true"></div>
+            <header class="wc-dialog__header">
+                <div class="wc-dialog__icon" aria-hidden="true"><i class="bi bi-folder2-open"></i></div>
+                <div>
+                    <span class="wc-dialog__eyebrow">Workspace</span>
+                    <h5 id="workspaceDialogTitle">Pilih folder workspace</h5>
+                </div>
+                <button type="button" class="wc-dialog__close" data-workspace-close aria-label="Close workspace dialog" data-wc-tooltip="Close">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </header>
+            <div class="wc-dialog__form">
+                <div class="workspace-browser">
+                    <div class="workspace-browser__path-bar">
+                        <button type="button" class="workspace-browser__up" id="workspaceUpBtn" aria-label="Go to parent directory" data-wc-tooltip="Up">
+                            <i class="bi bi-arrow-up-short" aria-hidden="true"></i>
+                        </button>
+                        <span class="workspace-browser__cwd" id="workspaceCwd">/</span>
+                    </div>
+                    <div class="workspace-browser__list" id="workspaceDirList" role="listbox" aria-label="Directories"></div>
+                    <p class="wc-dialog__help" id="workspaceDialogHelp">Pilih folder untuk mengatur working directory. Path absolut digunakan tanpa restriction.</p>
+                    <p class="wc-dialog__error" id="workspaceDialogError" role="alert" hidden></p>
+                </div>
+                <div class="wc-dialog__actions">
+                    <button type="button" class="wc-dialog__button wc-dialog__button--ghost" id="workspaceClearBtn">
+                        <span>Clear (use default)</span>
+                    </button>
+                    <button type="button" class="wc-dialog__button wc-dialog__button--ghost" data-workspace-close>Cancel</button>
+                    <button type="button" class="wc-dialog__button wc-dialog__button--primary" id="workspaceSelectBtn">
+                        <span>Select folder</span>
+                        <i class="bi bi-check2" aria-hidden="true"></i>
+                    </button>
+                </div>
             </div>
         </section>
     </div>
@@ -340,6 +422,6 @@
     </script>
     <script src="./vendor/marked/marked.umd.js"></script>
     <script src="./vendor/dompurify/purify.min.js"></script>
-    <script type="module" src="./js/app.js?v=20260725-sse1"></script>
+    <script type="module" src="./js/app.js?v=20260725-ws1"></script>
 </body>
 </html>

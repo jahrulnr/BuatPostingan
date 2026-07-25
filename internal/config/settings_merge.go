@@ -68,11 +68,16 @@ func ApplySettingsFile(base Config, doc entity.SettingsFile) Config {
 			continue
 		}
 		var ids []string
+		seen := make(map[string]struct{}, len(sp.Models))
 		for _, m := range sp.Models {
 			mid := strings.TrimSpace(m.ID)
 			if mid == "" {
 				continue
 			}
+			if _, ok := seen[mid]; ok {
+				continue
+			}
+			seen[mid] = struct{}{}
 			ids = append(ids, mid)
 		}
 		lists[id] = ids

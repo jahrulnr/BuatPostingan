@@ -158,7 +158,7 @@
     width: 100%;
     text-align: left;
     border-radius: 0.4rem;
-    padding: 0.5rem 0.55rem;
+    padding: 0.5rem 1.5rem 0.5rem 0.55rem;
     background: transparent;
     color: inherit;
     cursor: pointer;
@@ -258,6 +258,20 @@
     border-radius: 0.3rem;
     cursor: pointer;
     line-height: 1;
+    position: absolute;
+    top: 0.4rem;
+    right: 0.4rem;
+    opacity: 0;
+    transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.wc-conv-item {
+    position: relative;
+}
+
+.wc-conv-item:hover .wc-conv__del,
+.wc-conv__del:focus-visible {
+    opacity: 1;
 }
 
 .wc-conv__del:hover {
@@ -642,6 +656,15 @@
 }
 
 .wc-dialog__button--primary:hover { filter: brightness(1.06); }
+
+.wc-dialog__button--danger {
+    min-width: 7.3rem;
+    border: 0;
+    background: var(--bp-fail);
+    color: #fff;
+}
+.wc-dialog__button--danger:hover { filter: brightness(1.08); }
+
 .wc-dialog__button:active { transform: scale(0.97); }
 .wc-dialog__button:disabled { opacity: 0.65; cursor: wait; }
 
@@ -777,4 +800,115 @@ body.page-webchat .webchat-messages {
 @media (max-width: 480px) {
     .wc-dialog { align-items: end; padding: 0.65rem; }
     .wc-dialog__actions { display: grid; grid-template-columns: 1fr 1.25fr; }
+}
+
+/* Workspace browser dialog */
+.wc-dialog__panel--wide {
+    max-width: min(34rem, 92vw);
+}
+
+.workspace-browser {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.workspace-browser__path-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--bp-border);
+    border-radius: 0.5rem;
+    background: var(--bp-surface);
+}
+
+.workspace-browser__up {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    border: 1px solid var(--bp-border);
+    border-radius: 0.4rem;
+    background: var(--bp-surface-2);
+    color: var(--bp-muted);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.workspace-browser__up:hover {
+    border-color: var(--bp-border-strong);
+    color: var(--bp-ink);
+}
+
+.workspace-browser__up:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.workspace-browser__cwd {
+    flex: 1 1 auto;
+    font-family: var(--wm-mono, monospace);
+    font-size: 0.75rem;
+    color: var(--bp-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.workspace-browser__list {
+    max-height: min(18rem, 40vh);
+    overflow: auto;
+    border: 1px solid var(--bp-border);
+    border-radius: 0.5rem;
+    background: var(--bp-surface);
+    padding: 0.25rem;
+}
+
+.workspace-browser__list:empty::after {
+    content: "No subdirectories";
+    display: block;
+    padding: 0.75rem;
+    text-align: center;
+    color: var(--bp-muted);
+    font-size: 0.78rem;
+}
+
+.workspace-browser__item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.5rem;
+    border: 0;
+    border-radius: 0.35rem;
+    background: transparent;
+    color: var(--bp-ink);
+    font-family: var(--wm-font);
+    font-size: 0.8rem;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    transition: background 0.12s;
+}
+
+.workspace-browser__item:hover {
+    background: var(--bp-surface-2);
+}
+
+.workspace-browser__item--selected {
+    background: color-mix(in oklab, var(--bp-accent) 12%, var(--bp-surface));
+    font-weight: 600;
+}
+
+.workspace-browser__item i {
+    color: var(--bp-accent);
+    flex: 0 0 auto;
+}
+
+.workspace-browser__item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }

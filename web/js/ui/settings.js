@@ -441,6 +441,7 @@ export function bootSettings() {
                 try {
                     const out = await importLLMModels(api, p.id);
                     toast(out.message || 'Import complete');
+                    document.dispatchEvent(new CustomEvent('bp:models-changed'));
                     renderSettings();
                 } catch (err) {
                     toast(errMsg(err));
@@ -456,6 +457,7 @@ export function bootSettings() {
                 try {
                     await addLLMModel(api, p.id, { id: id, label: label });
                     toast('Model added');
+                    document.dispatchEvent(new CustomEvent('bp:models-changed'));
                     renderSettings();
                 } catch (err) {
                     toast(errMsg(err));
@@ -468,6 +470,7 @@ export function bootSettings() {
                 try {
                     await removeLLMModel(api, p.id, mid);
                     toast('Model removed');
+                    document.dispatchEvent(new CustomEvent('bp:models-changed'));
                     renderSettings();
                 } catch (err) {
                     toast(errMsg(err));

@@ -80,6 +80,17 @@ export function renameThreadImpl(api, req) {
 }
 
 /** @param {import('../types.js').ApiContext} api */
+export function deleteThreadImpl(api, req) {
+    return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId), {
+        method: 'DELETE',
+        headers: acceptHeaders(api),
+    }).then(function (res) {
+        if (!res.ok) return parseJson(res);
+        return null;
+    });
+}
+
+/** @param {import('../types.js').ApiContext} api */
 export function startTurnImpl(api, req) {
     const body = {
         message: req.message,
@@ -87,6 +98,7 @@ export function startTurnImpl(api, req) {
     };
     if (req.model) body.model = req.model;
     if (req.effort) body.effort = req.effort;
+    if (req.workspace) body.workspace = req.workspace;
     return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/turns', {
         method: 'POST',
         headers: jsonHeaders(api),
@@ -121,10 +133,14 @@ export function listAttachmentsImpl(api, req) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function retryTurnImpl(api, req) {
+    const body = { turn_id: req.turnId };
+    if (req.model) body.model = req.model;
+    if (req.effort) body.effort = req.effort;
+    if (req.workspace) body.workspace = req.workspace;
     return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/retry', {
         method: 'POST',
         headers: jsonHeaders(api),
-        body: JSON.stringify({ turn_id: req.turnId }),
+        body: JSON.stringify(body),
     }).then(parseJson);
 }
 
@@ -304,5 +320,16 @@ export function importLLMModelsImpl(api, id) {
         method: 'POST',
         headers: jsonHeaders(api),
         body: '{}',
+    }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function browseDirImpl(api, req) {
+    const body = {};
+    if (req && req.path) body.path = req.path;
+    return fetch(api.baseUrl + '/browse', {
+        method: 'POST',
+        headers: jsonHeaders(api),
+        body: JSON.stringify(body),
     }).then(parseJson);
 }

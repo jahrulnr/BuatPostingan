@@ -16,8 +16,9 @@ type Usecase interface {
 	CreateThread(ctx context.Context, adminUserID int64) (CreateThreadResult, error)
 	GetThread(ctx context.Context, threadID valueobject.ThreadID, afterSeq uint64) (entity.ThreadSnapshot, error)
 	RenameThread(ctx context.Context, threadID valueobject.ThreadID, title valueobject.Title) (RenameResult, error)
+	DeleteThread(ctx context.Context, threadID valueobject.ThreadID) error
 	StartTurn(ctx context.Context, in StartTurnInput) (StartTurnResult, error)
-	RetryTurn(ctx context.Context, threadID valueobject.ThreadID, turnID valueobject.TurnID, adminUserID int64) (StartTurnResult, error)
+	RetryTurn(ctx context.Context, in RetryTurnInput) (StartTurnResult, error)
 	InterruptTurn(ctx context.Context, threadID valueobject.ThreadID, turnID valueobject.TurnID, adminUserID int64) error
 	UploadAttachment(ctx context.Context, in UploadAttachmentInput) (entity.AttachmentMeta, error)
 	ListAttachments(ctx context.Context, threadID valueobject.ThreadID) ([]entity.AttachmentMeta, error)
@@ -63,14 +64,30 @@ type StartTurnInput struct {
 	Model string
 	// Effort is an optional per-turn reasoning effort override (auto|none|…|max).
 	Effort string
+	// Workspace optionally overrides the working directory for this turn.
+	// Empty = use config default (process cwd / FSRoot).
+	Workspace string
+}
+
+type RetryTurnInput struct {
+	ThreadID    valueobject.ThreadID
+	TurnID      valueobject.TurnID
+	AdminUserID int64
+	// Model is an optional picker override (model id or provider id); validated against allowlist.
+	Model string
+	// Effort is an optional per-turn reasoning effort override (auto|none|…|max).
+	Effort string
+	// Workspace optionally overrides the working directory for this turn.
+	// Empty = use config default (process cwd / FSRoot).
+	Workspace string
 }
 
 type UploadAttachmentInput struct {
-	ThreadID     valueobject.ThreadID
-	Filename     string
-	Mime         string
-	Data         []byte
-	AdminUserID  int64
+	ThreadID    valueobject.ThreadID
+	Filename    string
+	Mime        string
+	Data        []byte
+	AdminUserID int64
 }
 
 type StartTurnResult struct {

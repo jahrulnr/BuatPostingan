@@ -73,6 +73,9 @@ func (c *Client) ChatWithProvider(ctx context.Context, providerID string, messag
 	if strings.TrimSpace(p.APIKey) == "" {
 		return service.LLMResult{}, &Error{Provider: providerID, Msg: "API key missing", Transient: false}
 	}
+	if override, ok := ModelOverrideFromContext(ctx); ok {
+		p.Model = override
+	}
 	if p.API == "responses" {
 		return c.chatViaResponses(ctx, p, messages, tools)
 	}
@@ -253,6 +256,13 @@ func (c *Client) postJSONStream(ctx context.Context, p config.LLMProvider, path 
 		return nil, &Error{Provider: p.ID, Msg: "marshal body", Cause: err}
 	}
 	base := strings.TrimRight(p.BaseURL, "/") + "/"
+	modelID, _ := body["model"].(string)
+	logging.Info(ctx, "webchat.llm.request",
+		"provider", p.ID,
+		"url", base+path,
+		"model", modelID,
+		"stream", stream,
+	)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+path, bytes.NewReader(raw))
 	if err != nil {
 		return nil, &Error{Provider: p.ID, Msg: "build request", Cause: err, Transient: true}

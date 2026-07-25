@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -18,7 +19,7 @@ func TestReadFileHappyAndPagination(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := fs.readFile(map[string]any{"path": "doc.md", "max_chars": 50, "offset": 0})
+	out, err := fs.readFile(context.Background(), map[string]any{"path": "doc.md", "max_chars": 50, "offset": 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +39,7 @@ func TestReadFileHappyAndPagination(t *testing.T) {
 		t.Fatalf("next_offset=%v", data["next_offset"])
 	}
 
-	page2, err := fs.readFile(map[string]any{"path": "doc.md", "max_chars": 10000, "offset": next})
+	page2, err := fs.readFile(context.Background(), map[string]any{"path": "doc.md", "max_chars": 10000, "offset": next})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +66,7 @@ func TestReadFileEdges(t *testing.T) {
 	}
 
 	// missing → not_file fail envelope
-	out, err := fs.readFile(map[string]any{"path": "nope.md"})
+	out, err := fs.readFile(context.Background(), map[string]any{"path": "nope.md"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +78,7 @@ func TestReadFileEdges(t *testing.T) {
 	}
 
 	// directory → not_file
-	out, err = fs.readFile(map[string]any{"path": "subdir"})
+	out, err = fs.readFile(context.Background(), map[string]any{"path": "subdir"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +87,7 @@ func TestReadFileEdges(t *testing.T) {
 	}
 
 	// non-markdown allowed
-	out, err = fs.readFile(map[string]any{"path": "note.txt"})
+	out, err = fs.readFile(context.Background(), map[string]any{"path": "note.txt"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,13 +96,13 @@ func TestReadFileEdges(t *testing.T) {
 	}
 
 	// null byte rejected
-	_, err = fs.readFile(map[string]any{"path": "ok\x00.md"})
+	_, err = fs.readFile(context.Background(), map[string]any{"path": "ok\x00.md"})
 	if err == nil {
 		t.Fatal("null byte should error")
 	}
 
 	// offset past EOF clamps
-	out, err = fs.readFile(map[string]any{"path": "ok.md", "offset": 99999})
+	out, err = fs.readFile(context.Background(), map[string]any{"path": "ok.md", "offset": 99999})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +126,7 @@ func TestAbsoluteAndDotDotPathsAllowed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := fs.readFile(map[string]any{"path": filepath.Join(root, "top.txt")})
+	out, err := fs.readFile(context.Background(), map[string]any{"path": filepath.Join(root, "top.txt")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +142,7 @@ func TestAbsoluteAndDotDotPathsAllowed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err = fs2.readFile(map[string]any{"path": "../top.txt"})
+	out, err = fs2.readFile(context.Background(), map[string]any{"path": "../top.txt"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +154,7 @@ func TestAbsoluteAndDotDotPathsAllowed(t *testing.T) {
 	}
 
 	// list_dir via absolute path
-	listed, err := fs.listDir(map[string]any{"path": root, "max_entries": 50})
+	listed, err := fs.listDir(context.Background(), map[string]any{"path": root, "max_entries": 50})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +177,7 @@ func TestListDirPaginationAndNotDir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := fs.listDir(map[string]any{"path": "", "max_entries": 2, "offset": 0})
+	out, err := fs.listDir(context.Background(), map[string]any{"path": "", "max_entries": 2, "offset": 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +188,7 @@ func TestListDirPaginationAndNotDir(t *testing.T) {
 	}
 	next := data["next_offset"].(int)
 
-	out2, err := fs.listDir(map[string]any{"path": ".", "max_entries": 100, "offset": next})
+	out2, err := fs.listDir(context.Background(), map[string]any{"path": ".", "max_entries": 100, "offset": next})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +197,7 @@ func TestListDirPaginationAndNotDir(t *testing.T) {
 		t.Fatalf("%+v", d2)
 	}
 
-	bad, err := fs.listDir(map[string]any{"path": "solo.md"})
+	bad, err := fs.listDir(context.Background(), map[string]any{"path": "solo.md"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +208,7 @@ func TestListDirPaginationAndNotDir(t *testing.T) {
 		t.Fatalf("%+v", bad["error"])
 	}
 
-	far, err := fs.listDir(map[string]any{"path": "", "offset": 9999, "max_entries": 1})
+	far, err := fs.listDir(context.Background(), map[string]any{"path": "", "offset": 9999, "max_entries": 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +242,7 @@ func TestSymlinkFollowed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := fs.readFile(map[string]any{"path": "escape.md"})
+	out, err := fs.readFile(context.Background(), map[string]any{"path": "escape.md"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -365,7 +366,7 @@ func TestGrepQueryValidationAndTruncate(t *testing.T) {
 	findRipgrep = func(string) (string, error) { return "", os.ErrNotExist }
 	t.Cleanup(func() { findRipgrep = prev })
 
-	empty, err := fs.grep(map[string]any{"query": "  ", "path": ""})
+	empty, err := fs.grep(context.Background(), map[string]any{"query": "  ", "path": ""})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,7 +374,7 @@ func TestGrepQueryValidationAndTruncate(t *testing.T) {
 		t.Fatalf("%+v", empty)
 	}
 	tooLong := strings.Repeat("q", 201)
-	long, err := fs.grep(map[string]any{"query": tooLong, "path": ""})
+	long, err := fs.grep(context.Background(), map[string]any{"query": tooLong, "path": ""})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -381,7 +382,7 @@ func TestGrepQueryValidationAndTruncate(t *testing.T) {
 		t.Fatalf("%+v", long)
 	}
 
-	hit, err := fs.grep(map[string]any{"query": "needle", "path": "big.md", "max_results": 1, "case_sensitive": true})
+	hit, err := fs.grep(context.Background(), map[string]any{"query": "needle", "path": "big.md", "max_results": 1, "case_sensitive": true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,7 +398,7 @@ func TestGrepQueryValidationAndTruncate(t *testing.T) {
 
 	mustWrite(t, filepath.Join(root, "a.md"), "zzz\n")
 	mustWrite(t, filepath.Join(root, "b.md"), "zzz\n")
-	trunc, err := fs.grep(map[string]any{"query": "zzz", "path": "", "max_results": 1})
+	trunc, err := fs.grep(context.Background(), map[string]any{"query": "zzz", "path": "", "max_results": 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -421,7 +422,7 @@ func TestParseRipgrepJSONKeepsPathsAndTruncates(t *testing.T) {
 		`{"type":"match","data":{"path":{"text":"` + inside + `"},"lines":{"text":"` + strings.Repeat("Z", 600) + `\n"},"line_number":2}}`,
 		`{"type":"match","data":{"path":{"text":"` + inside + `"},"lines":{"text":"second\n"},"line_number":3}}`,
 	}, "\n")
-	matches, truncated := parseRipgrepJSON(fs, []byte(raw), 2)
+	matches, truncated := parseRipgrepJSON(fs, context.Background(), []byte(raw), 2)
 	if !truncated || len(matches) != 2 {
 		t.Fatalf("matches=%#v truncated=%v", matches, truncated)
 	}
@@ -446,7 +447,7 @@ func TestGrepRipgrepInvalidPatternAndNoMatch(t *testing.T) {
 	findRipgrep = func(string) (string, error) { return rg, nil }
 	t.Cleanup(func() { findRipgrep = prev })
 
-	bad, err := fs.grep(map[string]any{"query": "(", "path": ""})
+	bad, err := fs.grep(context.Background(), map[string]any{"query": "(", "path": ""})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -454,7 +455,7 @@ func TestGrepRipgrepInvalidPatternAndNoMatch(t *testing.T) {
 		t.Fatalf("want validation fail: %+v", bad)
 	}
 
-	empty, err := fs.grep(map[string]any{"query": "no_such_token_xyz", "path": ""})
+	empty, err := fs.grep(context.Background(), map[string]any{"query": "no_such_token_xyz", "path": ""})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -468,7 +469,7 @@ func TestGrepRipgrepInvalidPatternAndNoMatch(t *testing.T) {
 
 func TestDisplayPathFallback(t *testing.T) {
 	fs := &workspaceFS{base: t.TempDir()}
-	got := fs.displayPath("/totally/unrelated/path.md")
+	got := fs.displayPath(context.Background(), "/totally/unrelated/path.md")
 	if got == "" {
 		t.Fatal("empty")
 	}
@@ -480,7 +481,7 @@ func TestWriteFileStripsEmbeddedToolParameters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := fs.writeFile(map[string]any{
+	out, err := fs.writeFile(context.Background(), map[string]any{
 		"path":    "profile.html",
 		"content": "<body>Hi</body><parameter=append>False</parameter>",
 	})

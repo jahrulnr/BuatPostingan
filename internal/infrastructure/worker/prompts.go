@@ -14,6 +14,7 @@ type promptVars struct {
 	AdminUserID          int64
 	AvailableTools       string
 	IndexedDocumentCount int
+	Workspace            string
 }
 
 func injectPrompts(promptsRoot string, messages []map[string]any, vars promptVars) ([]map[string]any, error) {
@@ -31,6 +32,9 @@ func injectPrompts(promptsRoot string, messages []map[string]any, vars promptVar
 	cwd, _ := os.Getwd()
 	if cwd == "" {
 		cwd = "."
+	}
+	if strings.TrimSpace(vars.Workspace) != "" {
+		cwd = strings.TrimSpace(vars.Workspace)
 	}
 	home, _ := os.UserHomeDir()
 	if home == "" {

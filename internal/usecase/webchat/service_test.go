@@ -368,7 +368,7 @@ func TestRetryTurn_NotRetryableInterrupted(t *testing.T) {
 			{Type: enum.ItemTurnFailed, TurnID: trn, Payload: map[string]any{"error": map[string]any{"code": "interrupted"}}},
 		},
 	}
-	_, err := d.service().RetryTurn(context.Background(), tid, trn, 1)
+	_, err := d.service().RetryTurn(context.Background(), webchat.RetryTurnInput{ThreadID: tid, TurnID: trn, AdminUserID: 1})
 	ae, ok := apperr.As(err)
 	if !ok || ae.Code != apperr.CodeNotRetryable {
 		t.Fatalf("got %v", err)
@@ -388,7 +388,7 @@ func TestRetryTurn_CompletedNotRetryable(t *testing.T) {
 			{Type: enum.ItemTurnCompleted, TurnID: trn},
 		},
 	}
-	_, err := d.service().RetryTurn(context.Background(), tid, trn, 1)
+	_, err := d.service().RetryTurn(context.Background(), webchat.RetryTurnInput{ThreadID: tid, TurnID: trn, AdminUserID: 1})
 	ae, ok := apperr.As(err)
 	if !ok || ae.Code != apperr.CodeNotRetryable {
 		t.Fatalf("got %v", err)
@@ -401,7 +401,7 @@ func TestRetryTurn_UserMessageMissing(t *testing.T) {
 	tid, _ := valueobject.NewThreadID("thr_1")
 	trn, _ := valueobject.NewTurnID("trn_1")
 	d.threads.threads[tid.String()] = &entity.ThreadSnapshot{ThreadID: tid, Items: nil}
-	_, err := d.service().RetryTurn(context.Background(), tid, trn, 1)
+	_, err := d.service().RetryTurn(context.Background(), webchat.RetryTurnInput{ThreadID: tid, TurnID: trn, AdminUserID: 1})
 	ae, ok := apperr.As(err)
 	if !ok || ae.Code != apperr.CodeNotFound {
 		t.Fatalf("got %v", err)
@@ -420,7 +420,7 @@ func TestRetryTurn_NotInitiator(t *testing.T) {
 			{Type: enum.ItemTurnFailed, TurnID: trn, Payload: map[string]any{"error": map[string]any{"code": "llm_error"}}},
 		},
 	}
-	_, err := d.service().RetryTurn(context.Background(), tid, trn, 1)
+	_, err := d.service().RetryTurn(context.Background(), webchat.RetryTurnInput{ThreadID: tid, TurnID: trn, AdminUserID: 1})
 	ae, ok := apperr.As(err)
 	if !ok || ae.Code != apperr.CodeNotInitiator {
 		t.Fatalf("got %v", err)
@@ -442,7 +442,11 @@ func TestRetryTurn_Happy(t *testing.T) {
 			{Type: enum.ItemTurnFailed, TurnID: trn, Payload: map[string]any{"error": map[string]any{"code": "llm_error"}}},
 		},
 	}
-	out, err := d.service().RetryTurn(context.Background(), tid, trn, 1)
+	out, err := d.service().RetryTurn(context.Background(), webchat.RetryTurnInput{
+		ThreadID:    tid,
+		TurnID:      trn,
+		AdminUserID: 1,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -467,7 +471,7 @@ func TestRetryTurn_FloorAcquireFail(t *testing.T) {
 			{Type: enum.ItemTurnFailed, TurnID: trn, Payload: map[string]any{"error": map[string]any{"code": "x"}}},
 		},
 	}
-	_, err := d.service().RetryTurn(context.Background(), tid, trn, 1)
+	_, err := d.service().RetryTurn(context.Background(), webchat.RetryTurnInput{ThreadID: tid, TurnID: trn, AdminUserID: 1})
 	if err == nil || err.Error() != "no floor" {
 		t.Fatalf("got %v", err)
 	}
@@ -489,7 +493,7 @@ func TestRetryTurn_EnqueueFail(t *testing.T) {
 			{Type: enum.ItemTurnFailed, TurnID: trn, Payload: map[string]any{"error": map[string]any{"code": "x"}}},
 		},
 	}
-	_, err := d.service().RetryTurn(context.Background(), tid, trn, 1)
+	_, err := d.service().RetryTurn(context.Background(), webchat.RetryTurnInput{ThreadID: tid, TurnID: trn, AdminUserID: 1})
 	if err == nil || err.Error() != "enqueue" {
 		t.Fatalf("got %v", err)
 	}
@@ -505,9 +509,9 @@ func TestInterruptTurn_HappyAndActiveFallback(t *testing.T) {
 	trn, _ := valueobject.NewTurnID("trn_active")
 	admin := int64(5)
 	d.threads.threads[tid.String()] = &entity.ThreadSnapshot{
-		ThreadID:                    tid,
-		ActiveTurnID:                &trn,
-		ActiveTurnInitiatorAdminID:  &admin,
+		ThreadID:                   tid,
+		ActiveTurnID:               &trn,
+		ActiveTurnInitiatorAdminID: &admin,
 	}
 	var blank valueobject.TurnID
 	if err := d.service().InterruptTurn(context.Background(), tid, blank, 5); err != nil {
@@ -669,7 +673,7 @@ func TestRetryTurn_DocsBusyFloorRate(t *testing.T) {
 	d.threads.threads[tid.String()] = &entity.ThreadSnapshot{ThreadID: tid, Items: items}
 
 	d.docs.usable = false
-	_, err := d.service().RetryTurn(context.Background(), tid, trn, 1)
+	_, err := d.service().RetryTurn(context.Background(), webchat.RetryTurnInput{ThreadID: tid, TurnID: trn, AdminUserID: 1})
 	if ae, ok := apperr.As(err); !ok || ae.Code != apperr.CodeDocsIndexNotReady {
 		t.Fatalf("docs: %v", err)
 	}
@@ -677,21 +681,21 @@ func TestRetryTurn_DocsBusyFloorRate(t *testing.T) {
 
 	d.rate.err = apperr.RateLimited(0)
 	d.rate.retryAfter = 0 // no remap
-	_, err = d.service().RetryTurn(context.Background(), tid, trn, 1)
+	_, err = d.service().RetryTurn(context.Background(), webchat.RetryTurnInput{ThreadID: tid, TurnID: trn, AdminUserID: 1})
 	if ae, ok := apperr.As(err); !ok || ae.Code != apperr.CodeRateLimited {
 		t.Fatalf("rate: %v", err)
 	}
 	d.rate.err = nil
 
 	d.floor.assertErr = apperr.FloorLocked(1, 2)
-	_, err = d.service().RetryTurn(context.Background(), tid, trn, 1)
+	_, err = d.service().RetryTurn(context.Background(), webchat.RetryTurnInput{ThreadID: tid, TurnID: trn, AdminUserID: 1})
 	if ae, ok := apperr.As(err); !ok || ae.Code != apperr.CodeFloorLocked {
 		t.Fatalf("floor: %v", err)
 	}
 	d.floor.assertErr = nil
 
 	d.locks.busy = true
-	_, err = d.service().RetryTurn(context.Background(), tid, trn, 1)
+	_, err = d.service().RetryTurn(context.Background(), webchat.RetryTurnInput{ThreadID: tid, TurnID: trn, AdminUserID: 1})
 	if ae, ok := apperr.As(err); !ok || ae.Code != apperr.CodeThreadBusy {
 		t.Fatalf("busy: %v", err)
 	}
@@ -714,7 +718,7 @@ func TestRetryTurn_ThreadMissing(t *testing.T) {
 	d := newMemDeps()
 	tid, _ := valueobject.NewThreadID("thr_x")
 	trn, _ := valueobject.NewTurnID("trn_1")
-	_, err := d.service().RetryTurn(context.Background(), tid, trn, 1)
+	_, err := d.service().RetryTurn(context.Background(), webchat.RetryTurnInput{ThreadID: tid, TurnID: trn, AdminUserID: 1})
 	ae, ok := apperr.As(err)
 	if !ok || ae.Code != apperr.CodeNotFound {
 		t.Fatalf("got %v", err)

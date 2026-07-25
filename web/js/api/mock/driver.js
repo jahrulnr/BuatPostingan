@@ -51,6 +51,14 @@ export function renameThreadMock(api, req) {
     }
 }
 
+export function deleteThreadMock(api, req) {
+    try {
+        return Promise.resolve(store.deleteThread(req.threadId));
+    } catch (err) {
+        return Promise.reject(err);
+    }
+}
+
 /** @param {import('../types.js').ApiContext} api */
 export function startTurnMock(api, req) {
     try {
@@ -142,7 +150,7 @@ export function listAttachmentsMock(api, req) {
 /** @param {import('../types.js').ApiContext} api */
 export function retryTurnMock(api, req) {
     try {
-        return Promise.resolve(store.retryTurn(req.threadId, req.turnId, adminId(api)));
+        return Promise.resolve(store.retryTurn(req.threadId, req.turnId, adminId(api), req.model, req.effort));
     } catch (err) {
         return Promise.reject(err);
     }
@@ -231,4 +239,16 @@ export function removeLLMModelMock(_api, id, modelId) {
 }
 export function importLLMModelsMock(_api, id) {
     return wrapSettings(function () { return settingsStore.importModels(id); });
+}
+
+export function browseDirMock(_api, req) {
+    var path = (req && req.path) || '/';
+    return Promise.resolve({
+        path: path,
+        parent: path !== '/' ? path.replace(/\/[^/]+\/?$/, '') || '/' : '',
+        entries: [
+            { name: 'mock-folder', path: path.replace(/\/+$/, '') + '/mock-folder' },
+            { name: 'project', path: path.replace(/\/+$/, '') + '/project' },
+        ],
+    });
 }

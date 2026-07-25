@@ -3,7 +3,10 @@ package httpdelivery
 import (
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"buatpostingan/delivery/presenter"
@@ -28,12 +31,14 @@ func (h *WebchatHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/webchat/threads", h.CreateThread)
 	mux.HandleFunc("GET /api/webchat/threads/{threadID}", h.GetThread)
 	mux.HandleFunc("PATCH /api/webchat/threads/{threadID}", h.RenameThread)
+	mux.HandleFunc("DELETE /api/webchat/threads/{threadID}", h.DeleteThread)
 	mux.HandleFunc("POST /api/webchat/threads/{threadID}/turns", h.StartTurn)
 	mux.HandleFunc("POST /api/webchat/threads/{threadID}/attachments", h.UploadAttachment)
 	mux.HandleFunc("GET /api/webchat/threads/{threadID}/attachments", h.ListAttachments)
 	mux.HandleFunc("POST /api/webchat/threads/{threadID}/retry", h.RetryTurn)
 	mux.HandleFunc("POST /api/webchat/threads/{threadID}/interrupt", h.InterruptTurn)
 	mux.HandleFunc("GET /api/webchat/threads/{threadID}/events", h.Events)
+	mux.HandleFunc("POST /api/webchat/browse", h.BrowseDir)
 }
 
 func (h *WebchatHandler) ListConversations(w http.ResponseWriter, r *http.Request) {
@@ -104,6 +109,19 @@ func (h *WebchatHandler) RenameThread(w http.ResponseWriter, r *http.Request) {
 	presenter.WriteJSON(w, http.StatusOK, presenter.RenameThread(out))
 }
 
+func (h *WebchatHandler) DeleteThread(w http.ResponseWriter, r *http.Request) {
+	tid, err := parseThreadID(r.PathValue("threadID"))
+	if err != nil {
+		writeErr(w, r, "webchat", err)
+		return
+	}
+	if err := h.UC.DeleteThread(r.Context(), tid); err != nil {
+		writeErr(w, r, "webchat", err)
+		return
+	}
+	presenter.WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
 func (h *WebchatHandler) StartTurn(w http.ResponseWriter, r *http.Request) {
 	tid, err := parseThreadID(r.PathValue("threadID"))
 	if err != nil {
@@ -115,6 +133,7 @@ func (h *WebchatHandler) StartTurn(w http.ResponseWriter, r *http.Request) {
 		AttachmentIDs []string `json:"attachment_ids"`
 		Model         string   `json:"model"`
 		Effort        string   `json:"effort"`
+		Workspace     string   `json:"workspace"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, r, "webchat", err)
@@ -132,6 +151,7 @@ func (h *WebchatHandler) StartTurn(w http.ResponseWriter, r *http.Request) {
 		AttachmentIDs: body.AttachmentIDs,
 		Model:         body.Model,
 		Effort:        body.Effort,
+		Workspace:     body.Workspace,
 	})
 	if err != nil {
 		writeErr(w, r, "webchat", err)
@@ -202,7 +222,10 @@ func (h *WebchatHandler) RetryTurn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		TurnID string `json:"turn_id"`
+		TurnID    string `json:"turn_id"`
+		Model     string `json:"model"`
+		Effort    string `json:"effort"`
+		Workspace string `json:"workspace"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, r, "webchat", err)
@@ -213,7 +236,14 @@ func (h *WebchatHandler) RetryTurn(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, "webchat", err)
 		return
 	}
-	out, err := h.UC.RetryTurn(r.Context(), tid, turnID, adminUserID(r))
+	out, err := h.UC.RetryTurn(r.Context(), webchat.RetryTurnInput{
+		ThreadID:    tid,
+		TurnID:      turnID,
+		AdminUserID: adminUserID(r),
+		Model:       body.Model,
+		Effort:      body.Effort,
+		Workspace:   body.Workspace,
+	})
 	if err != nil {
 		writeErr(w, r, "webchat", err)
 		return
@@ -334,4 +364,56 @@ func parseTurnID(raw string) (valueobject.TurnID, error) {
 		return "", apperr.New(http.StatusUnprocessableEntity, apperr.CodeValidation, "turn_id required")
 	}
 	return id, nil
+}
+
+// BrowseDir lists directories at the given path for the workspace picker UI.
+// No restriction — any accessible path is listed (including root "/").
+func (h *WebchatHandler) BrowseDir(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Path string `json:"path"`
+	}
+	_ = decodeJSON(r, &body)
+	dir := strings.TrimSpace(body.Path)
+	if dir == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			cwd = "/"
+		}
+		dir = cwd
+	}
+	if _, err := os.Stat(dir); err != nil {
+		writeErr(w, r, "webchat.browse", apperr.New(http.StatusBadRequest, apperr.CodeValidation, "path not accessible"))
+		return
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		writeErr(w, r, "webchat.browse", apperr.New(http.StatusBadRequest, apperr.CodeValidation, "cannot read directory"))
+		return
+	}
+	type dirEntry struct {
+		Name string `json:"name"`
+		Path string `json:"path"`
+	}
+	var dirs []dirEntry
+	abs, _ := filepath.Abs(dir)
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		full := filepath.Join(abs, e.Name())
+		dirs = append(dirs, dirEntry{Name: e.Name(), Path: full})
+	}
+	presenter.WriteJSON(w, http.StatusOK, map[string]any{
+		"path":    abs,
+		"parent":  parentDir(abs),
+		"entries": dirs,
+	})
+}
+
+func parentDir(abs string) string {
+	p := filepath.Dir(abs)
+	if p == abs {
+		return ""
+	}
+	return p
 }

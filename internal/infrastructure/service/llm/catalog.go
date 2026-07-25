@@ -84,6 +84,8 @@ func (c *Catalog) ListModels(ctx context.Context) (entity.ModelsCatalog, error) 
 	}
 	sort.Strings(ids)
 
+	seenModels := make(map[string]struct{}, len(providers))
+	seenLabels := make(map[string]struct{}, len(providers))
 	for _, id := range ids {
 		p := providers[id]
 		modelIDs := modelLists[id]
@@ -95,6 +97,19 @@ func (c *Catalog) ListModels(ctx context.Context) (entity.ModelsCatalog, error) 
 			modelIDs = []string{modelID}
 		}
 		for _, modelID := range modelIDs {
+			modelID = strings.TrimSpace(modelID)
+			if modelID == "" {
+				continue
+			}
+			if _, dup := seenModels[modelID]; dup {
+				continue
+			}
+			label := modelLabel(modelID, id)
+			if _, dup := seenLabels[label]; dup {
+				continue
+			}
+			seenModels[modelID] = struct{}{}
+			seenLabels[label] = struct{}{}
 			opt := entity.ModelOption{
 				ID:             modelID,
 				Label:          modelLabel(modelID, id),
@@ -219,14 +234,7 @@ func modelLabel(modelID, providerID string) string {
 	if modelID == "" || modelID == providerID {
 		return providerID
 	}
-	return fmt.Sprintf("%s · %s", shortModel(modelID), providerID)
-}
-
-func shortModel(modelID string) string {
-	if i := strings.LastIndex(modelID, "/"); i >= 0 && i+1 < len(modelID) {
-		return modelID[i+1:]
-	}
-	return modelID
+	return fmt.Sprintf("%s · %s", modelID, providerID)
 }
 
 func defaultModelID(active string, providers map[string]config.LLMProvider, models []entity.ModelOption) string {

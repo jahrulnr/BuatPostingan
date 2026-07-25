@@ -20,7 +20,7 @@ const grepTimeout = 10 * time.Second
 // findRipgrep locates the rg binary. Overridable in tests to force the Go fallback.
 var findRipgrep = exec.LookPath
 
-func (fs *workspaceFS) grep(args map[string]any) (map[string]any, error) {
+func (fs *workspaceFS) grep(ctx context.Context, args map[string]any) (map[string]any, error) {
 	query := strings.TrimSpace(asString(args["query"]))
 	if query == "" {
 		return failMap("validation", "query required"), nil
@@ -28,7 +28,7 @@ func (fs *workspaceFS) grep(args map[string]any) (map[string]any, error) {
 	if utf8.RuneCountInString(query) > 200 {
 		return failMap("validation", "query too long"), nil
 	}
-	target, err := fs.resolvePath(asString(args["path"]))
+	target, err := fs.resolvePath(ctx, asString(args["path"]))
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func (fs *workspaceFS) grep(args map[string]any) (map[string]any, error) {
 	}
 
 	if rgPath, err := findRipgrep("rg"); err == nil {
-		matches, truncated, runErr := fs.grepRipgrep(rgPath, query, target, maxResults, caseSensitive)
+		matches, truncated, runErr := fs.grepRipgrep(ctx, rgPath, query, target, maxResults, caseSensitive)
 		if runErr == nil {
 			return grepOK(query, matches, truncated, "ripgrep"), nil
 		}
@@ -54,7 +54,7 @@ func (fs *workspaceFS) grep(args map[string]any) (map[string]any, error) {
 		// rg unavailable/broken mid-flight → Go fallback.
 	}
 
-	matches, truncated, runErr := fs.grepGo(query, target, st.IsDir(), maxResults, caseSensitive)
+	matches, truncated, runErr := fs.grepGo(ctx, query, target, st.IsDir(), maxResults, caseSensitive)
 	if runErr != nil {
 		if isInvalidPattern(runErr) {
 			return failMap("validation", "invalid regex pattern"), nil
@@ -83,8 +83,8 @@ func isInvalidPattern(err error) bool {
 	return ok
 }
 
-func (fs *workspaceFS) grepRipgrep(rgPath, query, target string, maxResults int, caseSensitive bool) ([]map[string]any, bool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), grepTimeout)
+func (fs *workspaceFS) grepRipgrep(ctx context.Context, rgPath, query, target string, maxResults int, caseSensitive bool) ([]map[string]any, bool, error) {
+	rgCtx, cancel := context.WithTimeout(ctx, grepTimeout)
 	defer cancel()
 
 	args := []string{
@@ -99,13 +99,13 @@ func (fs *workspaceFS) grepRipgrep(rgPath, query, target string, maxResults int,
 	// -e keeps patterns that start with "-" from being parsed as flags.
 	args = append(args, "-e", query, "--", target)
 
-	cmd := exec.CommandContext(ctx, rgPath, args...)
+	cmd := exec.CommandContext(rgCtx, rgPath, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 
-	if ctx.Err() == context.DeadlineExceeded {
+	if rgCtx.Err() == context.DeadlineExceeded {
 		return nil, false, fmt.Errorf("grep timed out")
 	}
 	if err != nil {
@@ -124,7 +124,7 @@ func (fs *workspaceFS) grepRipgrep(rgPath, query, target string, maxResults int,
 		return nil, false, err
 	}
 
-	matches, truncated := parseRipgrepJSON(fs, stdout.Bytes(), maxResults)
+	matches, truncated := parseRipgrepJSON(fs, ctx, stdout.Bytes(), maxResults)
 	return matches, truncated, nil
 }
 
@@ -136,7 +136,7 @@ func looksLikeBadPattern(stderr string) bool {
 		strings.Contains(lower, "invalid")
 }
 
-func parseRipgrepJSON(fs *workspaceFS, raw []byte, maxResults int) ([]map[string]any, bool) {
+func parseRipgrepJSON(fs *workspaceFS, ctx context.Context, raw []byte, maxResults int) ([]map[string]any, bool) {
 	matches := make([]map[string]any, 0)
 	sc := bufio.NewScanner(bytes.NewReader(raw))
 	// Long lines in docs are rare; raise buffer for safety.
@@ -164,7 +164,7 @@ func parseRipgrepJSON(fs *workspaceFS, raw []byte, maxResults int) ([]map[string
 		}
 		abs := filepath.Clean(ev.Data.Path.Text)
 		matches = append(matches, map[string]any{
-			"path": fs.displayPath(abs),
+			"path": fs.displayPath(ctx, abs),
 			"line": ev.Data.LineNumber,
 			"text": text,
 		})
@@ -175,7 +175,7 @@ func parseRipgrepJSON(fs *workspaceFS, raw []byte, maxResults int) ([]map[string
 	return matches, false
 }
 
-func (fs *workspaceFS) grepGo(query, target string, isDir bool, maxResults int, caseSensitive bool) ([]map[string]any, bool, error) {
+func (fs *workspaceFS) grepGo(ctx context.Context, query, target string, isDir bool, maxResults int, caseSensitive bool) ([]map[string]any, bool, error) {
 	pattern := query
 	if !caseSensitive {
 		pattern = "(?i)" + query
@@ -211,7 +211,7 @@ func (fs *workspaceFS) grepGo(query, target string, isDir bool, maxResults int, 
 				text = string([]rune(text)[:500])
 			}
 			matches = append(matches, map[string]any{
-				"path": fs.displayPath(file),
+				"path": fs.displayPath(ctx, file),
 				"line": i + 1,
 				"text": text,
 			})

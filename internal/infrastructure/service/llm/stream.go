@@ -119,6 +119,22 @@ type sseChatTool struct {
 }
 
 func (a *sseAssembler) feed(event string, obj map[string]any) {
+	event = strings.TrimSpace(event)
+	switch strings.ToLower(event) {
+	case "error":
+		if errObj, ok := obj["error"].(map[string]any); ok && errObj != nil {
+			if msg, ok := errObj["message"].(string); ok && msg != "" {
+				a.failedMsg = msg
+			}
+		}
+		if a.failedMsg == "" {
+			a.failedMsg = "sse error event"
+		}
+		return
+	case "ping", "keepalive", "omniroute-keepalive":
+		return
+	}
+
 	keys := make([]string, 0, len(obj))
 	for k := range obj {
 		keys = append(keys, k)

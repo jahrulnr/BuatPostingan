@@ -253,6 +253,7 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 		AdminUserID:          job.AdminUserID,
 		AvailableTools:       strings.Join(toolNames, ", "),
 		IndexedDocumentCount: docCount,
+		Workspace:            job.Workspace,
 	})
 	if err != nil {
 		return err
@@ -266,6 +267,9 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 	chatCtx := ctx
 	if strings.TrimSpace(job.Effort) != "" {
 		chatCtx = llm.WithEffortMode(ctx, job.Effort)
+	}
+	if strings.TrimSpace(job.Model) != "" {
+		chatCtx = llm.WithModelOverride(chatCtx, job.Model)
 	}
 	lastUsage := emptyUsage()
 	var lastModel map[string]any
@@ -393,7 +397,7 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 				}); err != nil {
 					return err
 				}
-				envelope, execErr := w.tools.Execute(tools.WithThreadID(ctx, job.ThreadID), service.ToolCall{
+				envelope, execErr := w.tools.Execute(tools.WithWorkspace(tools.WithThreadID(ctx, job.ThreadID), job.Workspace), service.ToolCall{
 					CallID:    callID,
 					Name:      tc.Name,
 					Arguments: tc.Arguments,

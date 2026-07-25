@@ -4,12 +4,14 @@ import {
     createThread,
     getThread,
     renameThread,
+    deleteThread,
     startTurn,
     uploadAttachment,
     listModels,
     retryTurn,
     interruptTurn,
     subscribeEvents,
+    browseDir,
 } from '../api/index.js';
 import {
     escapeHtml,
@@ -22,6 +24,7 @@ import {
     appendError,
 } from './render.js';
 import { bootModelPicker } from './model-picker.js';
+import { bootWorkspacePicker } from './workspace-picker.js';
 import {
     durableSeq,
     isNearBottom,
@@ -68,6 +71,12 @@ export function bootChat(options) {
     const renameSubmit = byId('renameSubmit');
     let renameReturnFocus = null;
     let conversationQuery = '';
+
+    const deleteDialog = byId('deleteDialog');
+    const deleteSubmit = byId('deleteSubmit');
+    let deleteReturnFocus = null;
+    let pendingDeleteId = null;
+    let pendingDeleteTitle = null;
 
     const attachBtn = byId('chatAttach');
     const attachChipsEl = byId('composerAttachments');
@@ -175,6 +184,17 @@ export function bootChat(options) {
         listModels: listModels,
         api: api,
         showToast: showToast,
+    });
+
+    const workspacePicker = bootWorkspacePicker({
+        root: root,
+        api: api,
+        browseDir: browseDir,
+        threadId: function () { return threadId; },
+    });
+
+    document.addEventListener('bp:models-changed', function () {
+        modelPicker.refresh();
     });
 
     function updateComposer() {
@@ -860,6 +880,7 @@ export function bootChat(options) {
             });
         visible.forEach(function (c) {
             const li = document.createElement('li');
+            li.className = 'wc-conv-item';
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'wc-conv' + (c.thread_id === threadId ? ' is-active' : '');
@@ -877,8 +898,100 @@ export function bootChat(options) {
                 openConversation(c.thread_id);
             });
             li.appendChild(btn);
+            const delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'wc-conv__del';
+            delBtn.title = 'Delete conversation';
+            delBtn.setAttribute('aria-label', 'Delete conversation');
+            delBtn.innerHTML = '<i class="bi bi-trash3"></i>';
+            delBtn.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                handleDeleteConversation(c.thread_id, displayTitle(c));
+            });
+            li.appendChild(delBtn);
             listEl.appendChild(li);
         });
+    }
+
+    async function handleDeleteConversation(id, title) {
+        pendingDeleteId = id;
+        pendingDeleteTitle = title || 'this conversation';
+        deleteReturnFocus = document.activeElement;
+        openDeleteDialog();
+    }
+
+    function openDeleteDialog() {
+        if (!deleteDialog) {
+            confirmDeleteConversation();
+            return;
+        }
+        var label = pendingDeleteTitle || 'this conversation';
+        if (label.length > 40) label = label.slice(0, 37) + '…';
+        var helpEl = byId('deleteDialogHelp');
+        if (helpEl) helpEl.textContent = 'Delete "' + label + '"? This conversation and all its messages will be permanently removed. This action cannot be undone.';
+        deleteDialog.hidden = false;
+        document.body.classList.add('has-wc-dialog');
+        requestAnimationFrame(function () {
+            deleteDialog.classList.add('is-open');
+            if (deleteSubmit) deleteSubmit.focus();
+        });
+    }
+
+    function closeDeleteDialog() {
+        if (!deleteDialog || deleteDialog.hidden) return;
+        deleteDialog.classList.remove('is-open');
+        document.body.classList.remove('has-wc-dialog');
+        setTimeout(function () {
+            deleteDialog.hidden = true;
+            if (deleteReturnFocus && typeof deleteReturnFocus.focus === 'function') deleteReturnFocus.focus();
+        }, 180);
+    }
+
+    async function confirmDeleteConversation() {
+        var id = pendingDeleteId;
+        if (!id) return;
+        if (deleteSubmit) {
+            deleteSubmit.disabled = true;
+            deleteSubmit.classList.add('is-loading');
+        }
+        try {
+            await deleteThread(api, { threadId: id });
+        } catch (e) {
+            if (deleteSubmit) {
+                deleteSubmit.disabled = false;
+                deleteSubmit.classList.remove('is-loading');
+            }
+            showToast('Delete failed: ' + (e && e.message ? e.message : 'error'));
+            return;
+        }
+        if (deleteSubmit) {
+            deleteSubmit.disabled = false;
+            deleteSubmit.classList.remove('is-loading');
+        }
+        closeDeleteDialog();
+        if (id === threadId) {
+            closeEvents();
+            threadId = null;
+            turnId = null;
+            busy = false;
+            isInitiator = false;
+            localStorage.removeItem(storageKey);
+            clearPendingAttachments();
+            clearMessages(true);
+            updateRoomHead({ title: null, title_source: 'pending' });
+            setStatus('Deleted');
+        }
+        await refreshConversationList();
+        if (id === threadId || !threadId) {
+            if (hasRail && conversations.length) {
+                openConversation(conversations[0].thread_id);
+            } else {
+                newChat();
+            }
+        }
+        showToast('Conversation deleted');
+        pendingDeleteId = null;
+        pendingDeleteTitle = null;
     }
 
     if (conversationSearchEl) {
@@ -1174,6 +1287,7 @@ export function bootChat(options) {
             if (requestGeneration !== streamGeneration) return;
             threadId = id;
             localStorage.setItem(storageKey, id);
+            workspacePicker.reload();
             clearPendingAttachments();
             applyFloorFromPayload(snap);
             hydrateItems(snap.items || []);
@@ -1312,12 +1426,14 @@ export function bootChat(options) {
                 : [];
             clearPendingAttachments();
             const selection = modelPicker.getSelection();
+            const ws = workspacePicker.getWorkspace();
             const started = await startTurn(api, {
                 threadId: threadId,
                 message: message,
                 attachmentIds: attachmentIds,
                 model: selection.model || undefined,
                 effort: selection.effort || undefined,
+                workspace: ws || undefined,
             });
             turnId = started.turn_id;
             adoptPendingPlaceholder(turnId);
@@ -1388,7 +1504,9 @@ export function bootChat(options) {
             clearTurnErrors(tid);
             turnId = tid;
             ensureAssistantPlaceholder(tid);
-            retryTurn(api, { threadId: threadId, turnId: tid }).then(function (started) {
+            var selection = modelPicker.getSelection();
+            var ws = workspacePicker.getWorkspace();
+            retryTurn(api, { threadId: threadId, turnId: tid, model: selection.model || undefined, effort: selection.effort || undefined, workspace: ws || undefined }).then(function (started) {
                 applyFloorFromPayload(started);
                 floorHolderId = adminUserId;
                 floorRemainingSec = 0;
@@ -1551,6 +1669,20 @@ export function bootChat(options) {
             if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
             else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
         });
+    }
+    if (deleteDialog) {
+        deleteDialog.querySelectorAll('[data-delete-close]').forEach(function (button) {
+            button.addEventListener('click', closeDeleteDialog);
+        });
+        deleteDialog.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeDeleteDialog();
+            }
+        });
+    }
+    if (deleteSubmit) {
+        deleteSubmit.addEventListener('click', confirmDeleteConversation);
     }
     if (renameInput) {
         renameInput.addEventListener('input', function () {

@@ -20,3 +20,19 @@ func threadIDFrom(ctx context.Context) (valueobject.ThreadID, bool) {
 	id, ok := ctx.Value(threadIDCtxKey{}).(valueobject.ThreadID)
 	return id, ok && id.String() != ""
 }
+
+type workspaceCtxKey struct{}
+
+// WithWorkspace overrides the filesystem base for relative paths in this turn.
+// Empty workspace = use the registry default (FSRoot or process cwd).
+func WithWorkspace(ctx context.Context, workspace string) context.Context {
+	return context.WithValue(ctx, workspaceCtxKey{}, workspace)
+}
+
+func workspaceFrom(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	ws, _ := ctx.Value(workspaceCtxKey{}).(string)
+	return ws
+}
