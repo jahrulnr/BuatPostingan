@@ -1,0 +1,23 @@
+{
+  "name": "write_file",
+  "description": "Create or overwrite a file with the given content. Missing parent directories are created automatically. Use absolute paths. When the user does not specify a location, default to the current working directory from the system context. Example: {\"path\":\"<cwd>/output/profile.html\",\"content\":\"<h1>Hello</h1>\"}",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Absolute path of the file to write. Default to the current working directory when no path is given."
+      },
+      "content": {
+        "type": "string",
+        "description": "Content to write to the file."
+      },
+      "append": {
+        "type": "boolean",
+        "description": "If true, append content to the file instead of overwriting.",
+        "default": false
+      }
+    },
+    "required": ["path", "content"]
+  }
+}

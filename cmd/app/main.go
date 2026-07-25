@@ -108,12 +108,13 @@ func main() {
 	}
 
 	reg, err := tools.NewRegistry(cfg.ToolsRoot, docsIndex, tools.Options{
-		TopK:        cfg.DocsTopK,
-		Attachments: attStore,
-		Vision:      visionPolicy,
-		SkillsRoot:  cfg.SkillsRoot,
-		GitHubToken: cfg.GitHubToken,
-		MCP:         mcpMgr,
+		TopK:         cfg.DocsTopK,
+		Attachments:  attStore,
+		Vision:       visionPolicy,
+		SkillsRoot:   cfg.SkillsRoot,
+		GitHubToken:  cfg.GitHubToken,
+		MCP:          mcpMgr,
+		WriteEnabled: cfg.WriteEnabled,
 		// FSRoot empty: list_dir/read_file/grep have full host FS access (local-dev).
 	})
 	if err != nil {

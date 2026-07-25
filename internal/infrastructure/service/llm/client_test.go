@@ -63,6 +63,45 @@ func TestParseSSEResponsesAssemblesTextAndTools(t *testing.T) {
 	}
 }
 
+// MiMo / OpenRouter streams emit many response.function_call_arguments.delta
+// frames around a tool call. They must be sunk without dropping the final
+// assembled function_call delivered by response.output_item.done, and without
+// leaving the stream un-completed.
+func TestParseSSEResponsesFunctionCallArgsDeltas(t *testing.T) {
+	raw := strings.Join([]string{
+		"event: response.function_call_arguments.delta",
+		`data: {"type":"response.function_call_arguments.delta","delta":"{\"","sequence_number":0,"item_id":"fc_1","output_index":0}`,
+		"",
+		"event: response.function_call_arguments.delta",
+		`data: {"type":"response.function_call_arguments.delta","delta":"query","sequence_number":1,"item_id":"fc_1","output_index":0}`,
+		"",
+		"event: response.function_call_arguments.delta",
+		`data: {"type":"response.function_call_arguments.delta","delta":"\":\"x\"}","sequence_number":2,"item_id":"fc_1","output_index":0}`,
+		"",
+		"event: response.function_call_arguments.done",
+		`data: {"type":"response.function_call_arguments.done","arguments":"{\"query\":\"x\"}","item_id":"fc_1","output_index":0}`,
+		"",
+		"event: response.output_item.done",
+		`data: {"type":"response.output_item.done","output_index":0,"item":{"id":"fc_1","type":"function_call","call_id":"call_1","name":"grep","arguments":"{\"query\":\"x\"}"}}`,
+		"",
+		"event: response.completed",
+		`data: {"type":"response.completed","response":{"id":"resp_1","object":"response","status":"completed","error":null}}`,
+		"",
+	}, "\n")
+	payload, err := parseSSEToPayload(strings.NewReader(raw))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	p := config.LLMProvider{ID: "OPENROUTER", Model: "m", API: "responses"}
+	res := parseResponsesPayload(p, payload)
+	if len(res.ToolCalls) != 1 || res.ToolCalls[0].Name != "grep" {
+		t.Fatalf("toolCalls=%#v", res.ToolCalls)
+	}
+	if res.ToolCalls[0].Arguments["query"] != "x" {
+		t.Fatalf("args=%#v", res.ToolCalls[0].Arguments)
+	}
+}
+
 func TestParseSSEChatCompletionChunks(t *testing.T) {
 	raw := strings.Join([]string{
 		`: OPENROUTER PROCESSING`,

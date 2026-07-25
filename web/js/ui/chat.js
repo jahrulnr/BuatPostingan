@@ -110,6 +110,7 @@ export function bootChat(options) {
     let turnUi = {};
     /** Live agent_message drafts keyed by turn_id (ephemeral item.delta). */
     let liveDrafts = {};
+    let turnsWithToolCalls = {};
     /** Assistant placeholders keyed by turn_id; `_pending` exists before StartTurn returns. */
     let assistantPlaceholders = {};
     let deltaFlushRaf = 0;
@@ -428,6 +429,7 @@ export function bootChat(options) {
         pendingOptimisticEl = null;
         turnUi = {};
         liveDrafts = {};
+        turnsWithToolCalls = {};
         assistantPlaceholders = {};
         if (deltaFlushRaf) {
             cancelAnimationFrame(deltaFlushRaf);
@@ -577,7 +579,7 @@ export function bootChat(options) {
         if (!data || data.field && data.field !== 'text') return;
         const turnId = data.turn_id || '';
         const delta = data.delta != null ? String(data.delta) : '';
-        if (!delta) return;
+        if (!delta || turnsWithToolCalls[turnId]) return;
         let draft = liveDrafts[turnId];
         if (!draft) {
             draft = takePlaceholderAsMessage(turnId) || ensureActionBubble(turnId, 'message');
@@ -589,6 +591,32 @@ export function bootChat(options) {
             draft.art.dataset.id = String(data.item_id);
         }
         draft.text = (draft.text || '') + delta;
+
+        // Weak models (e.g. openrouter/xiaomi/mimo-v2.5) sometimes stream raw
+        // <tool_call> XML in output_text instead of using native function_call
+        // arguments. Suppress that draft; the backend parses the XML and emits
+        // the real tool_call item.
+        const trimmed = draft.text.replace(/^\s+/, '');
+        if (trimmed.indexOf('<tool_call') === 0 ||
+            trimmed.indexOf('<function=') === 0 ||
+            trimmed.indexOf('</function>') === 0 ||
+            draft.text.indexOf('<tool_call') !== -1 ||
+            draft.text.indexOf('<function=') !== -1 ||
+            draft.text.indexOf('</function>') !== -1 ||
+            draft.text.indexOf('</tool_call>') !== -1) {
+            draft.isToolXML = true;
+        }
+        if (draft.isToolXML) {
+            if (draft.text.indexOf('</tool_call>') !== -1) {
+                if (draft.art && draft.art.parentNode) draft.art.remove();
+                delete liveDrafts[turnId];
+            } else if (draft.art && draft.art.parentNode) {
+                draft.art.remove();
+            }
+            draft._dirty = false;
+            return;
+        }
+
         draft._dirty = true;
         if (!deltaFlushRaf) {
             deltaFlushRaf = requestAnimationFrame(flushDeltaDrafts);
@@ -617,6 +645,7 @@ export function bootChat(options) {
     }
 
     function applyToolCall(item) {
+        turnsWithToolCalls[item.turn_id || ''] = true;
         removeAssistantPlaceholder(item.turn_id);
         discardLiveDraft(item.turn_id);
         const state = ensureActionBubble(item.turn_id, 'tools');

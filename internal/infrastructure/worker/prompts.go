@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type promptVars struct {
@@ -26,6 +27,20 @@ func injectPrompts(promptsRoot string, messages []map[string]any, vars promptVar
 	if err != nil {
 		return nil, fmt.Errorf("missing prompt %s: %w", developerPath, err)
 	}
+
+	cwd, _ := os.Getwd()
+	if cwd == "" {
+		cwd = "."
+	}
+	home, _ := os.UserHomeDir()
+	if home == "" {
+		home = cwd
+	}
+
+	availableTools := vars.AvailableTools
+	if availableTools == "" {
+		availableTools = "(none)"
+	}
 	repl := map[string]string{
 		"admin_display_name":     vars.AdminDisplayName,
 		"admin_user_id":          strconv.FormatInt(vars.AdminUserID, 10),
@@ -33,17 +48,20 @@ func injectPrompts(promptsRoot string, messages []map[string]any, vars promptVar
 		"admin_role_id":          "0",
 		"locale":                 "id",
 		"cms_environment":        "local",
-		"available_tools":        vars.AvailableTools,
+		"available_tools":        availableTools,
 		"indexed_document_count": strconv.Itoa(vars.IndexedDocumentCount),
 		"pii_redaction":          "false",
 		"current_admin_path":     "",
 		"last_entity_ref":        "",
 		"conversation_goal":      "",
+		"cwd":                    cwd,
+		"home":                   home,
+		"current_date":           time.Now().Format("2006-01-02"),
 	}
-	if repl["available_tools"] == "" {
-		repl["available_tools"] = "(none)"
-	}
-	system := applyVars(string(systemRaw), repl)
+
+	// system.md is shipped as static text (no {{var}} placeholders); used verbatim.
+	system := string(systemRaw)
+	// developer.md is the single injection surface for runtime context.
 	developer := applyVars(string(developerRaw), repl)
 
 	out := []map[string]any{
@@ -53,7 +71,6 @@ func injectPrompts(promptsRoot string, messages []map[string]any, vars promptVar
 	for _, msg := range messages {
 		role, _ := msg["role"].(string)
 		if role == "system" || role == "developer" {
-			// Keep durable compaction checkpoints; drop other history system noise.
 			content, _ := msg["content"].(string)
 			if strings.HasPrefix(content, "Conversation summary:") {
 				out = append(out, msg)

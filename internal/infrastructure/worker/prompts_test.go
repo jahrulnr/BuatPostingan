@@ -19,10 +19,12 @@ func TestApplyVars(t *testing.T) {
 
 func TestInjectPrompts(t *testing.T) {
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "system.md"), []byte("sys {{admin_display_name}} tools={{available_tools}} docs={{indexed_document_count}}"), 0o644); err != nil {
+	// system.md is shipped static — vars left untouched.
+	if err := os.WriteFile(filepath.Join(root, "system.md"), []byte("static role text {{admin_display_name}} stays literal"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "developer.md"), []byte("dev uid={{admin_user_id}}"), 0o644); err != nil {
+	// developer.md is the single injection surface.
+	if err := os.WriteFile(filepath.Join(root, "developer.md"), []byte("dev uid={{admin_user_id}} tools={{available_tools}} docs={{indexed_document_count}} name={{admin_display_name}}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -43,11 +45,11 @@ func TestInjectPrompts(t *testing.T) {
 		t.Fatalf("len=%d %#v", len(msgs), msgs)
 	}
 	sys, _ := msgs[0]["content"].(string)
-	if !strings.Contains(sys, "Ada") || !strings.Contains(sys, "tools=(none)") || !strings.Contains(sys, "docs=3") {
-		t.Fatalf("system=%q", sys)
+	if strings.Contains(sys, "Ada") || !strings.Contains(sys, "{{admin_display_name}}") {
+		t.Fatalf("system.md must stay static, got=%q", sys)
 	}
 	dev, _ := msgs[1]["content"].(string)
-	if !strings.Contains(dev, "uid=42") {
+	if !strings.Contains(dev, "uid=42") || !strings.Contains(dev, "tools=(none)") || !strings.Contains(dev, "docs=3") || !strings.Contains(dev, "name=Ada") {
 		t.Fatalf("developer=%q", dev)
 	}
 	if msgs[2]["role"] != "user" || msgs[2]["content"] != "hello" {

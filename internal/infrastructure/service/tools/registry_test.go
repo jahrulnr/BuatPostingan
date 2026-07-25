@@ -208,6 +208,118 @@ func TestSchemasOnlyAllowlisted(t *testing.T) {
 	}
 }
 
+func TestWriteToolsGated(t *testing.T) {
+	repoRoot := findRepoRoot(t)
+	docsRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(docsRoot, "seed.md"), []byte("# seed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
+	storage := t.TempDir()
+
+	idx, err := docs.NewIndex(docsRoot, storage, docs.Options{})
+	if err != nil {
+		t.Fatalf("NewIndex: %v", err)
+	}
+
+	// Default registry: write tools must be blocked and not advertised.
+	reg, err := tools.NewRegistry(toolsRoot, idx, tools.Options{})
+	if err != nil {
+		t.Fatalf("NewRegistry: %v", err)
+	}
+	schemas, err := reg.Schemas(context.Background())
+	if err != nil {
+		t.Fatalf("Schemas: %v", err)
+	}
+	if len(schemas) != len(tools.Allowlist) {
+		t.Fatalf("default schemas: want %d, got %d", len(tools.Allowlist), len(schemas))
+	}
+	env, err := reg.Execute(context.Background(), service.ToolCall{
+		Name:      "write_file",
+		Arguments: map[string]any{"path": "/tmp/locked.txt", "content": "x"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env.OK || env.Error["code"] != "tool_not_allowed" {
+		t.Fatalf("write_file should be blocked by default: %+v", env)
+	}
+
+	// Write-enabled registry: exercise write/edit/delete end-to-end.
+	reg, err = tools.NewRegistry(toolsRoot, idx, tools.Options{WriteEnabled: true})
+	if err != nil {
+		t.Fatalf("NewRegistry: %v", err)
+	}
+	schemas, err = reg.Schemas(context.Background())
+	if err != nil {
+		t.Fatalf("Schemas: %v", err)
+	}
+	if len(schemas) != len(tools.Allowlist)+len(tools.WriteTools) {
+		t.Fatalf("write-enabled schemas: want %d, got %d", len(tools.Allowlist)+len(tools.WriteTools), len(schemas))
+	}
+
+	tmp := t.TempDir()
+	testFile := filepath.Join(tmp, "nested", "note.txt")
+	env, err = reg.Execute(context.Background(), service.ToolCall{
+		Name:      "write_file",
+		Arguments: map[string]any{"path": testFile, "content": "hello world\n"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !env.OK {
+		t.Fatalf("write_file failed: %+v", env)
+	}
+	data, _ := env.Data.(map[string]any)
+	if data["path"] != testFile {
+		t.Fatalf("path=%v", data["path"])
+	}
+
+	env, err = reg.Execute(context.Background(), service.ToolCall{
+		Name:      "edit_file",
+		Arguments: map[string]any{"path": testFile, "old_string": "world", "new_string": "codex"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !env.OK {
+		t.Fatalf("edit_file failed: %+v", env)
+	}
+	data, _ = env.Data.(map[string]any)
+	if data["replacements"] != 1 {
+		t.Fatalf("replacements=%v", data["replacements"])
+	}
+
+	env, err = reg.Execute(context.Background(), service.ToolCall{
+		Name:      "read_file",
+		Arguments: map[string]any{"path": testFile},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !env.OK {
+		t.Fatalf("read_file failed: %+v", env)
+	}
+	data, _ = env.Data.(map[string]any)
+	if data["content"] != "hello codex\n" {
+		t.Fatalf("content=%q", data["content"])
+	}
+
+	env, err = reg.Execute(context.Background(), service.ToolCall{
+		Name:      "delete_file",
+		Arguments: map[string]any{"path": testFile},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !env.OK {
+		t.Fatalf("delete_file failed: %+v", env)
+	}
+	if _, err := os.Stat(testFile); !os.IsNotExist(err) {
+		t.Fatalf("file should be deleted: %v", err)
+	}
+}
+
 func assertToolRequiredFields(t *testing.T, schemas []map[string]any, toolName string, fields ...string) {
 	t.Helper()
 	var callMCP map[string]any

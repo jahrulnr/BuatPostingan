@@ -82,7 +82,7 @@ Optional FE widget kit (same API, no product chrome):
 - Chat history = JSONL (no SQL chat tables)
 - Agent loop in worker, not HTTP handler
 - SSE tails durable seq
-- `write_enabled = false` / no mutation tools
+- `write_enabled = true` (dev phase) — mutation tools on; set `BP_WRITE_ENABLED=false` to relock
 
 ## Tool dialect notes
 

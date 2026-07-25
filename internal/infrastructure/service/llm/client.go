@@ -104,6 +104,13 @@ func (c *Client) chatViaCompletions(ctx context.Context, p config.LLMProvider, m
 	if err != nil {
 		return service.LLMResult{}, err
 	}
+	logging.Warn(ctx, "webchat.llm.response",
+		"provider", p.ID,
+		"api", "chat",
+		"path", "chat/completions",
+		"stream", c.wantStream(),
+		"hasChoices", payload != nil && payload["choices"] != nil,
+	)
 	return parseChatCompletionPayload(p, payload), nil
 }
 
@@ -114,8 +121,17 @@ func (c *Client) chatViaResponses(ctx context.Context, p config.LLMProvider, mes
 	if err != nil {
 		return service.LLMResult{}, err
 	}
+	logging.Warn(ctx, "webchat.llm.response",
+		"provider", p.ID,
+		"api", "responses",
+		"path", "responses",
+		"stream", c.wantStream(),
+		"hasChoices", payload != nil && payload["choices"] != nil,
+		"hasOutput", payload != nil && payload["output"] != nil,
+	)
 	// Some proxies may still return chat.completion JSON (e.g. stream=false path).
 	if looksLikeChatCompletion(payload) {
+		logging.Warn(ctx, "webchat.llm.responses_shape_is_chat", "provider", p.ID)
 		return parseChatCompletionPayload(p, payload), nil
 	}
 	return parseResponsesPayload(p, payload), nil
@@ -175,6 +191,7 @@ func parseResponsesPayload(p config.LLMProvider, payload map[string]any) service
 			assistantText = t
 		}
 	}
+	toolCalls, assistantText = mergeXMLToolCalls(toolCalls, assistantText)
 	usage, _ := payload["usage"].(map[string]any)
 	status, _ := payload["status"].(string)
 	return service.LLMResult{
@@ -486,6 +503,7 @@ func parseChatCompletionPayload(p config.LLMProvider, payload map[string]any) se
 	}
 	toolCalls := parseChatToolCalls(msg)
 	text := extractChatContentText(msg["content"])
+	toolCalls, text = mergeXMLToolCalls(toolCalls, text)
 	usage, _ := payload["usage"].(map[string]any)
 	status, _ := choice["finish_reason"].(string)
 	return service.LLMResult{

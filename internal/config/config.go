@@ -135,7 +135,7 @@ func Load() Config {
 		ToolsRoot:   getenvFirst("BP_TOOLS_ROOT", "resources/webchat/tools"),
 		SkillsRoot:  getenvFirst("BP_SKILLS_ROOT", "resources/webchat/skills"),
 
-		WriteEnabled:        false, // hard false — reader/instructor only
+		WriteEnabled:        getenvBoolFirst([]string{"BP_WRITE_ENABLED"}, true),
 		MaxToolRounds:       getenvIntFirst([]string{"BP_MAX_TOOL_ROUNDS"}, 8),
 		SpeakFloorTTL:       getenvIntFirst([]string{"BP_SPEAK_FLOOR_TTL_SEC"}, 600),
 		LockTTL:             getenvIntFirst([]string{"BP_LOCK_TTL_SEC"}, 300),

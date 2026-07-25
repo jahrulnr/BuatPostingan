@@ -72,8 +72,8 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.HTTPAddr != ":8080" || cfg.WebRoot != "web" || cfg.StorageRoot != "storage/webchat" {
 		t.Fatalf("paths %+v", cfg)
 	}
-	if cfg.WriteEnabled {
-		t.Fatal("WriteEnabled must stay false")
+	if !cfg.WriteEnabled {
+		t.Fatal("WriteEnabled should default true")
 	}
 	if cfg.MaxToolRounds != 8 || cfg.SpeakFloorTTL != 600 || cfg.LockTTL != 300 {
 		t.Fatalf("ttls %+v", cfg)

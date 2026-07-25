@@ -230,7 +230,7 @@ func rotateRoundRobin(storageRoot string, enabled []string) []string {
 		return enabled
 	}
 	start := cursor % len(enabled)
-	_ = os.WriteFile(path, []byte(fmt.Sprintf("%d", (start+1)%len(enabled))), 0o664)
+	_ = os.WriteFile(path, fmt.Appendf(nil, "%d", (start+1)%len(enabled)), 0o664)
 	return append(append([]string{}, enabled[start:]...), enabled[:start]...)
 }
 

@@ -1,8 +1,8 @@
 # Codex ↔ BuatPostingan — prioritized gap analysis
 
-Analysis-only. Compares [OpenAI Codex](https://github.com/openai/codex) (`codex-rs/`, local checkout) to BuatPostingan’s **reader/instructor webchat** (Go + JSONL + vanilla FE). Priorities are for *this product*, not for becoming a coding agent.
+Analysis-only. Compares [OpenAI Codex](https://github.com/openai/codex) (`codex-rs/`, local checkout) to BuatPostingan’s **webchat** (Go + JSONL + vanilla FE). Priorities are for *this product*, not for becoming a coding agent. Current dev phase runs with `write_enabled=true` (local full-FS mutation tools on); relock via `BP_WRITE_ENABLED=false`.
 
-**Locks (do not port):** `write_enabled=false`; no mutation tools in the LLM tools array; allowlist readers only — see [`AGENTS.md`](../../AGENTS.md) and [Architecture](README.md#tools).
+**Baseline locks (relock for reader/instructor mode):** `write_enabled=false`; no mutation tools in the LLM tools array; allowlist readers only — see [`AGENTS.md`](../../AGENTS.md) and [Architecture](README.md#tools).
 
 **Sources (grounded):**
 
@@ -52,7 +52,7 @@ Do **not** schedule for BuatPostingan under current locks:
 
 | Codex capability | Why N/A |
 |---|---|
-| `apply_patch`, `exec_command` / shell, sandbox modes | Mutation / host write — `write_enabled=false` |
+| `apply_patch`, `exec_command` / shell, sandbox modes | Host write/shell — BP mutation tools (`write_file`/`edit_file`/`delete_file`) cover file changes in dev phase; shell exec and `apply_patch` remain out of scope |
 | Approval queues, guardian review CB, permission profiles | Coding safety UX for mutating tools |
 | Image generation / write plugins | Mutation / generative side-effects |
 | Workspace trust, git SHA/branch session metadata | Coding workspace identity |

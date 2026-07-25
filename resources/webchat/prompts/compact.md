@@ -1,4 +1,4 @@
-You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary for another LLM that will resume this instructor chat.
+You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary for another LLM that will resume this chat.
 
 Include:
 - Current progress and key decisions made

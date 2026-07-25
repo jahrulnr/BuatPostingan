@@ -2,11 +2,14 @@ package llm
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"strings"
+
+	"buatpostingan/internal/pkg/logging"
 )
 
 // ErrSSETransport marks incomplete / mid-stream SSE failures (Codex CodexErr::Stream).
@@ -116,6 +119,16 @@ type sseChatTool struct {
 }
 
 func (a *sseAssembler) feed(event string, obj map[string]any) {
+	keys := make([]string, 0, len(obj))
+	for k := range obj {
+		keys = append(keys, k)
+	}
+	logging.Info(context.Background(), "webchat.llm.sse.feed",
+		"event", event,
+		"type", obj["type"],
+		"object", obj["object"],
+		"keys", strings.Join(keys, ","),
+	)
 	if objType, _ := obj["object"].(string); objType == "chat.completion.chunk" {
 		a.feedChat(obj)
 		return
@@ -162,6 +175,11 @@ func (a *sseAssembler) feedResponses(typ string, obj map[string]any) {
 		if t, ok := obj["text"].(string); ok {
 			a.textDone = t
 		}
+	case "response.function_call_arguments.delta":
+		// Streaming tool-call args fragment. Final assembled arguments arrive in
+		// response.output_item.done (item.arguments), so deltas are informational.
+	case "response.function_call_arguments.done":
+		// No-op: final args already captured via output_item.done.
 	case "response.reasoning_summary_text.delta":
 		if d, ok := obj["delta"].(string); ok {
 			a.reasoningDelta.WriteString(d)
@@ -412,9 +430,6 @@ func (a *sseAssembler) chatPayload() map[string]any {
 		}
 		if len(tcs) > 0 {
 			msg["tool_calls"] = tcs
-			if msg["content"] == "" {
-				msg["content"] = nil
-			}
 		}
 	}
 	choice := map[string]any{"message": msg}

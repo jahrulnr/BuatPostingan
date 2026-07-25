@@ -87,7 +87,7 @@ Servers themselves live in JSON (`mcp.servers`), not env — commands/env maps a
 | Local (`search_docs`, skills, FS, attachments, web_*) | Product guidance, corpus, host files, public web |
 | MCP | Operator-wired integrations (tickets, calendars, custom local CLIs) not covered by local tools |
 
-Never use MCP to bypass `write_enabled=false` or to run host mutations.
+When `write_enabled=false`, MCP must not bypass the reader/instructor lock; when `write_enabled=true` (dev phase), prefer the local `write_file`/`edit_file`/`delete_file` tools over mutating MCP calls.
 
 ## Best-practice implementation
 

@@ -83,7 +83,8 @@ export function formatToolCall(name, args) {
     if (a.query != null && String(a.query) !== '') {
         return String(name || 'tool') + '(' + JSON.stringify(String(a.query)) + ')';
     }
-    if (name === 'list_dir' || name === 'read_file' || name === 'grep') {
+    if (name === 'list_dir' || name === 'read_file' || name === 'grep' ||
+        name === 'write_file' || name === 'edit_file' || name === 'delete_file') {
         const path = a.path != null ? String(a.path) : '';
         return String(name || 'tool') + '(' + JSON.stringify(path) + ')';
     }

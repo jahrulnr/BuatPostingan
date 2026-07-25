@@ -78,13 +78,13 @@ Handlers call `webchat.Usecase` only. Concrete service: `webchat.NewService(Deps
 1. Chat history = **JSONL** under `BP_STORAGE_ROOT` — no chat tables.  
 2. Agent loop runs in **TurnWorker**, not inside the HTTP handler.  
 3. SSE tails durable seq — not LLM token streaming (keepalive ping in HTTP adapter).  
-4. `write_enabled = false` — no mutation tools.  
+4. `write_enabled = true` (dev phase) — mutation tools on; set `BP_WRITE_ENABLED=false` to relock.  
 5. Soft tool failures return envelopes; do not crash the turn.  
 
 ## Runtime wiring (`cmd/app`)
 
 1. Ensure storage dirs; `docs.NewIndex` (+ Reindex) + Gate log  
-2. `tools.NewRegistry` (allowlist: search_docs, list_dir, read_file, grep, read_attachment, read_image, web_search, web_fetch, list_skills, read_skill, list_mcp_tools, call_mcp_tool) + optional `mcp.NewManager`  
+2. `tools.NewRegistry` (allowlist: search_docs, list_dir, read_file, grep, read_attachment, read_image, web_search, web_fetch, list_skills, read_skill, list_mcp_tools, call_mcp_tool; plus write_file / edit_file / delete_file when `write_enabled=true`) + optional `mcp.NewManager`  
 3. `llm.NewClient` + `llm.NewRouter` (failover / circuit)  
 4. `worker.New` + `sse.NewStreamer`  
 5. `webchat.NewService(Deps{…})` → HTTP server  

@@ -784,10 +784,10 @@ func TestProcessPanicRecovery(t *testing.T) {
 
 func mustWritePrompt(t *testing.T, root string) {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(root, "system.md"), []byte("sys {{available_tools}}"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "system.md"), []byte("sys static"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "developer.md"), []byte("dev"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "developer.md"), []byte("dev tools={{available_tools}}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }

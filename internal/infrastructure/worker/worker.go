@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -287,17 +288,21 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 
 		draftItemID := idgen.ItemID()
 		streamedText := false
-		roundCtx := chatCtx
-		if w.hub != nil {
-			turnID := job.TurnID.String()
-			threadID := job.ThreadID
-			itemID := draftItemID
-			roundCtx = llm.WithStreamHooks(chatCtx, &llm.StreamHooks{
-				OnTextDelta: func(delta string) {
-					if delta == "" {
-						return
-					}
-					streamedText = true
+		var streamedTextBuf strings.Builder
+		var streamedTextMu sync.Mutex
+		turnID := job.TurnID.String()
+		threadID := job.ThreadID
+		itemID := draftItemID
+		roundCtx := llm.WithStreamHooks(chatCtx, &llm.StreamHooks{
+			OnTextDelta: func(delta string) {
+				if delta == "" {
+					return
+				}
+				streamedTextMu.Lock()
+				streamedText = true
+				streamedTextBuf.WriteString(delta)
+				streamedTextMu.Unlock()
+				if w.hub != nil {
 					w.hub.PublishEphemeral(threadID, "item.delta", map[string]any{
 						"type":    "agent_message",
 						"turn_id": turnID,
@@ -305,13 +310,36 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 						"field":   "text",
 						"delta":   delta,
 					})
-				},
-			})
-		}
+				}
+			},
+		})
 
 		resp, err := w.llm.Chat(roundCtx, messages, schemas, pinned)
 		if err != nil {
 			return err
+		}
+		streamedTextMu.Lock()
+		streamed := streamedTextBuf.String()
+		streamedTextMu.Unlock()
+		resp = llm.RecoverXMLToolCalls(resp, streamed)
+		logging.Warn(ctx, "webchat.llm.result",
+			"round", rounds,
+			"provider", resp.ProviderID,
+			"textLen", len(resp.Text),
+			"toolCalls", len(resp.ToolCalls),
+			"streamedLen", len(streamed),
+		)
+		for i, tc := range resp.ToolCalls {
+			keys := make([]string, 0, len(tc.Arguments))
+			for k := range tc.Arguments {
+				keys = append(keys, k)
+			}
+			logging.Warn(ctx, "webchat.llm.toolcall",
+				"idx", i,
+				"name", tc.Name,
+				"argKeys", strings.Join(keys, ","),
+				"argSample", fmt.Sprintf("%+v", tc.Arguments),
+			)
 		}
 		if resp.ProviderID != "" {
 			pinned = resp.ProviderID

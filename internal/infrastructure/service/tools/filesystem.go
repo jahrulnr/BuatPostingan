@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -16,6 +17,12 @@ import (
 // dir) is only the default for relative paths — not a jail.
 type workspaceFS struct {
 	base string
+}
+
+var embeddedToolParameterRe = regexp.MustCompile(`(?s)<parameter=\w+>.*?</parameter>`)
+
+func stripEmbeddedToolParameters(content string) string {
+	return embeddedToolParameterRe.ReplaceAllString(content, "")
 }
 
 func newWorkspaceFS(fsRoot string) (*workspaceFS, error) {
@@ -215,6 +222,138 @@ func (fs *workspaceFS) readFile(args map[string]any) (map[string]any, error) {
 	}, hasMore), nil
 }
 
+func (fs *workspaceFS) writeFile(args map[string]any) (map[string]any, error) {
+	if strings.TrimSpace(asString(args["path"])) == "" {
+		return failMap("validation", "path is required"), nil
+	}
+	if _, ok := args["content"]; !ok {
+		return failMap("validation", "content is required"), nil
+	}
+
+	file, err := fs.resolvePath(asString(args["path"]))
+	if err != nil {
+		return nil, err
+	}
+	if info, err := os.Stat(file); err == nil && info.IsDir() {
+		return failMap("path_is_directory", "path is a directory"), nil
+	}
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		return failMap("mkdir_failed", fmt.Sprintf("could not create parent directory: %v", err)), nil
+	}
+
+	appendMode := asBool(args["append"], false)
+	flag := os.O_CREATE | os.O_WRONLY
+	if appendMode {
+		flag |= os.O_APPEND
+	} else {
+		flag |= os.O_TRUNC
+	}
+	f, err := os.OpenFile(file, flag, 0o644)
+	if err != nil {
+		return failMap("write_failed", fmt.Sprintf("could not open file for writing: %v", err)), nil
+	}
+	content := stripEmbeddedToolParameters(asString(args["content"]))
+	_, werr := f.WriteString(content)
+	if cerr := f.Close(); cerr != nil && werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		return failMap("write_failed", fmt.Sprintf("could not write file: %v", werr)), nil
+	}
+	return okMap(map[string]any{
+		"path":          fs.displayPath(file),
+		"written_bytes": len(content),
+	}, false), nil
+}
+
+func (fs *workspaceFS) editFile(args map[string]any) (map[string]any, error) {
+	if strings.TrimSpace(asString(args["path"])) == "" {
+		return failMap("validation", "path is required"), nil
+	}
+	if _, ok := args["old_string"]; !ok {
+		return failMap("validation", "old_string is required"), nil
+	}
+	if _, ok := args["new_string"]; !ok {
+		return failMap("validation", "new_string is required"), nil
+	}
+
+	file, err := fs.resolvePath(asString(args["path"]))
+	if err != nil {
+		return nil, err
+	}
+	st, err := os.Stat(file)
+	if err != nil || st.IsDir() {
+		return failMap("not_file", "path is not a file"), nil
+	}
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return failMap("read_failed", fmt.Sprintf("file could not be read: %v", err)), nil
+	}
+
+	old := asString(args["old_string"])
+	newStr := asString(args["new_string"])
+	if old == "" {
+		return failMap("empty_old_string", "old_string cannot be empty"), nil
+	}
+
+	content := string(b)
+	if !strings.Contains(content, old) {
+		return failMap("old_string_not_found", "old_string not found in file"), nil
+	}
+
+	replaceAll := asBool(args["replace_all"], false)
+	var edited string
+	var count int
+	if replaceAll {
+		edited = strings.ReplaceAll(content, old, newStr)
+		count = strings.Count(content, old)
+	} else {
+		edited = strings.Replace(content, old, newStr, 1)
+		count = 1
+	}
+
+	if err := os.WriteFile(file, []byte(edited), st.Mode()); err != nil {
+		return failMap("write_failed", fmt.Sprintf("could not write edited file: %v", err)), nil
+	}
+	return okMap(map[string]any{
+		"path":         fs.displayPath(file),
+		"replacements": count,
+	}, false), nil
+}
+
+func (fs *workspaceFS) deleteFile(args map[string]any) (map[string]any, error) {
+	if strings.TrimSpace(asString(args["path"])) == "" {
+		return failMap("validation", "path is required"), nil
+	}
+
+	file, err := fs.resolvePath(asString(args["path"]))
+	if err != nil {
+		return nil, err
+	}
+	recursive := asBool(args["recursive"], false)
+	st, err := os.Stat(file)
+	if err != nil {
+		return failMap("not_found", fmt.Sprintf("path does not exist: %v", err)), nil
+	}
+
+	if st.IsDir() {
+		if recursive {
+			err = os.RemoveAll(file)
+		} else {
+			err = os.Remove(file)
+		}
+	} else {
+		err = os.Remove(file)
+	}
+	if err != nil {
+		return failMap("delete_failed", fmt.Sprintf("could not delete path: %v", err)), nil
+	}
+	return okMap(map[string]any{
+		"path":    fs.displayPath(file),
+		"deleted": true,
+	}, false), nil
+}
+
 // resolvePath maps a tool path argument to an absolute filesystem path.
 // Absolute paths (including "/") are accepted as-is. Relative paths join the
 // optional base, or resolve via filepath.Abs when base is empty. Symlinks are
@@ -291,9 +430,9 @@ func okMap(data map[string]any, truncated bool) map[string]any {
 		count = len(matches)
 	}
 	return map[string]any{
-		"ok":   true,
-		"tool": "workspace_fs",
-		"data": data,
+		"ok":    true,
+		"tool":  "workspace_fs",
+		"data":  data,
 		"error": nil,
 		"meta": map[string]any{
 			"truncated":         truncated,

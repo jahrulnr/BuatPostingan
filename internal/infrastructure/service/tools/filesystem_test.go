@@ -473,3 +473,28 @@ func TestDisplayPathFallback(t *testing.T) {
 		t.Fatal("empty")
 	}
 }
+
+func TestWriteFileStripsEmbeddedToolParameters(t *testing.T) {
+	root := t.TempDir()
+	fs, err := newWorkspaceFS(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := fs.writeFile(map[string]any{
+		"path":    "profile.html",
+		"content": "<body>Hi</body><parameter=append>False</parameter>",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := out["ok"].(bool); !ok {
+		t.Fatalf("write failed: %+v", out)
+	}
+	body, err := os.ReadFile(filepath.Join(root, "profile.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "<body>Hi</body>" {
+		t.Fatalf("unexpected body: %q", body)
+	}
+}

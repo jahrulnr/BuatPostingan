@@ -1,0 +1,19 @@
+{
+  "name": "delete_file",
+  "description": "Delete a file or directory. Set recursive to true to remove a directory and all of its contents. Use absolute paths. When the user does not specify a location, default to the current working directory from the system context. Example: {\"path\":\"<cwd>/output/profile.html\"}",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Absolute path of the file or directory to delete. Default to the current working directory when no path is given."
+      },
+      "recursive": {
+        "type": "boolean",
+        "description": "If true, remove directories recursively. Otherwise only empty directories can be removed.",
+        "default": false
+      }
+    },
+    "required": ["path"]
+  }
+}

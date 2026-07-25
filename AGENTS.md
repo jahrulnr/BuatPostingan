@@ -67,9 +67,8 @@ Reuse over rewrite: treat kitchen + webchat delivery as a **copyable kit**, not 
 
 ## Webchat product locks
 
-- Reader/instructor only — `write_enabled` stays false
-- No mutation tools in the LLM tools array
-- Allowlist readers only: `search_docs`, `list_dir`, `read_file`, `grep`, `read_attachment`, `read_image`, `web_search`, `web_fetch`, `list_skills`, `read_skill`, `list_mcp_tools`, `call_mcp_tool`
+- Dev phase: `write_enabled=true` — `write_file`, `edit_file`, `delete_file` are in the LLM tools array (local-dev full-FS access). Flip `BP_WRITE_ENABLED=false` (or `storage/config.json`) to relock for reader/instructor-only.
+- Reader allowlist (always available): `search_docs`, `list_dir`, `read_file`, `grep`, `read_attachment`, `read_image`, `web_search`, `web_fetch`, `list_skills`, `read_skill`, `list_mcp_tools`, `call_mcp_tool`
 - **MCP:** configure `mcp.servers` in `storage/config.json` (stdio MVP); agent uses progressive meta-tools — mutations default-denied. See [`docs/architecture/mcp-support.md`](docs/architecture/mcp-support.md).
 - Turn loop in worker, not HTTP request
 - SSE mirrors durable JSONL seq; ephemeral `item.delta` (hub) streams agent text without JSONL/seq — see [`docs/architecture/realtime-streaming.md`](docs/architecture/realtime-streaming.md)
