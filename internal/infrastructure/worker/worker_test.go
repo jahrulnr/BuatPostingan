@@ -176,7 +176,7 @@ func (t *fakeTools) Schemas(context.Context) ([]map[string]any, error) {
 		return t.schemas, nil
 	}
 	return []map[string]any{
-		{"type": "function", "function": map[string]any{"name": "search_docs"}},
+		{"type": "function", "function": map[string]any{"name": "docs_search"}},
 	}, nil
 }
 func (t *fakeTools) Execute(_ context.Context, call service.ToolCall) (service.ToolEnvelope, error) {
@@ -323,7 +323,7 @@ func TestHelpers(t *testing.T) {
 	if !strings.Contains(fp, "a") || !strings.Contains(fp, "b") {
 		t.Fatalf("fp=%q", fp)
 	}
-	msg := assistantToolMessage([]service.ToolCall{{Name: "search_docs", Arguments: map[string]any{"q": "x"}}})
+	msg := assistantToolMessage([]service.ToolCall{{Name: "docs_search", Arguments: map[string]any{"q": "x"}}})
 	tcs, _ := msg["tool_calls"].([]any)
 	if len(tcs) != 1 {
 		t.Fatalf("%#v", msg)
@@ -340,7 +340,7 @@ func TestBuildMessages(t *testing.T) {
 		{Type: enum.ItemUserMessage, ThreadID: tid, TurnID: turn, Payload: map[string]any{"text": "hi"}},
 		{Type: enum.ItemAgentMessage, ThreadID: tid, TurnID: turn, Payload: map[string]any{"text": "yo"}},
 		{Type: enum.ItemToolCall, ThreadID: tid, TurnID: turn, Payload: map[string]any{
-			"call_id": "c1", "name": "search_docs", "arguments": map[string]any{"q": "a"},
+			"call_id": "c1", "name": "docs_search", "arguments": map[string]any{"q": "a"},
 		}},
 		{Type: enum.ItemToolResult, ThreadID: tid, TurnID: turn, Payload: map[string]any{
 			"call_id": "c1", "envelope": map[string]any{"ok": true},
@@ -538,7 +538,7 @@ func TestRunAgentToolThenAnswer(t *testing.T) {
 	mustWritePrompt(t, root)
 	store := &fakeStore{}
 	llm := &scriptLLM{resps: []service.LLMResult{
-		{ToolCalls: []service.ToolCall{{Name: "search_docs", Arguments: map[string]any{"q": "x"}}}, ProviderID: "P"},
+		{ToolCalls: []service.ToolCall{{Name: "docs_search", Arguments: map[string]any{"q": "x"}}}, ProviderID: "P"},
 		{Text: "done", ProviderID: "P"},
 	}}
 	tools := &fakeTools{}
@@ -548,7 +548,7 @@ func TestRunAgentToolThenAnswer(t *testing.T) {
 		Tools: tools, LLM: llm,
 	})
 	w.process(context.Background(), sampleJob())
-	if len(tools.calls) != 1 || tools.calls[0].Name != "search_docs" {
+	if len(tools.calls) != 1 || tools.calls[0].Name != "docs_search" {
 		t.Fatalf("calls=%#v", tools.calls)
 	}
 	got := typesOf(store)

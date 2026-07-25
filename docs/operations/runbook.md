@@ -97,9 +97,9 @@ make be
 }
 ```
 
-Restart `make be`. Expect tool rounds (search_docs / list_dir / read_file / grep / read_attachment / read_image / list_skills / read_skill / web_*) when the model calls them. Logs: `webchat.turn_start`, `webchat.tool`, `webchat.reasoning`, `webchat.turn_completed`.
+Restart `make be`. Expect tool rounds (docs_search / list_dir / read_file / grep / read_attachment / read_image / list_skills / read_skill / web_*) when the model calls them. Logs: `webchat.turn_start`, `webchat.tool`, `webchat.reasoning`, `webchat.turn_completed`.
 
-**Skills:** Ask the agent to use a skill (e.g. “pakai skill writing-post untuk outline postingan tentang X”). Expect `list_skills` and/or `read_skill` then `search_docs`. Details: [skills-tools.md](../architecture/skills-tools.md).
+**Skills:** Ask the agent to use a skill (e.g. “pakai skill writing-post untuk outline postingan tentang X”). Expect `list_skills` and/or `read_skill` then `docs_search`. Details: [skills-tools.md](../architecture/skills-tools.md).
 
 **MCP:** Copy `mcp` from `storage/config.example.json` into `storage/config.json`, run `make mcp-echo`, restart `make be`. Ask to list/call MCP tools. If `list_mcp_tools` returns empty `tools` with a `hint`, servers are missing from the runtime config file. Details: [mcp-support.md](../architecture/mcp-support.md).
 

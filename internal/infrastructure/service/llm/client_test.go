@@ -27,7 +27,7 @@ func TestParseSSEResponsesAssemblesTextAndTools(t *testing.T) {
 		`data: {"type":"response.output_item.done","output_index":0,"item":{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"output_text","text":"hello world"}]}}`,
 		"",
 		"event: response.output_item.done",
-		`data: {"type":"response.output_item.done","output_index":1,"item":{"id":"fc_1","type":"function_call","call_id":"call_1","name":"search_docs","arguments":"{\"query\":\"kafka\"}"}}`,
+		`data: {"type":"response.output_item.done","output_index":1,"item":{"id":"fc_1","type":"function_call","call_id":"call_1","name":"docs_search","arguments":"{\"query\":\"kafka\"}"}}`,
 		"",
 		"event: response.reasoning_summary_text.done",
 		`data: {"type":"response.reasoning_summary_text.done","text":"thinking…"}`,
@@ -52,7 +52,7 @@ func TestParseSSEResponsesAssemblesTextAndTools(t *testing.T) {
 	if res.Text != "hello world" {
 		t.Fatalf("text=%q", res.Text)
 	}
-	if len(res.ToolCalls) != 1 || res.ToolCalls[0].Name != "search_docs" {
+	if len(res.ToolCalls) != 1 || res.ToolCalls[0].Name != "docs_search" {
 		t.Fatalf("toolCalls=%#v", res.ToolCalls)
 	}
 	if res.ToolCalls[0].Arguments["query"] != "kafka" {
@@ -212,7 +212,7 @@ func TestParseResponsesNonStreamJSON(t *testing.T) {
 			map[string]any{
 				"type":      "function_call",
 				"call_id":   "c1",
-				"name":      "search_docs",
+				"name":      "docs_search",
 				"arguments": `{"query":"sse"}`,
 			},
 			map[string]any{

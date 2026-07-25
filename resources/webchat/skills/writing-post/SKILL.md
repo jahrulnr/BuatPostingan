@@ -12,7 +12,7 @@ Reader/instructor only: guide the user; never claim you published or saved anyth
 
 ## Steps
 
-1. Call `search_docs` with the user’s topic and locale (e.g. judul, outline, checklist, publish). Prefer domain filters when the topic is known.
+1. Call `docs_search` with the user’s topic and locale (e.g. judul, outline, checklist, publish). Prefer domain filters when the topic is known.
 2. From relevant hits only, extract: required fields, recommended structure, UI steps.
 3. Answer with:
    - A short recommended outline (H1/H2-style bullets)
@@ -30,4 +30,4 @@ Reader/instructor only: guide the user; never claim you published or saved anyth
 
 - Invent CMS fields, statuses, or routes not supported by tool results
 - Dump full doc chunks; summarize
-- Skip `search_docs` for how-to / policy questions
+- Skip `docs_search` for how-to / policy questions

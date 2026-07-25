@@ -25,7 +25,7 @@ func TestNewRegistryRequiresIndex(t *testing.T) {
 	}
 }
 
-func TestSearchDocsValidationAndNotReady(t *testing.T) {
+func TestDocsSearchValidationAndNotReady(t *testing.T) {
 	toolsRoot := filepath.Join(findRepoRoot(t), "resources", "webchat", "tools")
 	docsRoot := t.TempDir()
 	_ = os.WriteFile(filepath.Join(docsRoot, "a.md"), []byte("# A\nkeyword unique_abc\n"), 0o644)
@@ -40,7 +40,7 @@ func TestSearchDocsValidationAndNotReady(t *testing.T) {
 	}
 
 	empty, err := reg.Execute(context.Background(), service.ToolCall{
-		Name:      "search_docs",
+		Name:      "docs_search",
 		Arguments: map[string]any{"query": "  "},
 	})
 	if err != nil {
@@ -51,7 +51,7 @@ func TestSearchDocsValidationAndNotReady(t *testing.T) {
 	}
 
 	notReady, err := reg.Execute(context.Background(), service.ToolCall{
-		Name:      "search_docs",
+		Name:      "docs_search",
 		Arguments: map[string]any{"query": "unique_abc"},
 	})
 	if err != nil {
@@ -65,7 +65,7 @@ func TestSearchDocsValidationAndNotReady(t *testing.T) {
 		t.Fatal(err)
 	}
 	ok, err := reg.Execute(context.Background(), service.ToolCall{
-		Name: "search_docs",
+		Name: "docs_search",
 		Arguments: map[string]any{
 			"query":    "unique_abc",
 			"top_k":    0,

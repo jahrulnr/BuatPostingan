@@ -203,7 +203,7 @@ func TestExtractXMLToolCalls_toolUseBareFormat(t *testing.T) {
 	text := `I'll search for that.
 
 <tool_use>
-<name>search_docs</name>
+<name>docs_search</name>
 <parameters>
 <query>kafka configuration</query>
 <limit>5</limit>
@@ -216,8 +216,8 @@ Hope that helps.`
 	if len(calls) != 1 {
 		t.Fatalf("expected 1 call, got %d", len(calls))
 	}
-	if calls[0].Name != "search_docs" {
-		t.Fatalf("expected search_docs, got %s", calls[0].Name)
+	if calls[0].Name != "docs_search" {
+		t.Fatalf("expected docs_search, got %s", calls[0].Name)
 	}
 	if calls[0].Arguments["query"] != "kafka configuration" {
 		t.Fatalf("unexpected query: %v", calls[0].Arguments["query"])
@@ -234,7 +234,7 @@ func TestExtractXMLToolCalls_multipleFormatsMixed(t *testing.T) {
 	text := `First I'll search, then write.
 
 <function_calls>
-<invoke name="search_docs">
+<invoke name="docs_search">
 <parameter name="query">test</parameter>
 </invoke>
 </function_calls>
@@ -255,8 +255,8 @@ Done.`
 	if len(calls) != 2 {
 		t.Fatalf("expected 2 calls, got %d", len(calls))
 	}
-	if calls[0].Name != "search_docs" {
-		t.Fatalf("expected first call search_docs, got %s", calls[0].Name)
+	if calls[0].Name != "docs_search" {
+		t.Fatalf("expected first call docs_search, got %s", calls[0].Name)
 	}
 	if calls[1].Name != "write_file" {
 		t.Fatalf("expected second call write_file, got %s", calls[1].Name)
@@ -294,10 +294,10 @@ func TestRecoverXMLToolCalls_anthropicInvokeFromStream(t *testing.T) {
 
 func TestRecoverXMLToolCalls_toolUseFromStream(t *testing.T) {
 	result := service.LLMResult{ToolCalls: []service.ToolCall{{
-		CallID: "call_api", Name: "search_docs", Arguments: map[string]any{},
+		CallID: "call_api", Name: "docs_search", Arguments: map[string]any{},
 	}}}
 	streamed := `<tool_use>
-<name>search_docs</name>
+<name>docs_search</name>
 <parameters>
 <query>streamed query</query>
 </parameters>
@@ -341,7 +341,7 @@ Done.`
 
 func TestExtractXMLToolCalls_kimiK2MultipleCalls(t *testing.T) {
 	text := `<|tool_calls_section_begin|>
-<|tool_call_begin|>functions.search_docs:0<|tool_call_argument_begin|>{"query":"kafka"}<|tool_call_end|>
+<|tool_call_begin|>functions.docs_search:0<|tool_call_argument_begin|>{"query":"kafka"}<|tool_call_end|>
 <|tool_call_begin|>functions.read_file:1<|tool_call_argument_begin|>{"path":"/tmp/x.txt"}<|tool_call_end|>
 <|tool_calls_section_end|>`
 
@@ -349,8 +349,8 @@ func TestExtractXMLToolCalls_kimiK2MultipleCalls(t *testing.T) {
 	if len(calls) != 2 {
 		t.Fatalf("expected 2 calls, got %d", len(calls))
 	}
-	if calls[0].Name != "search_docs" {
-		t.Fatalf("expected first call search_docs, got %s", calls[0].Name)
+	if calls[0].Name != "docs_search" {
+		t.Fatalf("expected first call docs_search, got %s", calls[0].Name)
 	}
 	if calls[0].Arguments["query"] != "kafka" {
 		t.Fatalf("expected query=kafka, got %v", calls[0].Arguments["query"])

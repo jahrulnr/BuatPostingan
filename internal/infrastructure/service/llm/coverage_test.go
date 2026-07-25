@@ -304,7 +304,7 @@ func TestChatViaCompletionsWithTools(t *testing.T) {
 					"tool_calls": []any{
 						map[string]any{
 							"id": "call_x", "type": "function",
-							"function": map[string]any{"name": "search_docs", "arguments": `{"query":"q"}`},
+							"function": map[string]any{"name": "docs_search", "arguments": `{"query":"q"}`},
 						},
 						map[string]any{"id": "", "function": map[string]any{"name": "bad", "arguments": "{"}},
 					},
@@ -326,7 +326,7 @@ func TestChatViaCompletionsWithTools(t *testing.T) {
 	c.cfg.ActiveProvider = "CHAT"
 	tools := []map[string]any{
 		{"type": "function", "function": map[string]any{
-			"name": "search_docs", "description": "d",
+			"name": "docs_search", "description": "d",
 			"parameters": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -341,7 +341,7 @@ func TestChatViaCompletionsWithTools(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(res.ToolCalls) < 1 || res.ToolCalls[0].Name != "search_docs" {
+	if len(res.ToolCalls) < 1 || res.ToolCalls[0].Name != "docs_search" {
 		t.Fatalf("%#v", res.ToolCalls)
 	}
 	if res.Usage.CachedInputTokens != 3 || res.Usage.ReasoningOutputTokens != 5 {
@@ -549,7 +549,7 @@ func TestParseSSEResponsesFailedAndChatTools(t *testing.T) {
 	}
 
 	rawChatTools := strings.Join([]string{
-		`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"search_docs","arguments":"{\"q\":"}}]}}]}`,
+		`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"docs_search","arguments":"{\"q\":"}}]}}]}`,
 		"",
 		`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"x\"}"}}]}}]}`,
 		"",
@@ -565,7 +565,7 @@ func TestParseSSEResponsesFailedAndChatTools(t *testing.T) {
 		t.Fatal(err)
 	}
 	res := parseChatCompletionPayload(config.LLMProvider{ID: "P", Model: "m", API: "chat"}, payload)
-	if len(res.ToolCalls) != 1 || res.ToolCalls[0].Name != "search_docs" {
+	if len(res.ToolCalls) != 1 || res.ToolCalls[0].Name != "docs_search" {
 		t.Fatalf("%#v", res)
 	}
 
@@ -798,7 +798,7 @@ func TestChatViaResponsesWithToolsBody(t *testing.T) {
 	res, err := c.Chat(context.Background(), []map[string]any{
 		{"role": "system", "content": "s"},
 		{"role": "user", "content": "u"},
-	}, []map[string]any{{"function": map[string]any{"name": "search_docs", "parameters": map[string]any{}}}})
+	}, []map[string]any{{"function": map[string]any{"name": "docs_search", "parameters": map[string]any{}}}})
 	if err != nil {
 		t.Fatal(err)
 	}

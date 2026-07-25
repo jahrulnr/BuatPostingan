@@ -59,7 +59,7 @@ func TestInjectPrompts(t *testing.T) {
 	msgs, err = injectPrompts(root, []map[string]any{
 		{"role": "system", "content": "Conversation summary:\nprior context"},
 		{"role": "user", "content": "latest"},
-	}, promptVars{AdminDisplayName: "Ada", AvailableTools: "search_docs"})
+	}, promptVars{AdminDisplayName: "Ada", AvailableTools: "docs_search"})
 	if err != nil {
 		t.Fatal(err)
 	}

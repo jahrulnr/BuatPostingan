@@ -117,6 +117,74 @@ func (idx *Index) SearchHits(ctx context.Context, query string, topK int, filter
 	return rankDocuments(data.Documents, query, topK, filters, idx.opts), nil
 }
 
+// ListDocs returns lightweight summaries of all indexed documents, optionally
+// filtered by language and/or domain. Returns empty when index is not usable.
+func (idx *Index) ListDocs(ctx context.Context, filters Filters) ([]DocSummary, error) {
+	_ = ctx
+	if !idx.Usable() {
+		return []DocSummary{}, nil
+	}
+	data, err := idx.load()
+	if err != nil || data == nil {
+		return []DocSummary{}, nil
+	}
+	out := make([]DocSummary, 0, len(data.Documents))
+	for _, doc := range data.Documents {
+		if filters.Language != "" && doc.Language != filters.Language {
+			continue
+		}
+		if filters.Domain != "" && doc.Domain != filters.Domain {
+			continue
+		}
+		out = append(out, DocSummary{
+			Path:     doc.Path,
+			Title:    doc.Title,
+			Language: doc.Language,
+			Domain:   doc.Domain,
+			Headings: doc.Headings,
+		})
+	}
+	return out, nil
+}
+
+// ReadDoc returns the full content of a document by path. When chunkID is
+// non-empty, only that chunk's text is returned. Returns nil, nil when the
+// document is not found or the index is not usable.
+func (idx *Index) ReadDoc(ctx context.Context, path, chunkID string) (*DocContent, error) {
+	_ = ctx
+	if !idx.Usable() {
+		return nil, nil
+	}
+	data, err := idx.load()
+	if err != nil || data == nil {
+		return nil, nil
+	}
+	for _, doc := range data.Documents {
+		if doc.Path != path {
+			continue
+		}
+		content := &DocContent{
+			Path:     doc.Path,
+			Title:    doc.Title,
+			Language: doc.Language,
+			Domain:   doc.Domain,
+			Headings: doc.Headings,
+			Text:     doc.Text,
+		}
+		if chunkID != "" {
+			for _, ch := range doc.Chunks {
+				if ch.ID == chunkID {
+					content.ChunkID = ch.ID
+					content.Chunk = ch.Text
+					break
+				}
+			}
+		}
+		return content, nil
+	}
+	return nil, nil
+}
+
 // Reindex rebuilds the index synchronously (v0). Marks building, then ready/failed.
 func (idx *Index) Reindex(ctx context.Context) error {
 	_ = ctx

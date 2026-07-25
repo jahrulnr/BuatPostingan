@@ -9,7 +9,7 @@ Related: [Architecture](README.md) · [Turn loop](turn-loop.md) · Cursor/Codex 
 1. **Discover** — call `list_skills` (or scan the short catalog if injected). You get `name` + `description` only.
 2. **Match** — pick a skill whose description fits the current user task (WHAT + WHEN in the description).
 3. **Load** — call `read_skill` with that `name`. Read the returned `SKILL.md` body **fully**.
-4. **Follow** — treat the skill body as workflow instructions for this turn (trusted project content). Use other reader tools (`search_docs`, `web_search`, …) as the skill directs.
+4. **Follow** — treat the skill body as workflow instructions for this turn (trusted project content). Use other reader tools (`docs_search`, `web_search`, …) as the skill directs.
 5. **Progressive disclosure** — if the skill links to a sibling file under its folder (e.g. `reference.md`), load that only when needed via another `read_skill` of a dedicated skill, or (local-dev) `read_file` on the absolute path under `BP_SKILLS_ROOT`. Prefer keeping essential steps in `SKILL.md` so one `read_skill` is enough.
 
 ### When NOT to load all skills into the system prompt
@@ -85,4 +85,4 @@ With a real LLM (stub off), ask e.g.:
 
 > Pakai skill writing-post untuk bantu aku outline postingan tentang X.
 
-Expect: `list_skills` and/or `read_skill` with `name=writing-post`, then `search_docs` as the skill instructs.
+Expect: `list_skills` and/or `read_skill` with `name=writing-post`, then `docs_search` as the skill instructs.

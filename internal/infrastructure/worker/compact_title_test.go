@@ -23,7 +23,7 @@ func TestEstimateAndExcerpt(t *testing.T) {
 	items := []entity.TranscriptItem{
 		{Type: enum.ItemUserMessage, ThreadID: tid, TurnID: turn, Payload: map[string]any{"text": strings.Repeat("a", 40)}},
 		{Type: enum.ItemToolCall, ThreadID: tid, TurnID: turn, Payload: map[string]any{
-			"name": "search_docs", "arguments": map[string]any{"q": "x"},
+			"name": "docs_search", "arguments": map[string]any{"q": "x"},
 		}},
 		{Type: enum.ItemToolResult, ThreadID: tid, TurnID: turn, Payload: map[string]any{
 			"envelope": map[string]any{"ok": true},

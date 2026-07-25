@@ -26,7 +26,7 @@ func (o Options) fuzzyEnabled() bool {
 	return !o.DisableFuzzy
 }
 
-// Filters optional language/domain constraints (used by search_docs tool).
+// Filters optional language/domain constraints (used by docs_search tool).
 type Filters struct {
 	Language string
 	Domain   string
@@ -43,6 +43,27 @@ type Hit struct {
 	AppID    string  `json:"app_id"`
 	Excerpt  string  `json:"excerpt"`
 	Score    float64 `json:"score"`
+}
+
+// DocSummary is a lightweight catalog entry for docs_list.
+type DocSummary struct {
+	Path     string   `json:"path"`
+	Title    string   `json:"title"`
+	Language string   `json:"language"`
+	Domain   string   `json:"domain"`
+	Headings []string `json:"headings"`
+}
+
+// DocContent is the full document returned by docs_read.
+type DocContent struct {
+	Path     string   `json:"path"`
+	Title    string   `json:"title"`
+	Language string   `json:"language"`
+	Domain   string   `json:"domain"`
+	Headings []string `json:"headings"`
+	Text     string   `json:"text"`
+	ChunkID  string   `json:"chunk_id,omitempty"`
+	Chunk    string   `json:"chunk,omitempty"`
 }
 
 type chunk struct {

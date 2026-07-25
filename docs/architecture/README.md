@@ -84,7 +84,7 @@ Handlers call `webchat.Usecase` only. Concrete service: `webchat.NewService(Deps
 ## Runtime wiring (`cmd/app`)
 
 1. Ensure storage dirs; `docs.NewIndex` (+ Reindex) + Gate log  
-2. `tools.NewRegistry` (allowlist: search_docs, list_dir, read_file, grep, read_attachment, read_image, web_search, web_fetch, list_skills, read_skill, list_mcp_tools, call_mcp_tool; plus write_file / edit_file / delete_file when `write_enabled=true`) + optional `mcp.NewManager`  
+2. `tools.NewRegistry` (allowlist: docs_search, list_dir, read_file, grep, read_attachment, read_image, web_search, web_fetch, list_skills, read_skill, list_mcp_tools, call_mcp_tool; plus write_file / edit_file / delete_file when `write_enabled=true`) + optional `mcp.NewManager`  
 3. `llm.NewClient` + `llm.NewRouter` (failover / circuit)  
 4. `worker.New` + `sse.NewStreamer`  
 5. `webchat.NewService(Deps{…})` → HTTP server  
@@ -97,7 +97,7 @@ Allowlist (hardcoded in `tools.Allowlist`; schemas from disk):
 
 | Tool | Role |
 |---|---|
-| `search_docs` | Lexical RAG over indexed Markdown (`BP_DOCS_ROOT`) |
+| `docs_search` | Lexical RAG over indexed Markdown (`BP_DOCS_ROOT`) |
 | `list_dir` | List host directories (`data.listing` ls-style incl. `.` / `..`) |
 | `read_file` | Read host files (absolute or relative) |
 | `grep` | Regex search; prefers host `rg` (`--json`, no shell); Go RE2 fallback |
@@ -114,7 +114,7 @@ Allowlist (hardcoded in `tools.Allowlist`; schemas from disk):
 - Skills: `resources/webchat/skills/<name>/SKILL.md` (`BP_SKILLS_ROOT`) — see [skills-tools.md](skills-tools.md)  
 - **Local-dev FS:** `list_dir` / `read_file` / `grep` use the real host filesystem (absolute paths including `/` allowed; optional `Options.FSRoot` is a relative-path base for tests only — not a jail). **Insecure for multi-tenant production.**  
 - **Skills jail:** `list_skills` / `read_skill` resolve only under `BP_SKILLS_ROOT` (even in local-dev)  
-- Docs corpus for `search_docs` = `BP_DOCS_ROOT` (default `docs/webchat`) — indexing only; does not jail other FS tools  
+- Docs corpus for `docs_search` = `BP_DOCS_ROOT` (default `docs/webchat`) — indexing only; does not jail other FS tools  
 - Attachments = `{BP_STORAGE_ROOT}/attachments/{threadId}/` — tools require worker thread context + `attachment_id`  
 - `web_fetch` blocks localhost/private/link-local/metadata IPs; max body 2 MiB; text/html(+text) only  
 - Optional `BP_GITHUB_TOKEN` (or `GITHUB_TOKEN`) raises GitHub search rate limits for `web_search` — not required for default path  

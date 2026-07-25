@@ -340,7 +340,7 @@ export function createStore(fixtures) {
                     type: 'tool_call',
                     turn_id: turnId,
                     call_id: callId,
-                    name: 'search_docs',
+                    name: 'docs_search',
                     arguments: { query: String(userText || '').slice(0, 80), top_k: 3 },
                     model: { provider: 'mock', id: 'tool-router' },
                 });
@@ -352,7 +352,7 @@ export function createStore(fixtures) {
                     call_id: callId,
                     envelope: {
                         ok: true,
-                        tool: 'search_docs',
+                        tool: 'docs_search',
                         data: {
                             chunks: [
                                 { path: 'docs/getting-started.md', heading: 'Mulai', score: 0.92 },
@@ -381,7 +381,7 @@ export function createStore(fixtures) {
                     '1. Tentukan sudut & audiens\n' +
                     '2. Susun outline singkat\n' +
                     '3. Tulis draft, lalu sunting\n\n' +
-                    '_Sumber: search_docs (mock)_'
+                    '_Sumber: docs_search (mock)_'
                 );
             const draftId = uid('itm');
             // Fake token stream before durable item.completed (parity with real BE).

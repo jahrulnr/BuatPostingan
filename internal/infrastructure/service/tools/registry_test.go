@@ -49,7 +49,7 @@ func TestAbsolutePathReadAllowed(t *testing.T) {
 	}
 }
 
-func TestSearchDocsEnvelopeWhenIndexReady(t *testing.T) {
+func TestDocsSearchEnvelopeWhenIndexReady(t *testing.T) {
 	repoRoot := findRepoRoot(t)
 	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
 	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
@@ -65,7 +65,7 @@ func TestSearchDocsEnvelopeWhenIndexReady(t *testing.T) {
 	}
 
 	env, err := reg.Execute(context.Background(), service.ToolCall{
-		Name: "search_docs",
+		Name: "docs_search",
 		Arguments: map[string]any{
 			"query":    "menulis postingan judul checklist",
 			"top_k":    "3", // string → healer
@@ -78,7 +78,7 @@ func TestSearchDocsEnvelopeWhenIndexReady(t *testing.T) {
 	if !env.OK {
 		t.Fatalf("expected ok envelope, got %+v", env)
 	}
-	if env.Tool != "search_docs" {
+	if env.Tool != "docs_search" {
 		t.Fatalf("tool=%s", env.Tool)
 	}
 	if env.Meta["data_is_untrusted"] != true {
@@ -94,6 +94,196 @@ func TestSearchDocsEnvelopeWhenIndexReady(t *testing.T) {
 	chunks, ok := data["chunks"].([]docs.Hit)
 	if !ok || len(chunks) == 0 {
 		t.Fatalf("expected chunks, got %#v", data["chunks"])
+	}
+}
+
+func TestDocsReadFullDocument(t *testing.T) {
+	repoRoot := findRepoRoot(t)
+	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
+	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
+	storage := t.TempDir()
+
+	idx, err := docs.NewIndex(docsRoot, storage, docs.Options{})
+	if err != nil {
+		t.Fatalf("NewIndex: %v", err)
+	}
+	reg, err := tools.NewRegistry(toolsRoot, idx, tools.Options{})
+	if err != nil {
+		t.Fatalf("NewRegistry: %v", err)
+	}
+
+	env, err := reg.Execute(context.Background(), service.ToolCall{
+		Name:      "docs_read",
+		Arguments: map[string]any{"path": "writing/outline_dan_hook_id.md"},
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !env.OK {
+		t.Fatalf("expected ok envelope, got %+v", env)
+	}
+	if env.Tool != "docs_read" {
+		t.Fatalf("tool=%s", env.Tool)
+	}
+	data, ok := env.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("data type %T", env.Data)
+	}
+	if data["text"] == nil || data["text"] == "" {
+		t.Fatalf("expected text content, got %#v", data["text"])
+	}
+	if data["title"] == nil || data["title"] == "" {
+		t.Fatalf("expected title, got %#v", data["title"])
+	}
+}
+
+func TestDocsReadNotFound(t *testing.T) {
+	toolsRoot := filepath.Join(findRepoRoot(t), "resources", "webchat", "tools")
+	docsRoot := t.TempDir()
+	_ = os.WriteFile(filepath.Join(docsRoot, "a.md"), []byte("# A\nhello\n"), 0o644)
+	storage := t.TempDir()
+	idx, err := docs.NewIndex(docsRoot, storage, docs.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg, err := tools.NewRegistry(toolsRoot, idx, tools.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	env, err := reg.Execute(context.Background(), service.ToolCall{
+		Name:      "docs_read",
+		Arguments: map[string]any{"path": "nonexistent.md"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env.OK || env.Error["code"] != "not_found" {
+		t.Fatalf("expected not_found, got %+v", env)
+	}
+}
+
+func TestDocsReadValidationEmptyPath(t *testing.T) {
+	toolsRoot := filepath.Join(findRepoRoot(t), "resources", "webchat", "tools")
+	docsRoot := t.TempDir()
+	_ = os.WriteFile(filepath.Join(docsRoot, "a.md"), []byte("# A\n"), 0o644)
+	storage := t.TempDir()
+	idx, err := docs.NewIndex(docsRoot, storage, docs.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg, err := tools.NewRegistry(toolsRoot, idx, tools.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	env, err := reg.Execute(context.Background(), service.ToolCall{
+		Name:      "docs_read",
+		Arguments: map[string]any{"path": "  "},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env.OK || env.Error["code"] != "validation" {
+		t.Fatalf("expected validation error, got %+v", env)
+	}
+}
+
+func TestDocsListAllDocuments(t *testing.T) {
+	repoRoot := findRepoRoot(t)
+	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
+	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
+	storage := t.TempDir()
+
+	idx, err := docs.NewIndex(docsRoot, storage, docs.Options{})
+	if err != nil {
+		t.Fatalf("NewIndex: %v", err)
+	}
+	reg, err := tools.NewRegistry(toolsRoot, idx, tools.Options{})
+	if err != nil {
+		t.Fatalf("NewRegistry: %v", err)
+	}
+
+	env, err := reg.Execute(context.Background(), service.ToolCall{
+		Name:      "docs_list",
+		Arguments: map[string]any{},
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !env.OK {
+		t.Fatalf("expected ok envelope, got %+v", env)
+	}
+	if env.Tool != "docs_list" {
+		t.Fatalf("tool=%s", env.Tool)
+	}
+	data, ok := env.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("data type %T", env.Data)
+	}
+	documents, ok := data["documents"].([]docs.DocSummary)
+	if !ok || len(documents) == 0 {
+		t.Fatalf("expected documents, got %#v", data["documents"])
+	}
+	if env.Meta["count"] == nil || env.Meta["count"] != len(documents) {
+		t.Fatalf("count mismatch: meta=%v documents=%d", env.Meta["count"], len(documents))
+	}
+}
+
+func TestDocsListWithLanguageFilter(t *testing.T) {
+	toolsRoot := filepath.Join(findRepoRoot(t), "resources", "webchat", "tools")
+	docsRoot := t.TempDir()
+	_ = os.WriteFile(filepath.Join(docsRoot, "guide_id.md"), []byte("# Panduan\nisi\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(docsRoot, "guide_en.md"), []byte("# Guide\ncontent\n"), 0o644)
+	storage := t.TempDir()
+	idx, err := docs.NewIndex(docsRoot, storage, docs.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg, err := tools.NewRegistry(toolsRoot, idx, tools.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	env, err := reg.Execute(context.Background(), service.ToolCall{
+		Name:      "docs_list",
+		Arguments: map[string]any{"language": "id"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !env.OK {
+		t.Fatalf("%+v", env)
+	}
+	data, _ := env.Data.(map[string]any)
+	documents, _ := data["documents"].([]docs.DocSummary)
+	if len(documents) != 1 {
+		t.Fatalf("expected 1 id doc, got %d", len(documents))
+	}
+	if documents[0].Language != "id" {
+		t.Fatalf("language=%s", documents[0].Language)
+	}
+}
+
+func TestDocsListNotReady(t *testing.T) {
+	toolsRoot := filepath.Join(findRepoRoot(t), "resources", "webchat", "tools")
+	docsRoot := t.TempDir()
+	_ = os.WriteFile(filepath.Join(docsRoot, "a.md"), []byte("# A\n"), 0o644)
+	storage := t.TempDir()
+	idx, err := docs.NewIndex(docsRoot, storage, docs.Options{SkipAutoBuild: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg, err := tools.NewRegistry(toolsRoot, idx, tools.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	env, err := reg.Execute(context.Background(), service.ToolCall{
+		Name:      "docs_list",
+		Arguments: map[string]any{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if env.OK || env.Error["code"] != "docs_index_not_ready" {
+		t.Fatalf("expected docs_index_not_ready, got %+v", env)
 	}
 }
 

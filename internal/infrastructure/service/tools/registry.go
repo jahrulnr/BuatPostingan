@@ -19,11 +19,13 @@ import (
 
 var _ service.ToolRegistry = (*Registry)(nil)
 
-// DocsIndex is the subset of docs.Index used by search_docs.
+// DocsIndex is the subset of docs.Index used by docs_search / docs_read / docs_list.
 type DocsIndex interface {
 	Gate(ctx context.Context) (entity.DocsIndexGate, error)
 	Usable() bool
 	SearchHits(ctx context.Context, query string, topK int, filters docs.Filters) ([]docs.Hit, error)
+	ListDocs(ctx context.Context, filters docs.Filters) ([]docs.DocSummary, error)
+	ReadDoc(ctx context.Context, path, chunkID string) (*docs.DocContent, error)
 }
 
 // VisionPixelsGate reports whether multimodal pixels are allowed for the active model.
@@ -33,7 +35,7 @@ type VisionPixelsGate interface {
 
 // Options configures Registry defaults.
 type Options struct {
-	TopK        int // default for search_docs when top_k omitted
+	TopK        int // default for docs_search when top_k omitted
 	Attachments repository.AttachmentStore
 	// WebSearch overrides the default searchwire-backed searcher (tests).
 	WebSearch WebSearcher
@@ -80,7 +82,7 @@ type Registry struct {
 }
 
 // NewRegistry constructs a ToolRegistry.
-// toolsRoot should contain search_docs.tool.json, list_dir.tool.json, etc.
+// toolsRoot should contain docs_search.tool.json, docs_read.tool.json, etc.
 // Filesystem tools use opts.FSRoot (empty = full host FS for local development).
 func NewRegistry(toolsRoot string, index DocsIndex, opts Options) (*Registry, error) {
 	if index == nil {
@@ -185,8 +187,16 @@ func (r *Registry) Execute(ctx context.Context, call service.ToolCall) (service.
 	args = healArgs(args, params)
 
 	switch name {
-	case "search_docs":
-		env := r.execSearchDocs(ctx, args)
+	case "docs_search":
+		env := r.execDocsSearch(ctx, args)
+		env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
+		return env, nil
+	case "docs_read":
+		env := r.execDocsRead(ctx, args)
+		env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
+		return env, nil
+	case "docs_list":
+		env := r.execDocsList(ctx, args)
 		env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
 		return env, nil
 	case "list_dir", "read_file", "grep":
@@ -309,13 +319,13 @@ func (r *Registry) parametersFor(name string) map[string]any {
 	return params
 }
 
-func (r *Registry) execSearchDocs(ctx context.Context, args map[string]any) service.ToolEnvelope {
+func (r *Registry) execDocsSearch(ctx context.Context, args map[string]any) service.ToolEnvelope {
 	query := strings.TrimSpace(asString(args["query"]))
 	if query == "" {
 		gate, _ := r.index.Gate(ctx)
 		return service.ToolEnvelope{
 			OK:   false,
-			Tool: "search_docs",
+			Tool: "docs_search",
 			Data: nil,
 			Error: map[string]any{
 				"code":    "validation",
@@ -339,7 +349,7 @@ func (r *Registry) execSearchDocs(ctx context.Context, args map[string]any) serv
 		gate, _ := r.index.Gate(ctx)
 		return service.ToolEnvelope{
 			OK:   false,
-			Tool: "search_docs",
+			Tool: "docs_search",
 			Data: nil,
 			Error: map[string]any{
 				"code":    "docs_index_not_ready",
@@ -368,7 +378,7 @@ func (r *Registry) execSearchDocs(ctx context.Context, args map[string]any) serv
 		gate, _ := r.index.Gate(ctx)
 		return service.ToolEnvelope{
 			OK:    false,
-			Tool:  "search_docs",
+			Tool:  "docs_search",
 			Data:  nil,
 			Error: map[string]any{"code": "tool_error", "message": "search failed"},
 			Meta: map[string]any{
@@ -382,12 +392,209 @@ func (r *Registry) execSearchDocs(ctx context.Context, args map[string]any) serv
 
 	return service.ToolEnvelope{
 		OK:    true,
-		Tool:  "search_docs",
+		Tool:  "docs_search",
 		Data:  map[string]any{"chunks": hits},
 		Error: nil,
 		Meta: map[string]any{
 			"truncated":         len(hits) >= topK,
 			"count":             len(hits),
+			"index_ready":       true,
+			"index_status":      "ready",
+			"data_is_untrusted": true,
+		},
+	}
+}
+
+func (r *Registry) execDocsRead(ctx context.Context, args map[string]any) service.ToolEnvelope {
+	path := strings.TrimSpace(asString(args["path"]))
+	if path == "" {
+		gate, _ := r.index.Gate(ctx)
+		return service.ToolEnvelope{
+			OK:   false,
+			Tool: "docs_read",
+			Data: nil,
+			Error: map[string]any{
+				"code":    "validation",
+				"message": "path required",
+			},
+			Meta: map[string]any{
+				"index_ready":       gate.Usable,
+				"index_status":      gate.Status,
+				"data_is_untrusted": true,
+			},
+		}
+	}
+
+	if !r.index.Usable() {
+		gate, _ := r.index.Gate(ctx)
+		return service.ToolEnvelope{
+			OK:   false,
+			Tool: "docs_read",
+			Data: nil,
+			Error: map[string]any{
+				"code":    "docs_index_not_ready",
+				"message": gate.Message,
+			},
+			Meta: map[string]any{
+				"index_ready":       false,
+				"index_status":      gate.Status,
+				"data_is_untrusted": true,
+			},
+		}
+	}
+
+	chunkID := strings.TrimSpace(asString(args["chunk_id"]))
+	doc, err := r.index.ReadDoc(ctx, path, chunkID)
+	if err != nil {
+		gate, _ := r.index.Gate(ctx)
+		return service.ToolEnvelope{
+			OK:    false,
+			Tool:  "docs_read",
+			Data:  nil,
+			Error: map[string]any{"code": "tool_error", "message": "read failed"},
+			Meta: map[string]any{
+				"index_ready":       gate.Usable,
+				"index_status":      gate.Status,
+				"data_is_untrusted": true,
+			},
+		}
+	}
+	if doc == nil {
+		return service.ToolEnvelope{
+			OK:   false,
+			Tool: "docs_read",
+			Data: nil,
+			Error: map[string]any{
+				"code":    "not_found",
+				"message": "document not found in docs corpus",
+			},
+			Meta: map[string]any{
+				"index_ready":       true,
+				"index_status":      "ready",
+				"data_is_untrusted": true,
+			},
+		}
+	}
+
+	text := doc.Text
+	if chunkID != "" && doc.Chunk != "" {
+		text = doc.Chunk
+	}
+	offset := asInt(args["offset"], 0)
+	if offset < 0 {
+		offset = 0
+	}
+	maxChars := asInt(args["max_chars"], 0)
+	if maxChars > 0 && offset < len(text) {
+		end := offset + maxChars
+		if end > len(text) {
+			end = len(text)
+		}
+		doc.Text = text[offset:end]
+		hasMore := end < len(text)
+		return service.ToolEnvelope{
+			OK:   true,
+			Tool: "docs_read",
+			Data: map[string]any{
+				"path":        doc.Path,
+				"title":       doc.Title,
+				"language":    doc.Language,
+				"domain":      doc.Domain,
+				"headings":    doc.Headings,
+				"text":        doc.Text,
+				"chunk_id":    doc.ChunkID,
+				"has_more":    hasMore,
+				"next_offset": end,
+			},
+			Meta: map[string]any{
+				"index_ready":       true,
+				"index_status":      "ready",
+				"data_is_untrusted": true,
+			},
+		}
+	}
+	doc.Text = text
+	return service.ToolEnvelope{
+		OK:   true,
+		Tool: "docs_read",
+		Data: map[string]any{
+			"path":     doc.Path,
+			"title":    doc.Title,
+			"language": doc.Language,
+			"domain":   doc.Domain,
+			"headings": doc.Headings,
+			"text":     doc.Text,
+			"chunk_id": doc.ChunkID,
+		},
+		Meta: map[string]any{
+			"index_ready":       true,
+			"index_status":      "ready",
+			"data_is_untrusted": true,
+		},
+	}
+}
+
+func (r *Registry) execDocsList(ctx context.Context, args map[string]any) service.ToolEnvelope {
+	if !r.index.Usable() {
+		gate, _ := r.index.Gate(ctx)
+		return service.ToolEnvelope{
+			OK:   false,
+			Tool: "docs_list",
+			Data: nil,
+			Error: map[string]any{
+				"code":    "docs_index_not_ready",
+				"message": gate.Message,
+			},
+			Meta: map[string]any{
+				"count":             0,
+				"index_ready":       false,
+				"index_status":      gate.Status,
+				"data_is_untrusted": true,
+			},
+		}
+	}
+
+	filters := docs.Filters{}
+	if lang := strings.TrimSpace(asString(args["language"])); lang != "" {
+		filters.Language = lang
+	}
+	if domain := strings.TrimSpace(asString(args["domain"])); domain != "" {
+		filters.Domain = domain
+	}
+
+	docs_list, err := r.index.ListDocs(ctx, filters)
+	if err != nil {
+		gate, _ := r.index.Gate(ctx)
+		return service.ToolEnvelope{
+			OK:    false,
+			Tool:  "docs_list",
+			Data:  nil,
+			Error: map[string]any{"code": "tool_error", "message": "list failed"},
+			Meta: map[string]any{
+				"index_ready":       gate.Usable,
+				"index_status":      gate.Status,
+				"data_is_untrusted": true,
+			},
+		}
+	}
+
+	limit := asInt(args["limit"], 50)
+	if limit < 1 {
+		limit = 50
+	}
+	truncated := false
+	if len(docs_list) > limit {
+		docs_list = docs_list[:limit]
+		truncated = true
+	}
+
+	return service.ToolEnvelope{
+		OK:   true,
+		Tool: "docs_list",
+		Data: map[string]any{"documents": docs_list},
+		Meta: map[string]any{
+			"count":             len(docs_list),
+			"truncated":         truncated,
 			"index_ready":       true,
 			"index_status":      "ready",
 			"data_is_untrusted": true,
