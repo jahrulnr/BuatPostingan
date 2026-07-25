@@ -135,7 +135,8 @@ func main() {
 		Hub:         hub,
 	})
 	llmRuntime := llm.NewRuntime(llmRouter, modelCatalog, visionPolicy, effortPolicy, tw)
-	settingsSvc := settingsuc.NewService(settingsStore, envCfg, llmRuntime)
+	modelImporter := llm.NewModelImporter()
+	settingsSvc := settingsuc.NewService(settingsStore, envCfg, llmRuntime, modelImporter)
 	events := sse.NewStreamer(store, hub)
 
 	logging.Info(ctx, "webchat ready",

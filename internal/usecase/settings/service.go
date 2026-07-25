@@ -2,12 +2,14 @@ package settings
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 
 	"buatpostingan/internal/config"
 	"buatpostingan/internal/domain/entity"
 	"buatpostingan/internal/domain/repository"
+	"buatpostingan/internal/domain/service"
 	"buatpostingan/internal/pkg/apperr"
 	"buatpostingan/internal/pkg/idgen"
 )
@@ -19,15 +21,19 @@ type Reloader interface {
 
 // Service orchestrates settings CRUD against the JSON store.
 type Service struct {
-	mu       sync.Mutex
-	store    repository.SettingsStore
-	envCfg   config.Config // immutable bootstrap snapshot
-	reloader Reloader
+	mu            sync.Mutex
+	store         repository.SettingsStore
+	envCfg        config.Config // immutable bootstrap snapshot
+	reloader      Reloader
+	modelImporter service.ProviderModelImporter
 }
 
 // NewService wires store + optional hot-reload target.
-func NewService(store repository.SettingsStore, envCfg config.Config, reloader Reloader) *Service {
-	return &Service{store: store, envCfg: envCfg, reloader: reloader}
+func NewService(store repository.SettingsStore, envCfg config.Config, reloader Reloader, modelImporter service.ProviderModelImporter) *Service {
+	if modelImporter == nil {
+		modelImporter = &stubModelImporter{}
+	}
+	return &Service{store: store, envCfg: envCfg, reloader: reloader, modelImporter: modelImporter}
 }
 
 // Snapshot is GET /api/settings.
@@ -474,16 +480,106 @@ func (s *Service) RemoveModel(ctx context.Context, providerID, modelID string) (
 	return toPublic(sp), nil
 }
 
-// ImportModelsStub is a placeholder for live /models import.
-func (s *Service) ImportModelsStub(_ context.Context, providerID string) (map[string]any, error) {
+type stubModelImporter struct{}
+
+func (stubModelImporter) ImportModels(context.Context, entity.SettingsProvider) ([]entity.SettingsModel, error) {
+	return nil, apperr.NotImplemented("model import")
+}
+
+// ImportModels fetches the provider's /models endpoint and appends any new
+// model ids to the provider's model list.
+func (s *Service) ImportModels(ctx context.Context, providerID string) (map[string]any, error) {
 	providerID = strings.ToUpper(strings.TrimSpace(providerID))
 	if providerID == "" {
 		return nil, apperr.Validation("provider id required")
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	doc, _, err := s.loadOrSeedLocked(ctx)
+	if err != nil {
+		return nil, err
+	}
+	idx := -1
+	for i, p := range doc.LLM.Providers {
+		if p.ID == providerID {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return nil, apperr.NotFound("provider not found")
+	}
+	sp := doc.LLM.Providers[idx]
+
+	imported, err := s.modelImporter.ImportModels(ctx, sp)
+	if err != nil {
+		return nil, err
+	}
+
+	existing := make(map[string]int, len(sp.Models))
+	for i, m := range sp.Models {
+		existing[m.ID] = i
+	}
+	added := 0
+	updated := 0
+	for _, m := range imported {
+		if idx, ok := existing[m.ID]; ok {
+			old := sp.Models[idx]
+			if metadataChanged(old, m) {
+				sp.Models[idx] = m
+				updated++
+			}
+			continue
+		}
+		sp.Models = append(sp.Models, m)
+		existing[m.ID] = len(sp.Models) - 1
+		added++
+	}
+	doc.LLM.Providers[idx] = sp
+	if err := s.persistLocked(ctx, doc); err != nil {
+		return nil, err
+	}
+	s.reloadLocked(doc)
+
+	msg := fmt.Sprintf("Imported %d new model(s) from %s.", added, providerID)
+	if updated > 0 {
+		msg = fmt.Sprintf("Imported %d new, updated %d model(s) from %s.", added, updated, providerID)
+	}
 	return map[string]any{
-		"imported": 0,
-		"message":  "Import from provider /models is not implemented yet — add model ids manually.",
+		"imported": added,
+		"updated":  updated,
+		"total":    len(sp.Models),
+		"message":  msg,
 	}, nil
+}
+
+func metadataChanged(old, new entity.SettingsModel) bool {
+	if old.ContextWindow != new.ContextWindow || old.MaxOutput != new.MaxOutput {
+		return true
+	}
+	if old.SupportsTools != new.SupportsTools || old.Description != new.Description {
+		return true
+	}
+	if !stringSliceEqual(old.InputModes, new.InputModes) || !stringSliceEqual(old.OutputModes, new.OutputModes) {
+		return true
+	}
+	if !stringSliceEqual(old.EffortLevels, new.EffortLevels) {
+		return true
+	}
+	return false
+}
+
+func stringSliceEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Service) loadOrSeedLocked(ctx context.Context) (entity.SettingsFile, string, error) {

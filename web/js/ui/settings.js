@@ -250,11 +250,7 @@ export function bootSettings() {
                 : '';
         const cards = providers
             .map(function (p) {
-                const models = (p.models || [])
-                    .map(function (m) {
-                        return escapeHtml(m.id);
-                    })
-                    .join(', ');
+                const modelCount = (p.models || []).length;
                 return (
                     '<article class="bp-provider-card" data-provider-id="' +
                     escapeHtml(p.id) +
@@ -284,7 +280,7 @@ export function bootSettings() {
                         : '<span class="bp-muted">No API key</span>') +
                     '</p>' +
                     '<p class="bp-provider-card__models"><span class="bp-muted">Models:</span> ' +
-                    (models || '—') +
+                    '<span class="bp-badge-count">' + modelCount + '</span>' +
                     '</p>' +
                     '<div class="bp-provider-card__actions">' +
                     '<button type="button" class="bp-settings__btn bp-settings__btn--ghost" data-open-provider>Details</button>' +
@@ -347,6 +343,33 @@ export function bootSettings() {
         });
     }
 
+    function fmtTokens(n) {
+        if (!n || n <= 0) return '';
+        if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+        if (n >= 1000) return Math.round(n / 1000) + 'K';
+        return String(n);
+    }
+
+    function renderModelBadges(m) {
+        var badges = '';
+        if (m.context_window > 0) {
+            badges += '<span class="bp-meta-badge bp-meta-badge--ctx" title="Context window">' + fmtTokens(m.context_window) + ' ctx</span>';
+        }
+        if (m.max_output > 0) {
+            badges += '<span class="bp-meta-badge bp-meta-badge--out" title="Max output tokens">' + fmtTokens(m.max_output) + ' out</span>';
+        }
+        (m.input_modes || []).forEach(function (mode) {
+            badges += '<span class="bp-meta-badge bp-meta-badge--in">' + escapeHtml(mode) + '</span>';
+        });
+        (m.effort_levels || []).forEach(function (e) {
+            badges += '<span class="bp-meta-badge bp-meta-badge--eff">' + escapeHtml(e) + '</span>';
+        });
+        if (m.supports_tools) {
+            badges += '<span class="bp-meta-badge bp-meta-badge--tools">tools</span>';
+        }
+        return badges ? '<div class="bp-model-meta">' + badges + '</div>' : '';
+    }
+
     function renderProviderDetail(p) {
         const models = (p.models || [])
             .map(function (m) {
@@ -354,11 +377,15 @@ export function bootSettings() {
                     '<li data-model-id="' +
                     escapeHtml(m.id) +
                     '">' +
+                    '<div class="bp-model-row">' +
                     '<code>' +
                     escapeHtml(m.id) +
                     '</code>' +
-                    (m.label ? ' <span class="bp-muted">' + escapeHtml(m.label) + '</span>' : '') +
+                    (m.label && m.label !== m.id ? ' <span class="bp-muted">' + escapeHtml(m.label) + '</span>' : '') +
                     ' <button type="button" class="bp-settings__btn bp-settings__btn--ghost bp-settings__btn--sm" data-rm-model>Remove</button>' +
+                    '</div>' +
+                    renderModelBadges(m) +
+                    (m.description ? '<p class="bp-model-desc">' + escapeHtml(m.description) + '</p>' : '') +
                     '</li>'
                 );
             })
@@ -413,7 +440,8 @@ export function bootSettings() {
             imp.addEventListener('click', async function () {
                 try {
                     const out = await importLLMModels(api, p.id);
-                    toast(out.message || 'Import stub');
+                    toast(out.message || 'Import complete');
+                    renderSettings();
                 } catch (err) {
                     toast(errMsg(err));
                 }
@@ -451,7 +479,9 @@ export function bootSettings() {
     function openProviderModal(existing) {
         const dlg = document.getElementById('providerDialog');
         const form = document.getElementById('providerForm');
+        const title = document.getElementById('providerDialogTitle');
         if (!dlg || !form) return;
+        if (title) title.textContent = existing ? 'Edit Provider' : 'Add Provider';
         form.reset();
         form.elements.namedItem('id').value = existing ? existing.id : '';
         form.elements.namedItem('id').readOnly = !!existing;
@@ -467,6 +497,10 @@ export function bootSettings() {
             existing && existing.models && existing.models[0] ? existing.models[0].id : '';
         form.elements.namedItem('enabled').checked = existing ? !!existing.enabled : true;
         dlg.hidden = false;
+        document.body.classList.add('has-wc-dialog');
+        requestAnimationFrame(function () {
+            dlg.classList.add('is-open');
+        });
         form._editing = existing ? existing.id : '';
         const first = form.querySelector('input:not([readonly])');
         if (first) first.focus();
@@ -474,7 +508,12 @@ export function bootSettings() {
 
     function closeProviderModal() {
         const dlg = document.getElementById('providerDialog');
-        if (dlg) dlg.hidden = true;
+        if (!dlg || dlg.hidden) return;
+        dlg.classList.remove('is-open');
+        document.body.classList.remove('has-wc-dialog');
+        setTimeout(function () {
+            dlg.hidden = true;
+        }, 180);
     }
 
     const providerForm = document.getElementById('providerForm');

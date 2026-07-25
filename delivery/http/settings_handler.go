@@ -165,7 +165,7 @@ func (h *SettingsHandler) RemoveModel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SettingsHandler) ImportModels(w http.ResponseWriter, r *http.Request) {
-	out, err := h.UC.ImportModelsStub(r.Context(), r.PathValue("id"))
+	out, err := h.UC.ImportModels(r.Context(), r.PathValue("id"))
 	if err != nil {
 		writeErr(w, r, "settings", err)
 		return

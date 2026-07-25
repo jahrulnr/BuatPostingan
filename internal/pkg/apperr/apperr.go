@@ -22,6 +22,7 @@ const (
 	CodeEmpty             Code = "empty"
 	CodeNotRetryable      Code = "not_retryable"
 	CodeInternal          Code = "internal"
+	CodeUpstream          Code = "upstream"
 )
 
 // Error is the application boundary error (usecase → delivery).

@@ -11,6 +11,15 @@ import (
 	"buatpostingan/internal/pkg/apperr"
 )
 
+type fakeModelImporter struct {
+	models []entity.SettingsModel
+	err    error
+}
+
+func (f *fakeModelImporter) ImportModels(_ context.Context, _ entity.SettingsProvider) ([]entity.SettingsModel, error) {
+	return f.models, f.err
+}
+
 type fakeReloader struct {
 	n    int
 	last config.Config
@@ -31,7 +40,7 @@ func TestCRUDUsersAndMask(t *testing.T) {
 		},
 	}
 	rel := &fakeReloader{}
-	svc := NewService(store, env, rel)
+	svc := NewService(store, env, rel, nil)
 	ctx := context.Background()
 
 	snap, err := svc.GetSnapshot(ctx)
@@ -94,6 +103,31 @@ func TestCRUDUsersAndMask(t *testing.T) {
 	_, err = svc.RemoveModel(ctx, "LOCAL", "other")
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	fakeImporter := &fakeModelImporter{models: []entity.SettingsModel{
+		{ID: "m1", Label: "Model 1"},
+		{ID: "m2", Label: "Model 2"},
+		{ID: "m1", Label: "Model 1"}, // duplicate should be skipped
+	}}
+	svcWithImporter := NewService(store, env, rel, fakeImporter)
+	_, err = svcWithImporter.CreateProvider(ctx, ProviderInput{
+		ID: "REMOTE", Name: "Remote", API: "chat",
+		BaseURL: "http://example.com/v1", APIKey: &key,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := svcWithImporter.ImportModels(ctx, "REMOTE")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res["imported"] != 2 {
+		t.Fatalf("expected 2 imported, got %v", res["imported"])
+	}
+	pub, _ = svcWithImporter.GetProvider(ctx, "REMOTE")
+	if len(pub.Models) != 2 {
+		t.Fatalf("expected 2 models on provider, got %+v", pub.Models)
 	}
 
 	err = svc.DeleteUser(ctx, "usr_owner")

@@ -287,42 +287,42 @@
                 <div class="wc-dialog__icon" aria-hidden="true"><i class="bi bi-plug"></i></div>
                 <div>
                     <span class="wc-dialog__eyebrow">LLM</span>
-                    <h5 id="providerDialogTitle">Add OpenAI Compatible</h5>
+                    <h5 id="providerDialogTitle">Add Provider</h5>
                 </div>
                 <button type="button" class="wc-dialog__close" data-provider-close aria-label="Close">
                     <i class="bi bi-x-lg"></i>
                 </button>
             </header>
             <form class="bp-provider-form" id="providerForm" novalidate>
-                <label>Name
+                <label class="bp-provider-form__field bp-provider-form__field--full">Name
                     <input name="name" type="text" required placeholder="OpenRouter" autocomplete="off">
                 </label>
-                <label>ID / prefix
+                <label class="bp-provider-form__field bp-provider-form__field--full">ID / prefix
                     <input name="id" type="text" required placeholder="OPENROUTER" autocomplete="off">
                 </label>
-                <label>Prefix (optional)
+                <label class="bp-provider-form__field bp-provider-form__field--half">Prefix (optional)
                     <input name="prefix" type="text" placeholder="openrouter" autocomplete="off">
                 </label>
-                <label>API type
+                <label class="bp-provider-form__field bp-provider-form__field--half bp-provider-form__field--select">API type
                     <select name="api">
                         <option value="responses">responses</option>
                         <option value="chat">chat</option>
                     </select>
                 </label>
-                <label>Base URL
+                <label class="bp-provider-form__field bp-provider-form__field--full">Base URL
                     <input name="base_url" type="url" required placeholder="https://openrouter.ai/api/v1" autocomplete="off">
                 </label>
-                <label>API key
+                <label class="bp-provider-form__field bp-provider-form__field--full">API key
                     <input name="api_key" type="password" placeholder="sk-…" autocomplete="new-password">
                 </label>
-                <label>Model id
+                <label class="bp-provider-form__field bp-provider-form__field--full">Model id
                     <input name="model_id" type="text" placeholder="openai/gpt-4o-mini" autocomplete="off">
                 </label>
-                <label class="bp-check">
+                <label class="bp-provider-form__field bp-provider-form__field--full bp-check">
                     <input name="enabled" type="checkbox" checked>
                     <span>Enabled</span>
                 </label>
-                <div class="wc-dialog__actions">
+                <div class="wc-dialog__actions bp-provider-form__field--full">
                     <button type="button" class="wc-dialog__button wc-dialog__button--ghost" data-provider-close>Cancel</button>
                     <button type="submit" class="wc-dialog__button wc-dialog__button--primary">Save</button>
                 </div>

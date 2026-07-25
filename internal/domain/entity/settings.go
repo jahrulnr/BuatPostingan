@@ -124,6 +124,13 @@ type SettingsProvider struct {
 
 // SettingsModel is a selectable model id under a provider.
 type SettingsModel struct {
-	ID    string `json:"id"`
-	Label string `json:"label,omitempty"`
+	ID            string   `json:"id"`
+	Label         string   `json:"label,omitempty"`
+	ContextWindow int      `json:"context_window,omitempty"` // max input tokens
+	MaxOutput     int      `json:"max_output,omitempty"`     // max output tokens
+	InputModes    []string `json:"input_modes,omitempty"`    // text, image, file, pdf
+	OutputModes   []string `json:"output_modes,omitempty"`   // text, image
+	EffortLevels  []string `json:"effort_levels,omitempty"`  // low, medium, high, max, xhigh
+	SupportsTools bool     `json:"supports_tools,omitempty"`
+	Description   string   `json:"description,omitempty"`
 }
