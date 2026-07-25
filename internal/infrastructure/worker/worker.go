@@ -290,236 +290,285 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 			return err
 		}
 
-		draftItemID := idgen.ItemID()
-		streamedText := false
-		var streamedTextBuf strings.Builder
-		var streamedTextMu sync.Mutex
-		turnID := job.TurnID.String()
-		threadID := job.ThreadID
-		itemID := draftItemID
-		roundCtx := llm.WithStreamHooks(chatCtx, &llm.StreamHooks{
-			OnTextDelta: func(delta string) {
-				if delta == "" {
-					return
-				}
-				streamedTextMu.Lock()
-				streamedText = true
-				streamedTextBuf.WriteString(delta)
-				streamedTextMu.Unlock()
-				if w.hub != nil {
-					w.hub.PublishEphemeral(threadID, "item.delta", map[string]any{
-						"type":    "agent_message",
-						"turn_id": turnID,
-						"item_id": itemID,
-						"field":   "text",
-						"delta":   delta,
-					})
-				}
-			},
-		})
-
-		resp, err := w.llm.Chat(roundCtx, messages, schemas, pinned)
-		if err != nil {
-			return err
-		}
-		streamedTextMu.Lock()
-		streamed := streamedTextBuf.String()
-		streamedTextMu.Unlock()
-		resp = llm.RecoverXMLToolCalls(resp, streamed)
-		logging.Warn(ctx, "webchat.llm.result",
-			"round", rounds,
-			"provider", resp.ProviderID,
-			"textLen", len(resp.Text),
-			"toolCalls", len(resp.ToolCalls),
-			"streamedLen", len(streamed),
-		)
-		for i, tc := range resp.ToolCalls {
-			keys := make([]string, 0, len(tc.Arguments))
-			for k := range tc.Arguments {
-				keys = append(keys, k)
-			}
-			logging.Warn(ctx, "webchat.llm.toolcall",
-				"idx", i,
-				"name", tc.Name,
-				"argKeys", strings.Join(keys, ","),
-				"argSample", fmt.Sprintf("%+v", tc.Arguments),
-			)
-		}
-		if resp.ProviderID != "" {
-			pinned = resp.ProviderID
-		}
-		lastUsage = usageMap(resp.Usage)
-		lastModel = modelMetadata(resp, "response")
-
-		if strings.TrimSpace(resp.Reasoning) != "" {
-			text := resp.Reasoning
-			if utf8.RuneCountInString(text) > 12000 {
-				text = string([]rune(text)[:12000])
-			}
-			logging.Info(ctx, "webchat.reasoning",
-				"thread", job.ThreadID.String(),
-				"turn", job.TurnID.String(),
-				"round", rounds,
-				"chars", utf8.RuneCountInString(text),
-			)
-			if _, err := w.append(ctx, job, enum.ItemReasoning, map[string]any{
-				"text":  text,
-				"model": modelMetadata(resp, "reasoning"),
-			}); err != nil {
-				return err
-			}
-		}
-
-		if len(resp.ToolCalls) > 0 {
-			fp := toolCallsFingerprint(resp.ToolCalls)
-			if fp != "" && fp == prevToolFingerprint {
-				identicalToolRounds++
-			} else {
-				identicalToolRounds = 0
-			}
-			prevToolFingerprint = fp
-
-			// Normalize call IDs once so function_call and function_call_output match.
-			for i := range resp.ToolCalls {
-				if resp.ToolCalls[i].CallID == "" {
-					resp.ToolCalls[i].CallID = idgen.New("call")
-				}
-			}
-			messages = append(messages, assistantToolMessage(resp.ToolCalls))
-			lastToolOnly = true
-			for _, tc := range resp.ToolCalls {
-				callID := tc.CallID
-				if _, err := w.append(ctx, job, enum.ItemToolCall, map[string]any{
-					"call_id":   callID,
-					"name":      tc.Name,
-					"arguments": tc.Arguments,
-					"model":     modelMetadata(resp, "planner"),
-				}); err != nil {
-					return err
-				}
-				envelope, execErr := w.tools.Execute(tools.WithWorkspace(tools.WithThreadID(ctx, job.ThreadID), job.Workspace), service.ToolCall{
-					CallID:    callID,
-					Name:      tc.Name,
-					Arguments: tc.Arguments,
-				})
-				if execErr != nil {
-					envelope = service.ToolEnvelope{
-						OK:   false,
-						Tool: tc.Name,
-						Error: map[string]any{
-							"code":    "tool_error",
-							"message": execErr.Error(),
-						},
+		breakLoop, roundErr := func() (bool, error) {
+			draftItemID := idgen.ItemID()
+			streamedText := false
+			var streamedTextBuf strings.Builder
+			var streamedTextMu sync.Mutex
+			turnID := job.TurnID.String()
+			threadID := job.ThreadID
+			itemID := draftItemID
+			roundCtx, cancelRound := context.WithCancel(chatCtx)
+			defer cancelRound()
+			// Poll the interrupt flag during this round and cancel the active LLM/tool
+			// call as soon as the user presses Stop.
+			go func() {
+				ticker := time.NewTicker(100 * time.Millisecond)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-roundCtx.Done():
+						return
+					case <-ticker.C:
+						interrupted, _ := w.interrupt.IsRequested(roundCtx, job.ThreadID, job.TurnID)
+						if interrupted {
+							_ = w.interrupt.Clear(roundCtx, job.ThreadID, job.TurnID)
+							cancelRound()
+							return
+						}
 					}
 				}
-				envMap := envelopeToMap(envelope)
-				raw, _ := json.Marshal(envMap)
-				logging.Info(ctx, "webchat.tool",
-					"thread", job.ThreadID.String(),
-					"turn", job.TurnID.String(),
-					"round", rounds,
-					"tool", tc.Name,
-					"call_id", callID,
-					"ok", envelope.OK,
-					"args_bytes", len(mustJSON(tc.Arguments)),
-					"result_bytes", len(raw),
-				)
-				if _, err := w.append(ctx, job, enum.ItemToolResult, map[string]any{
-					"call_id":  callID,
-					"envelope": envMap,
-					"executor": "host_tool",
-				}); err != nil {
-					return err
+			}()
+
+			roundCtx = llm.WithStreamHooks(roundCtx, &llm.StreamHooks{
+				OnTextDelta: func(delta string) {
+					if delta == "" {
+						return
+					}
+					streamedTextMu.Lock()
+					streamedText = true
+					streamedTextBuf.WriteString(delta)
+					streamedTextMu.Unlock()
+					if w.hub != nil {
+						w.hub.PublishEphemeral(threadID, "item.delta", map[string]any{
+							"type":    "agent_message",
+							"turn_id": turnID,
+							"item_id": itemID,
+							"field":   "text",
+							"delta":   delta,
+						})
+					}
+				},
+			})
+
+			resp, err := w.llm.Chat(roundCtx, messages, schemas, pinned)
+			if err != nil {
+				// If the round context was cancelled by the interrupt goroutine (parent
+				// context is still alive), treat this as a user stop, not an LLM error.
+				if ctx.Err() == nil && roundCtx.Err() == context.Canceled {
+					_, appendErr := w.append(ctx, job, enum.ItemTurnFailed, map[string]any{
+						"error":    map[string]any{"code": "interrupted", "message": "Stopped by user"},
+						"trace_id": logging.TraceID(ctx),
+					})
+					return true, appendErr
 				}
-				messages = append(messages, map[string]any{
-					"role":         "tool",
-					"tool_call_id": callID,
-					"content":      string(raw),
-				})
+				return false, err
 			}
-			if identicalToolRounds >= 1 {
-				nudge := "You repeated the same tool call with identical arguments. The result is already in the conversation. Answer the user now, or call a different tool / different arguments (e.g. list_dir path=\"writing\")."
-				messages = append(messages, map[string]any{"role": "system", "content": nudge})
-				logging.Info(ctx, "webchat.tool_dedupe",
+			streamedTextMu.Lock()
+			streamed := streamedTextBuf.String()
+			streamedTextMu.Unlock()
+			resp = llm.RecoverXMLToolCalls(resp, streamed)
+			logging.Warn(ctx, "webchat.llm.result",
+				"round", rounds,
+				"provider", resp.ProviderID,
+				"textLen", len(resp.Text),
+				"toolCalls", len(resp.ToolCalls),
+				"streamedLen", len(streamed),
+			)
+			for i, tc := range resp.ToolCalls {
+				keys := make([]string, 0, len(tc.Arguments))
+				for k := range tc.Arguments {
+					keys = append(keys, k)
+				}
+				logging.Warn(ctx, "webchat.llm.toolcall",
+					"idx", i,
+					"name", tc.Name,
+					"argKeys", strings.Join(keys, ","),
+					"argSample", fmt.Sprintf("%+v", tc.Arguments),
+				)
+			}
+			if resp.ProviderID != "" {
+				pinned = resp.ProviderID
+			}
+			lastUsage = usageMap(resp.Usage)
+			lastModel = modelMetadata(resp, "response")
+
+			if strings.TrimSpace(resp.Reasoning) != "" {
+				text := resp.Reasoning
+				if utf8.RuneCountInString(text) > 12000 {
+					text = string([]rune(text)[:12000])
+				}
+				logging.Info(ctx, "webchat.reasoning",
 					"thread", job.ThreadID.String(),
 					"turn", job.TurnID.String(),
 					"round", rounds,
-					"fingerprint", fp,
+					"chars", utf8.RuneCountInString(text),
 				)
-			}
-			if identicalToolRounds >= 2 {
-				if _, err := w.append(ctx, job, enum.ItemAgentMessage, map[string]any{
-					"text":   "Stopped: repeated identical tool calls. Please refine the question or try a different path/query.",
-					"origin": "runtime",
+				if _, err := w.append(ctx, job, enum.ItemReasoning, map[string]any{
+					"text":  text,
+					"model": modelMetadata(resp, "reasoning"),
 				}); err != nil {
-					return err
+					return false, err
+				}
+			}
+
+			if len(resp.ToolCalls) > 0 {
+				fp := toolCallsFingerprint(resp.ToolCalls)
+				if fp != "" && fp == prevToolFingerprint {
+					identicalToolRounds++
+				} else {
+					identicalToolRounds = 0
+				}
+				prevToolFingerprint = fp
+
+				// Normalize call IDs once so function_call and function_call_output match.
+				for i := range resp.ToolCalls {
+					if resp.ToolCalls[i].CallID == "" {
+						resp.ToolCalls[i].CallID = idgen.New("call")
+					}
+				}
+				messages = append(messages, assistantToolMessage(resp.ToolCalls))
+				lastToolOnly = true
+				for _, tc := range resp.ToolCalls {
+					callID := tc.CallID
+					if _, err := w.append(ctx, job, enum.ItemToolCall, map[string]any{
+						"call_id":   callID,
+						"name":      tc.Name,
+						"arguments": tc.Arguments,
+						"model":     modelMetadata(resp, "planner"),
+					}); err != nil {
+						return false, err
+					}
+					envelope, execErr := w.tools.Execute(tools.WithWorkspace(tools.WithThreadID(roundCtx, job.ThreadID), job.Workspace), service.ToolCall{
+						CallID:    callID,
+						Name:      tc.Name,
+						Arguments: tc.Arguments,
+					})
+					if execErr != nil {
+						// If the round context was cancelled mid-tool (user pressed Stop),
+						// abort the turn instead of recording it as a tool error.
+						if ctx.Err() == nil && roundCtx.Err() == context.Canceled {
+							_, appendErr := w.append(ctx, job, enum.ItemTurnFailed, map[string]any{
+								"error":    map[string]any{"code": "interrupted", "message": "Stopped by user"},
+								"trace_id": logging.TraceID(ctx),
+							})
+							return true, appendErr
+						}
+						envelope = service.ToolEnvelope{
+							OK:   false,
+							Tool: tc.Name,
+							Error: map[string]any{
+								"code":    "tool_error",
+								"message": execErr.Error(),
+							},
+						}
+					}
+					envMap := envelopeToMap(envelope)
+					raw, _ := json.Marshal(envMap)
+					logging.Info(ctx, "webchat.tool",
+						"thread", job.ThreadID.String(),
+						"turn", job.TurnID.String(),
+						"round", rounds,
+						"tool", tc.Name,
+						"call_id", callID,
+						"ok", envelope.OK,
+						"args_bytes", len(mustJSON(tc.Arguments)),
+						"result_bytes", len(raw),
+					)
+					if _, err := w.append(ctx, job, enum.ItemToolResult, map[string]any{
+						"call_id":  callID,
+						"envelope": envMap,
+						"executor": "host_tool",
+					}); err != nil {
+						return false, err
+					}
+					messages = append(messages, map[string]any{
+						"role":         "tool",
+						"tool_call_id": callID,
+						"content":      string(raw),
+					})
+				}
+				if identicalToolRounds >= 1 {
+					nudge := "You repeated the same tool call with identical arguments. The result is already in the conversation. Answer the user now, or call a different tool / different arguments (e.g. list_dir path=\"writing\")."
+					messages = append(messages, map[string]any{"role": "system", "content": nudge})
+					logging.Info(ctx, "webchat.tool_dedupe",
+						"thread", job.ThreadID.String(),
+						"turn", job.TurnID.String(),
+						"round", rounds,
+						"fingerprint", fp,
+					)
+				}
+				if identicalToolRounds >= 2 {
+					if _, err := w.append(ctx, job, enum.ItemAgentMessage, map[string]any{
+						"text":   "Stopped: repeated identical tool calls. Please refine the question or try a different path/query.",
+						"origin": "runtime",
+					}); err != nil {
+						return false, err
+					}
+					lastToolOnly = false
+					return true, nil
+				}
+				return false, nil
+			}
+
+			text := strings.TrimSpace(resp.Text)
+			if text == "" {
+				hasReasoning := strings.TrimSpace(resp.Reasoning) != ""
+				logging.Warn(ctx, "webchat.empty_model_response",
+					"thread", job.ThreadID.String(),
+					"turn", job.TurnID.String(),
+					"round", rounds,
+					"provider", resp.Model.Provider,
+					"model", resp.Model.ID,
+					"api", resp.Model.API,
+					"has_reasoning", hasReasoning,
+					"reasoning_chars", utf8.RuneCountInString(resp.Reasoning),
+					"tool_calls_len", len(resp.ToolCalls),
+					"finish_reason", resp.Status,
+					"nudged", emptyNudged,
+				)
+				// Reasoning-only / truncated rounds: give the model one chance to answer or tool-call.
+				if !emptyNudged && rounds < maxRounds {
+					emptyNudged = true
+					asst := map[string]any{"role": "assistant", "content": ""}
+					if hasReasoning {
+						asst["reasoning"] = resp.Reasoning
+					}
+					messages = append(messages, asst)
+					messages = append(messages, map[string]any{
+						"role": "system",
+						"content": "You produced reasoning but no user-facing answer and no tool call. " +
+							"Answer the user now in plain text, or call a tool with concrete arguments.",
+					})
+					logging.Info(ctx, "webchat.empty_response_nudge",
+						"thread", job.ThreadID.String(),
+						"turn", job.TurnID.String(),
+						"round", rounds,
+					)
+					return false, nil
+				}
+				text = "(empty model response)"
+				if _, err := w.appendID(ctx, job, enum.ItemAgentMessage, "", map[string]any{
+					"text":     text,
+					"origin":   "runtime",
+					"model":    modelMetadata(resp, "response"),
+					"trace_id": logging.TraceID(ctx),
+				}); err != nil {
+					return false, err
 				}
 				lastToolOnly = false
-				break
+				return true, nil
 			}
-			continue
-		}
-
-		text := strings.TrimSpace(resp.Text)
-		if text == "" {
-			hasReasoning := strings.TrimSpace(resp.Reasoning) != ""
-			logging.Warn(ctx, "webchat.empty_model_response",
-				"thread", job.ThreadID.String(),
-				"turn", job.TurnID.String(),
-				"round", rounds,
-				"provider", resp.Model.Provider,
-				"model", resp.Model.ID,
-				"api", resp.Model.API,
-				"has_reasoning", hasReasoning,
-				"reasoning_chars", utf8.RuneCountInString(resp.Reasoning),
-				"tool_calls_len", len(resp.ToolCalls),
-				"finish_reason", resp.Status,
-				"nudged", emptyNudged,
-			)
-			// Reasoning-only / truncated rounds: give the model one chance to answer or tool-call.
-			if !emptyNudged && rounds < maxRounds {
-				emptyNudged = true
-				asst := map[string]any{"role": "assistant", "content": ""}
-				if hasReasoning {
-					asst["reasoning"] = resp.Reasoning
-				}
-				messages = append(messages, asst)
-				messages = append(messages, map[string]any{
-					"role": "system",
-					"content": "You produced reasoning but no user-facing answer and no tool call. " +
-						"Answer the user now in plain text, or call a tool with concrete arguments.",
-				})
-				logging.Info(ctx, "webchat.empty_response_nudge",
-					"thread", job.ThreadID.String(),
-					"turn", job.TurnID.String(),
-					"round", rounds,
-				)
-				continue
+			agentItemID := ""
+			if streamedText {
+				agentItemID = draftItemID
 			}
-			text = "(empty model response)"
-			if _, err := w.appendID(ctx, job, enum.ItemAgentMessage, "", map[string]any{
-				"text":     text,
-				"origin":   "runtime",
-				"model":    modelMetadata(resp, "response"),
-				"trace_id": logging.TraceID(ctx),
+			if _, err := w.appendID(ctx, job, enum.ItemAgentMessage, agentItemID, map[string]any{
+				"text":  text,
+				"model": modelMetadata(resp, "response"),
 			}); err != nil {
-				return err
+				return false, err
 			}
 			lastToolOnly = false
-			break
-		}
-		agentItemID := ""
-		if streamedText {
-			agentItemID = draftItemID
-		}
-		if _, err := w.appendID(ctx, job, enum.ItemAgentMessage, agentItemID, map[string]any{
-			"text":  text,
-			"model": modelMetadata(resp, "response"),
-		}); err != nil {
-			return err
-		}
-		lastToolOnly = false
+			return true, nil
+
+	}()
+	if roundErr != nil {
+		return roundErr
+	}
+	if breakLoop {
 		break
+	}
 	}
 
 	if rounds >= maxRounds && lastToolOnly {

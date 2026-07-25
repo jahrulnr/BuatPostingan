@@ -131,8 +131,38 @@ func (i *fakeInterrupt) Clear(context.Context, valueobject.ThreadID, valueobject
 	return nil
 }
 
+type toggleInterrupt struct {
+	mu        sync.Mutex
+	requested bool
+	cleared   int
+}
+
+func (i *toggleInterrupt) Request(context.Context, valueobject.ThreadID, valueobject.TurnID) error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.requested = true
+	return nil
+}
+func (i *toggleInterrupt) IsRequested(context.Context, valueobject.ThreadID, valueobject.TurnID) (bool, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.requested, nil
+}
+func (i *toggleInterrupt) Clear(context.Context, valueobject.ThreadID, valueobject.TurnID) error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.cleared++
+	i.requested = false
+	return nil
+}
+func (i *toggleInterrupt) SetRequested(v bool) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.requested = v
+}
+
 type fakeTools struct {
-	schemas []map[string]any
+	schemas   []map[string]any
 	schemaErr error
 	exec      func(service.ToolCall) (service.ToolEnvelope, error)
 	calls     []service.ToolCall
@@ -192,6 +222,22 @@ func (l *scriptLLM) Chat(_ context.Context, _ []map[string]any, _ []map[string]a
 		return l.resps[i], nil
 	}
 	return service.LLMResult{Text: "fallback"}, nil
+}
+
+// blockingLLM waits until its context is cancelled, then returns the error.
+type blockingLLM struct {
+	blockFor time.Duration
+}
+
+func (l *blockingLLM) Chat(ctx context.Context, _ []map[string]any, _ []map[string]any, _ string) (service.LLMResult, error) {
+	timer := time.NewTimer(l.blockFor)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return service.LLMResult{}, ctx.Err()
+	case <-timer.C:
+		return service.LLMResult{Text: "never"}, nil
+	}
 }
 
 func sampleJob() service.TurnJob {
@@ -476,9 +522,9 @@ func TestRunAgentTextPath(t *testing.T) {
 		Usage: service.TokenUsage{InputTokens: 2, OutputTokens: 3},
 	}}}
 	w := New(Deps{
-		Config:    config.Config{LLMStub: false, PromptsRoot: root, MaxToolRounds: 4},
-		Store:     store, Locks: lock, Interrupt: &fakeInterrupt{},
-		Tools:     &fakeTools{}, Docs: &fakeDocs{count: 2}, LLM: llm,
+		Config: config.Config{LLMStub: false, PromptsRoot: root, MaxToolRounds: 4},
+		Store:  store, Locks: lock, Interrupt: &fakeInterrupt{},
+		Tools: &fakeTools{}, Docs: &fakeDocs{count: 2}, LLM: llm,
 	})
 	w.process(context.Background(), sampleJob())
 	got := typesOf(store)
@@ -559,6 +605,42 @@ func TestRunAgentToolExecuteErrorAndDedupeStop(t *testing.T) {
 	store.mu.Unlock()
 	if !sawErr {
 		t.Fatal("expected tool_result with ok=false")
+	}
+}
+
+func TestRunAgentInterruptMidLLM(t *testing.T) {
+	root := t.TempDir()
+	mustWritePrompt(t, root)
+	store := &fakeStore{}
+	intr := &toggleInterrupt{}
+	w := New(Deps{
+		Config: config.Config{LLMStub: false, PromptsRoot: root},
+		Store:  store, Locks: &fakeLock{}, Interrupt: intr,
+		Tools: &fakeTools{}, LLM: &blockingLLM{blockFor: 10 * time.Second},
+	})
+
+	// Start the worker; after a short delay set the interrupt flag to simulate Stop.
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		intr.SetRequested(true)
+	}()
+	w.process(context.Background(), sampleJob())
+
+	if !containsType(typesOf(store), enum.ItemTurnFailed) {
+		t.Fatalf("expected turn failed, got=%v", typesOf(store))
+	}
+	store.mu.Lock()
+	var code string
+	for _, it := range store.items {
+		if it.Type == enum.ItemTurnFailed {
+			if errObj, ok := it.Payload["error"].(map[string]any); ok {
+				code, _ = errObj["code"].(string)
+			}
+		}
+	}
+	store.mu.Unlock()
+	if code != "interrupted" {
+		t.Fatalf("expected interrupted code, got=%q", code)
 	}
 }
 
