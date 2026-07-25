@@ -24,7 +24,7 @@ func TestInjectPrompts(t *testing.T) {
 		t.Fatal(err)
 	}
 	// developer.md is the single injection surface.
-	if err := os.WriteFile(filepath.Join(root, "developer.md"), []byte("dev uid={{admin_user_id}} tools={{available_tools}} docs={{indexed_document_count}} name={{admin_display_name}}"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "developer.md"), []byte("dev uid={{admin_user_id}} tools={{available_tools}} docs={{indexed_document_count}} name={{admin_display_name}} path={{ui_path}}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -37,6 +37,7 @@ func TestInjectPrompts(t *testing.T) {
 		AdminUserID:          42,
 		AvailableTools:       "",
 		IndexedDocumentCount: 3,
+		UIPath:               "http://localhost:5173/#/",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -49,7 +50,7 @@ func TestInjectPrompts(t *testing.T) {
 		t.Fatalf("system.md must stay static, got=%q", sys)
 	}
 	dev, _ := msgs[1]["content"].(string)
-	if !strings.Contains(dev, "uid=42") || !strings.Contains(dev, "tools=(none)") || !strings.Contains(dev, "docs=3") || !strings.Contains(dev, "name=Ada") {
+	if !strings.Contains(dev, "uid=42") || !strings.Contains(dev, "tools=(none)") || !strings.Contains(dev, "docs=3") || !strings.Contains(dev, "name=Ada") || !strings.Contains(dev, "path=http://localhost:5173/#/") {
 		t.Fatalf("developer=%q", dev)
 	}
 	if msgs[2]["role"] != "user" || msgs[2]["content"] != "hello" {

@@ -33,7 +33,7 @@ func (f *fakeWebSearcher) Search(_ context.Context, query string, limit int) (*t
 
 func TestWebSearchValidationAndEnvelope(t *testing.T) {
 	repoRoot := findRepoRoot(t)
-	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
+	docsRoot := filepath.Join(repoRoot, "resources", "webchat", "docs")
 	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
 	storage := t.TempDir()
 
@@ -110,7 +110,7 @@ func TestWebSearchValidationAndEnvelope(t *testing.T) {
 
 func TestWebSearchAllSourcesFailed(t *testing.T) {
 	repoRoot := findRepoRoot(t)
-	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
+	docsRoot := filepath.Join(repoRoot, "resources", "webchat", "docs")
 	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
 	idx, err := docs.NewIndex(docsRoot, t.TempDir(), docs.Options{})
 	if err != nil {
@@ -135,7 +135,7 @@ func TestWebSearchAllSourcesFailed(t *testing.T) {
 
 func TestWebFetchHappyPathAndSSRF(t *testing.T) {
 	repoRoot := findRepoRoot(t)
-	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
+	docsRoot := filepath.Join(repoRoot, "resources", "webchat", "docs")
 	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
 	idx, err := docs.NewIndex(docsRoot, t.TempDir(), docs.Options{})
 	if err != nil {
@@ -228,7 +228,7 @@ func TestWebFetchHappyPathAndSSRF(t *testing.T) {
 
 func TestWebFetchUnsupportedContentType(t *testing.T) {
 	repoRoot := findRepoRoot(t)
-	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
+	docsRoot := filepath.Join(repoRoot, "resources", "webchat", "docs")
 	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
 	idx, err := docs.NewIndex(docsRoot, t.TempDir(), docs.Options{})
 	if err != nil {
@@ -258,7 +258,7 @@ func TestWebFetchUnsupportedContentType(t *testing.T) {
 
 func TestSchemasIncludeWebTools(t *testing.T) {
 	repoRoot := findRepoRoot(t)
-	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
+	docsRoot := filepath.Join(repoRoot, "resources", "webchat", "docs")
 	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
 	idx, err := docs.NewIndex(docsRoot, t.TempDir(), docs.Options{})
 	if err != nil {

@@ -165,6 +165,7 @@ func (s *Service) StartTurn(ctx context.Context, in StartTurnInput) (StartTurnRe
 		Model:         modelID,
 		Effort:        effort,
 		Workspace:     in.Workspace,
+		UIPath:        in.UIPath,
 	}
 	if err := s.deps.Worker.Enqueue(ctx, job); err != nil {
 		_ = s.deps.Locks.Release(ctx, in.ThreadID, lockToken)
@@ -324,6 +325,7 @@ func (s *Service) RetryTurn(ctx context.Context, in RetryTurnInput) (StartTurnRe
 		Model:       modelID,
 		Effort:      effort,
 		Workspace:   in.Workspace,
+		UIPath:      in.UIPath,
 	}
 	if err := s.deps.Worker.Enqueue(ctx, job); err != nil {
 		_ = s.deps.Locks.Release(ctx, in.ThreadID, lockToken)

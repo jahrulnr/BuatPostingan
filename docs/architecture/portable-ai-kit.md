@@ -43,7 +43,7 @@ Optional FE widget kit (same API, no product chrome):
 |---|---|
 | `web/index.html`, `web/css/shell.css`, `web/js/app.js` | BuatPostingan branding / full-page chrome |
 | `cmd/app/` | Product DI, listen addr, static mount |
-| `docs/webchat/` | Product knowledge corpus (swap for consumer docs) |
+| `resources/webchat/docs/` | Product knowledge corpus (swap for consumer docs) |
 | `docs/architecture/` (except this kit doc) | This repo’s narrative |
 | `Makefile`, `bin/`, `storage/` runtime | Host-specific |
 | Product welcome copy / `__WC_PRODUCT_NAME__` | Branding |

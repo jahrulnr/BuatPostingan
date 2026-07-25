@@ -15,6 +15,7 @@ type promptVars struct {
 	AvailableTools       string
 	IndexedDocumentCount int
 	Workspace            string
+	UIPath               string
 }
 
 func injectPrompts(promptsRoot string, messages []map[string]any, vars promptVars) ([]map[string]any, error) {
@@ -61,6 +62,7 @@ func injectPrompts(promptsRoot string, messages []map[string]any, vars promptVar
 		"cwd":                    cwd,
 		"home":                   home,
 		"current_date":           time.Now().Format("2006-01-02"),
+		"ui_path":                vars.UIPath,
 	}
 
 	// system.md is shipped as static text (no {{var}} placeholders); used verbatim.

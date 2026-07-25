@@ -6,7 +6,7 @@
 // filesystem (absolute paths including "/" allowed). Options.FSRoot is only an
 // optional relative-path base for tests — not a sandbox. Do not ship this
 // unrestricted FS access to multi-tenant production without reintroducing a jail.
-// docs_search / docs_read / docs_list operate on the docs/webchat corpus only.
+// docs_search / docs_read / docs_list operate on the resources/webchat/docs corpus only.
 // list_skills / read_skill are jailed to Options.SkillsRoot (BP_SKILLS_ROOT).
 // MCP tools are progressive meta-tools over configured stdio servers; mutations
 // are default-denied (see docs/architecture/mcp-support.md).

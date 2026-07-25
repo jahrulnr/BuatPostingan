@@ -40,7 +40,7 @@ Useful env (defaults in parentheses). Most knobs now live in `storage/config.jso
 | `BP_WEB_ROOT` | `web` |
 | `BP_STORAGE_ROOT` | `storage/webchat` |
 | `BP_CONFIG_PATH` | `{dirname(STORAGE)}/config.json` |
-| `BP_DOCS_ROOT` | `docs/webchat` |
+| `BP_DOCS_ROOT` | `resources/webchat/docs` |
 | `BP_PROMPTS_ROOT` | `resources/webchat/prompts` |
 | `BP_TOOLS_ROOT` | `resources/webchat/tools` |
 | `BP_LLM_STUB` | `true` if no provider API key |

@@ -15,7 +15,7 @@ import (
 
 func TestReadAttachmentAndImage(t *testing.T) {
 	repoRoot := findRepoRoot(t)
-	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
+	docsRoot := filepath.Join(repoRoot, "resources", "webchat", "docs")
 	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
 	storage := t.TempDir()
 

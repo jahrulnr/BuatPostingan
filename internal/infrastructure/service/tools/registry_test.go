@@ -14,7 +14,7 @@ import (
 
 func TestAbsolutePathReadAllowed(t *testing.T) {
 	repoRoot := findRepoRoot(t)
-	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
+	docsRoot := filepath.Join(repoRoot, "resources", "webchat", "docs")
 	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
 	storage := t.TempDir()
 
@@ -51,7 +51,7 @@ func TestAbsolutePathReadAllowed(t *testing.T) {
 
 func TestDocsSearchEnvelopeWhenIndexReady(t *testing.T) {
 	repoRoot := findRepoRoot(t)
-	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
+	docsRoot := filepath.Join(repoRoot, "resources", "webchat", "docs")
 	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
 	storage := t.TempDir()
 
@@ -67,7 +67,7 @@ func TestDocsSearchEnvelopeWhenIndexReady(t *testing.T) {
 	env, err := reg.Execute(context.Background(), service.ToolCall{
 		Name: "docs_search",
 		Arguments: map[string]any{
-			"query":    "menulis postingan judul checklist",
+			"query":    "halaman chat percakapan pesan",
 			"top_k":    "3", // string → healer
 			"language": "id",
 		},
@@ -99,7 +99,7 @@ func TestDocsSearchEnvelopeWhenIndexReady(t *testing.T) {
 
 func TestDocsReadFullDocument(t *testing.T) {
 	repoRoot := findRepoRoot(t)
-	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
+	docsRoot := filepath.Join(repoRoot, "resources", "webchat", "docs")
 	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
 	storage := t.TempDir()
 
@@ -114,7 +114,7 @@ func TestDocsReadFullDocument(t *testing.T) {
 
 	env, err := reg.Execute(context.Background(), service.ToolCall{
 		Name:      "docs_read",
-		Arguments: map[string]any{"path": "writing/outline_dan_hook_id.md"},
+		Arguments: map[string]any{"path": "chat-page_id.md"},
 	})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -189,7 +189,7 @@ func TestDocsReadValidationEmptyPath(t *testing.T) {
 
 func TestDocsListAllDocuments(t *testing.T) {
 	repoRoot := findRepoRoot(t)
-	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
+	docsRoot := filepath.Join(repoRoot, "resources", "webchat", "docs")
 	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
 	storage := t.TempDir()
 
@@ -289,7 +289,7 @@ func TestDocsListNotReady(t *testing.T) {
 
 func TestArgumentHealerViaListDir(t *testing.T) {
 	repoRoot := findRepoRoot(t)
-	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
+	docsRoot := filepath.Join(repoRoot, "resources", "webchat", "docs")
 	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
 	storage := t.TempDir()
 
@@ -305,7 +305,7 @@ func TestArgumentHealerViaListDir(t *testing.T) {
 	env, err := reg.Execute(context.Background(), service.ToolCall{
 		Name: "list_dir",
 		Arguments: map[string]any{
-			"path":        "writing",
+			"path":        "",
 			"max_entries": "10",
 		},
 	})
@@ -372,7 +372,7 @@ func TestListDirEmptyStillHasLSListing(t *testing.T) {
 
 func TestSchemasOnlyAllowlisted(t *testing.T) {
 	repoRoot := findRepoRoot(t)
-	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
+	docsRoot := filepath.Join(repoRoot, "resources", "webchat", "docs")
 	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
 	storage := t.TempDir()
 

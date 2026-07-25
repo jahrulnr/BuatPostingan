@@ -179,7 +179,7 @@ func TestReadSkillSymlinkEscapeBlocked(t *testing.T) {
 
 func mustSkillsRegistry(t *testing.T, toolsRoot, skillsRoot string) *tools.Registry {
 	t.Helper()
-	docsRoot := filepath.Join(findRepoRoot(t), "docs", "webchat")
+	docsRoot := filepath.Join(findRepoRoot(t), "resources", "webchat", "docs")
 	storage := t.TempDir()
 	idx, err := docs.NewIndex(docsRoot, storage, docs.Options{})
 	if err != nil {

@@ -7,7 +7,7 @@ Instructions for coding agents in this repo.
 - **Frontend:** vanilla JS ES modules under `web/` (dual-driver mock|real)
 - **Backend:** Go 1.22+ Clean Architecture (light — no Wire/logmanager yet)
 - **Persistence:** JSONL under `storage/webchat/` (`BP_STORAGE_ROOT`)
-- **Knowledge:** Markdown under `docs/webchat/` + lexical index in storage
+- **Knowledge:** Markdown under `resources/webchat/docs/` + lexical index in storage
 - **Prompts / tools / skills:** `resources/webchat/prompts/`, `resources/webchat/tools/`, `resources/webchat/skills/`
 
 ## Foldering
@@ -59,7 +59,7 @@ Reuse over rewrite: treat kitchen + webchat delivery as a **copyable kit**, not 
 
 - **Copy list / consumer checklist:** [`docs/architecture/portable-ai-kit.md`](docs/architecture/portable-ai-kit.md)
 - **AI core:** `internal/{domain,usecase,infrastructure,config,pkg}` + `delivery/http` webchat handler + `delivery/presenter` + `resources/webchat`
-- **Leave as product shell:** `web/index.html`, `web/css/shell.css`, `web/js/app.js`, `cmd/app`, `docs/webchat` content, Makefile
+- **Leave as product shell:** `web/index.html`, `web/css/shell.css`, `web/js/app.js`, `cmd/app`, `resources/webchat/docs` content, Makefile
 - **FE widget slice:** `web/js/api/*` + `web/js/ui/chat.js|render.js` + `web/css/webchat*.css` — mount with `bootChat({ root })`
 - **Config:** `BP_*` env only in this repo; when copying the kit, rename the env prefix to your product (or keep `BP_`)
 - **HTTP:** `MountWebchatAPI(mux, uc)` — do not couple consumers to static FE serving

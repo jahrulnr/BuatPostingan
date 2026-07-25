@@ -254,6 +254,7 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 		AvailableTools:       strings.Join(toolNames, ", "),
 		IndexedDocumentCount: docCount,
 		Workspace:            job.Workspace,
+		UIPath:               job.UIPath,
 	})
 	if err != nil {
 		return err
@@ -562,13 +563,13 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 			lastToolOnly = false
 			return true, nil
 
-	}()
-	if roundErr != nil {
-		return roundErr
-	}
-	if breakLoop {
-		break
-	}
+		}()
+		if roundErr != nil {
+			return roundErr
+		}
+		if breakLoop {
+			break
+		}
 	}
 
 	if rounds >= maxRounds && lastToolOnly {

@@ -47,7 +47,7 @@ internal/                        resep dapur (private)
 web/                             vanilla FE (dual-driver mock|real)
 resources/webchat/               prompts + *.tool.json
 storage/webchat/                 runtime JSONL + docs_index + interrupt/rl/llm
-docs/webchat/                    knowledge MD corpus
+resources/webchat/docs/             knowledge MD corpus
 ```
 
 ## Dependency rule (detail)
@@ -114,7 +114,7 @@ Allowlist (hardcoded in `tools.Allowlist`; schemas from disk):
 - Skills: `resources/webchat/skills/<name>/SKILL.md` (`BP_SKILLS_ROOT`) — see [skills-tools.md](skills-tools.md)  
 - **Local-dev FS:** `list_dir` / `read_file` / `grep` use the real host filesystem (absolute paths including `/` allowed; optional `Options.FSRoot` is a relative-path base for tests only — not a jail). **Insecure for multi-tenant production.**  
 - **Skills jail:** `list_skills` / `read_skill` resolve only under `BP_SKILLS_ROOT` (even in local-dev)  
-- Docs corpus for `docs_search` = `BP_DOCS_ROOT` (default `docs/webchat`) — indexing only; does not jail other FS tools  
+- Docs corpus for `docs_search` = `BP_DOCS_ROOT` (default `resources/webchat/docs`) — indexing only; does not jail other FS tools  
 - Attachments = `{BP_STORAGE_ROOT}/attachments/{threadId}/` — tools require worker thread context + `attachment_id`  
 - `web_fetch` blocks localhost/private/link-local/metadata IPs; max body 2 MiB; text/html(+text) only  
 - Optional `BP_GITHUB_TOKEN` (or `GITHUB_TOKEN`) raises GitHub search rate limits for `web_search` — not required for default path  
@@ -161,7 +161,7 @@ attachments/{threadId}/{attId}.data
 | `cmd/app` DI + listen | — | ✅ keep / rewrite |
 | `web/` chrome (`shell.css`, `index.html`) | — | ✅ keep |
 | `web/js/api` + `ui/chat\|render` | ✅ widget kit | branding in shell |
-| `docs/webchat` knowledge MD | — | ✅ swap per product |
+| `resources/webchat/docs` knowledge MD | — | ✅ swap per product |
 
 Full copy checklist: [`portable-ai-kit.md`](portable-ai-kit.md).
 

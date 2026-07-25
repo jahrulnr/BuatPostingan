@@ -22,7 +22,7 @@ Human + agent documentation grounded in **current code**. Start here, then dive 
 | [MCP support](architecture/mcp-support.md) | MCP client (meta-tools), `mcp.servers` config, mutation deny |
 | [Runbook](operations/runbook.md) | `make be` / `make fe`, stub vs real LLM, `?mock=1` |
 | [API service notes](api-service/README.md) | Pointer to `/api/webchat` surface |
-| [Knowledge corpus](webchat/) | Markdown docs the agent can search (`docs/webchat`) |
+| [Knowledge corpus](../resources/webchat/docs/) | Markdown docs the agent can search (`resources/webchat/docs`) |
 
 ## Quick start
 

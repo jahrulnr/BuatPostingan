@@ -11,7 +11,7 @@ import (
 
 func TestIndexBuildAndSearchFindsSeededDoc(t *testing.T) {
 	repoRoot := findRepoRoot(t)
-	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
+	docsRoot := filepath.Join(repoRoot, "resources", "webchat", "docs")
 	storage := t.TempDir()
 
 	idx, err := docs.NewIndex(docsRoot, storage, docs.Options{})
@@ -30,7 +30,7 @@ func TestIndexBuildAndSearchFindsSeededDoc(t *testing.T) {
 		t.Fatalf("expected documents, got %d", gate.DocumentCount)
 	}
 
-	hits, err := idx.SearchHits(context.Background(), "cara menulis postingan judul checklist", 5, docs.Filters{Language: "id"})
+	hits, err := idx.SearchHits(context.Background(), "halaman chat percakapan pesan", 5, docs.Filters{Language: "id"})
 	if err != nil {
 		t.Fatalf("SearchHits: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestIndexBuildAndSearchFindsSeededDoc(t *testing.T) {
 	}
 	found := false
 	for _, h := range hits {
-		if filepath.Base(h.Path) == "cara_menulis_postingan_id.md" {
+		if filepath.Base(h.Path) == "chat-page_id.md" {
 			found = true
 			break
 		}

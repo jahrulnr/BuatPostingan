@@ -87,7 +87,7 @@ func TestGrepInvalidPattern(t *testing.T) {
 
 func TestGrepAbsolutePathAllowed(t *testing.T) {
 	repoRoot := findRepoRootTools(t)
-	docsRoot := filepath.Join(repoRoot, "docs", "webchat")
+	docsRoot := filepath.Join(repoRoot, "resources", "webchat", "docs")
 	toolsRoot := filepath.Join(repoRoot, "resources", "webchat", "tools")
 	storage := t.TempDir()
 	idx, err := docs.NewIndex(docsRoot, storage, docs.Options{})

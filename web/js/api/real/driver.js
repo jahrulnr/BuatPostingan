@@ -95,6 +95,7 @@ export function startTurnImpl(api, req) {
     const body = {
         message: req.message,
         attachment_ids: req.attachmentIds || [],
+        ui_path: window.location.href,
     };
     if (req.model) body.model = req.model;
     if (req.effort) body.effort = req.effort;
@@ -133,7 +134,10 @@ export function listAttachmentsImpl(api, req) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function retryTurnImpl(api, req) {
-    const body = { turn_id: req.turnId };
+    const body = {
+        turn_id: req.turnId,
+        ui_path: window.location.href,
+    };
     if (req.model) body.model = req.model;
     if (req.effort) body.effort = req.effort;
     if (req.workspace) body.workspace = req.workspace;

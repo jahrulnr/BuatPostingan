@@ -86,6 +86,9 @@ type TurnJob struct {
 	// When non-empty, it replaces {{cwd}} in developer.md and becomes the default
 	// base for relative paths in filesystem tools. Empty = use process cwd / config default.
 	Workspace string
+	// UIPath is the current browser URL/hash the user is on when starting this turn.
+	// Injected into developer.md as {{ui_path}} so the agent knows which page the user views.
+	UIPath string
 	// TraceID correlates logs for this turn with the HTTP request that enqueued it.
 	// Empty at enqueue → copied from ctx; still empty → "system".
 	TraceID string

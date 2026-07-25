@@ -67,6 +67,8 @@ type StartTurnInput struct {
 	// Workspace optionally overrides the working directory for this turn.
 	// Empty = use config default (process cwd / FSRoot).
 	Workspace string
+	// UIPath is the current browser URL/hash the user is viewing.
+	UIPath string
 }
 
 type RetryTurnInput struct {
@@ -80,6 +82,8 @@ type RetryTurnInput struct {
 	// Workspace optionally overrides the working directory for this turn.
 	// Empty = use config default (process cwd / FSRoot).
 	Workspace string
+	// UIPath is the current browser URL/hash the user is viewing.
+	UIPath string
 }
 
 type UploadAttachmentInput struct {

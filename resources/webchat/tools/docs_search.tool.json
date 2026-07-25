@@ -7,7 +7,7 @@
     "properties": {
       "query": {
         "type": "string",
-        "description": "Natural language question or keywords"
+        "description": "Natural language question or keywords. When the user asks about 'this page' / 'di halaman ini', look at the injected Current UI path and search for the matching page name (e.g. 'chat page', 'settings page', 'composer toolbar', 'conversations rail', 'preview panel')."
       },
       "top_k": {
         "type": "integer",

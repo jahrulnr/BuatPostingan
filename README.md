@@ -11,7 +11,7 @@ AI assistant for drafting posts — webchat UI + Go Clean Architecture backend.
 | [`delivery/`](delivery/) | HTTP/SSE adapters (ruang depan) |
 | [`internal/`](internal/) | Resep dapur: domain, usecase, infrastructure, config, pkg |
 | [`resources/webchat/`](resources/webchat/) | Prompts + tool JSON |
-| [`docs/webchat/`](docs/webchat/) | Knowledge Markdown corpus |
+| [`resources/webchat/docs/`](resources/webchat/docs/) | Knowledge Markdown corpus |
 | [`docs/`](docs/README.md) | Docs index (architecture, turn loop, LLM, runbook) |
 | [`docs/architecture/`](docs/architecture/README.md) | CA map + tools / persistence / FE |
 | [`docs/architecture/portable-ai-kit.md`](docs/architecture/portable-ai-kit.md) | What to copy for reuse in other products |
@@ -52,7 +52,7 @@ cp storage/config.example.json storage/config.json
 | `BP_HTTP_ADDR` | `:8080` |
 | `BP_WEB_ROOT` | `web` |
 | `BP_STORAGE_ROOT` | `storage/webchat` |
-| `BP_DOCS_ROOT` | `docs/webchat` |
+| `BP_DOCS_ROOT` | `resources/webchat/docs` |
 | `BP_PROMPTS_ROOT` | `resources/webchat/prompts` |
 | `BP_TOOLS_ROOT` | `resources/webchat/tools` |
 | `BP_SKILLS_ROOT` | `resources/webchat/skills` |

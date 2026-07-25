@@ -134,6 +134,7 @@ func (h *WebchatHandler) StartTurn(w http.ResponseWriter, r *http.Request) {
 		Model         string   `json:"model"`
 		Effort        string   `json:"effort"`
 		Workspace     string   `json:"workspace"`
+		UIPath        string   `json:"ui_path"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, r, "webchat", err)
@@ -152,6 +153,7 @@ func (h *WebchatHandler) StartTurn(w http.ResponseWriter, r *http.Request) {
 		Model:         body.Model,
 		Effort:        body.Effort,
 		Workspace:     body.Workspace,
+		UIPath:        body.UIPath,
 	})
 	if err != nil {
 		writeErr(w, r, "webchat", err)
@@ -226,6 +228,7 @@ func (h *WebchatHandler) RetryTurn(w http.ResponseWriter, r *http.Request) {
 		Model     string `json:"model"`
 		Effort    string `json:"effort"`
 		Workspace string `json:"workspace"`
+		UIPath    string `json:"ui_path"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, r, "webchat", err)
@@ -243,6 +246,7 @@ func (h *WebchatHandler) RetryTurn(w http.ResponseWriter, r *http.Request) {
 		Model:       body.Model,
 		Effort:      body.Effort,
 		Workspace:   body.Workspace,
+		UIPath:      body.UIPath,
 	})
 	if err != nil {
 		writeErr(w, r, "webchat", err)

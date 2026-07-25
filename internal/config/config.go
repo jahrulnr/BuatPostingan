@@ -110,7 +110,7 @@ func Load() Config {
 		HTTPAddr:    getenvFirst("BP_HTTP_ADDR", ":8080"),
 		WebRoot:     getenvFirst("BP_WEB_ROOT", "web"),
 		StorageRoot: getenvFirst("BP_STORAGE_ROOT", "storage/webchat"),
-		DocsRoot:    getenvFirst("BP_DOCS_ROOT", "docs/webchat"),
+		DocsRoot:    getenvFirst("BP_DOCS_ROOT", "resources/webchat/docs"),
 		PromptsRoot: getenvFirst("BP_PROMPTS_ROOT", "resources/webchat/prompts"),
 		ToolsRoot:   getenvFirst("BP_TOOLS_ROOT", "resources/webchat/tools"),
 		SkillsRoot:  getenvFirst("BP_SKILLS_ROOT", "resources/webchat/skills"),
