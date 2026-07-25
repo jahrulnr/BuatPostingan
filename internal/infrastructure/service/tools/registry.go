@@ -211,6 +211,17 @@ func (r *Registry) Execute(ctx context.Context, call service.ToolCall) (service.
 		}
 		env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
 		return env, nil
+	case "exec":
+		env, err := r.execShell(ctx, args)
+		if err != nil {
+			return r.fail("exec_error", err.Error(), name, started), nil
+		}
+		env.Tool = name
+		if env.Meta == nil {
+			env.Meta = map[string]any{}
+		}
+		env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
+		return env, nil
 	case "read_attachment":
 		env := r.execReadAttachment(ctx, args)
 		if env.Meta == nil {
@@ -382,6 +393,14 @@ func (r *Registry) execSearchDocs(ctx context.Context, args map[string]any) serv
 			"data_is_untrusted": true,
 		},
 	}
+}
+
+func (r *Registry) execShell(ctx context.Context, args map[string]any) (service.ToolEnvelope, error) {
+	raw, err := (&shellExec{}).run(ctx, args)
+	if err != nil {
+		return service.ToolEnvelope{}, err
+	}
+	return mapToEnvelope(raw), nil
 }
 
 func (r *Registry) execFS(ctx context.Context, name string, args map[string]any) (service.ToolEnvelope, error) {

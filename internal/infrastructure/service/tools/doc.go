@@ -12,7 +12,8 @@
 // are default-denied (see docs/architecture/mcp-support.md).
 package tools
 
-// Allowlisted tool names (reader / meta tools only; no mutation tools).
+// Allowlisted tool names (reader / meta / safe host tools; exec is a controlled
+// host mutation subject to the process user's OS permissions).
 var Allowlist = []string{
 	"search_docs",
 	"list_dir",
@@ -29,6 +30,7 @@ var Allowlist = []string{
 	"write_file",
 	"edit_file",
 	"delete_file",
+	"exec",
 }
 
 const DefaultTopK = 5

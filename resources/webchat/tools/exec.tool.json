@@ -1,0 +1,32 @@
+{
+  "type": "function",
+  "name": "exec",
+  "description": "Execute a command in a terminal shell on the host. Supports sh, bash, zsh, ash, PowerShell, and cmd.exe. Commands are subject to the process user's OS permissions. The working directory resolves from the selected workspace or process cwd. Output is captured and returned; long output is truncated.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "command": {
+        "type": "string",
+        "description": "The command to run. For POSIX shells this is passed as a single argument to -c. For PowerShell use -Command. For cmd use /c."
+      },
+      "shell": {
+        "type": "string",
+        "description": "Optional shell to use. Accepts a name (sh, bash, zsh, ash, powershell, pwsh, cmd) or an absolute path. When omitted, the user's default shell is detected."
+      },
+      "cwd": {
+        "type": "string",
+        "description": "Optional working directory. Relative paths resolve from the workspace or process cwd; absolute paths are used as-is."
+      },
+      "timeout": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 300,
+        "default": 60,
+        "description": "Maximum seconds to wait for the command to complete."
+      }
+    },
+    "required": ["command"],
+    "additionalProperties": false
+  },
+  "strict": true
+}
