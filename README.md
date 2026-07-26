@@ -74,13 +74,13 @@ The result: content ops that scale with prompts, not with the number of people w
 
 ### Knowledge the agent can actually use
 
-- Markdown corpus under `resources/webchat/docs/` — indexed and searchable via doc tools, so the agent writes with your house style and facts, not guesses.
+- Markdown corpus under [resources/webchat/docs/](resources/webchat/docs/) — indexed and searchable via doc tools, so the agent writes with your house style and facts, not guesses.
 - **Skills** (`SKILL.md` per folder) loaded on demand for repeatable publishing playbooks.
 - Workspace picker per conversation — point the agent at the source files a piece needs.
 
 ### Settings that fit a hosted product
 
-- Product knobs in `**storage/config.json**` — limits, LLM globals, context, docs, MCP, providers — editable from the Settings UI or the file directly.
+- Product knobs in `storage/config.json` — limits, LLM globals, context, docs, MCP, providers — editable from the Settings UI or the file directly.
 - **Users** and **Models** tabs for multi-provider, multi-operator setups; API keys masked on read, providers hot-reload without a restart.
 - Session-cookie auth (`bp_session`) so the publishing surface can sit behind a login, not just localhost.
 
@@ -146,7 +146,3 @@ Architecture deep dive: [docs/architecture/README.md](docs/architecture/README.m
 1. Read [DEVELOPMENT.md](docs/DEVELOPMENT.md) and [AGENTS.md](AGENTS.md).
 2. `make test` before opening a PR.
 3. Keep business rules in `internal/usecase`, not HTTP handlers.
-
----
-
-AI-first publishing · JSONL truth · symlink publication · bring your own data
