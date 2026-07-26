@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { createSettingsStore } from './settings-store.js';
 
-test('provider catalog exposes the six initial provider families', function () {
+test('provider catalog exposes the five initial provider families', function () {
     const store = createSettingsStore();
     const catalog = store.listProviderCatalog().providers;
     assert.deepEqual(catalog.map(function (p) { return p.type; }), [
@@ -11,7 +11,6 @@ test('provider catalog exposes the six initial provider families', function () {
         'omniroute',
         '9router',
         'openai',
-        'openai-compatible',
         'claude',
     ]);
     assert.equal(catalog.find(function (p) { return p.type === 'claude'; }).api, 'messages');

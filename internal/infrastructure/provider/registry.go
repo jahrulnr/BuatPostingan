@@ -44,7 +44,11 @@ func NewRegistry(adapters ...Adapter) (*Registry, error) {
 func (r *Registry) List() []entity.ProviderDefinition {
 	out := make([]entity.ProviderDefinition, 0, len(r.ordered))
 	for _, adapter := range r.ordered {
-		out = append(out, adapter.Definition())
+		def := adapter.Definition()
+		if def.HideFromCatalog {
+			continue
+		}
+		out = append(out, def)
 	}
 	return out
 }

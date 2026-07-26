@@ -53,12 +53,13 @@ Compact editor for product knobs from `storage/config.json`.
 Provider catalog grid — one card per known provider family, overlaid with the configured connection when present.
 
 - **Header**: "Providers" heading with lede "Manage direct APIs and local AI gateways. Credentials stay masked." Optional meta line with config source and path. On the right: "Custom provider" button (primary, plus icon).
-- **Provider grid**: Catalog cards for families such as OpenRouter, OmniRoute, 9Router, OpenAI, OpenAI Compatible, Claude API. Each card shows:
+- **Provider grid**: Catalog cards for families such as OpenRouter, OmniRoute, 9Router, OpenAI, Claude API. Each card shows:
   - **Top row**: Accent icon + family name + auth type · API dialect; enabled toggle when configured.
-  - **Description**: Short family blurb (or base URL for legacy custom cards).
+  - **Description**: Short family blurb (or base URL for custom instance cards).
   - **Connection row**: Status — Not configured / Configured / Needs API key / Disabled — plus instance ID and chat-model count when configured.
   - **Actions**: "Configure" when not set up; "Details" + "Delete" when configured.
-  - Extra legacy cards appear for configured providers that are not in the catalog.
+  - Custom OpenAI-compatible endpoints are **not** a catalog card — use "+ Custom provider". Each saved custom connection appears as its own instance card (name, base URL, enabled toggle, status, Details, Delete).
+  - Extra instance cards also appear for any configured provider whose type is not claimed by a singleton catalog family.
 - Empty catalog fallback copy mentions env until first save (normally the catalog always renders).
 
 ### Provider detail view (`#/settings/models/<id>`)
@@ -119,8 +120,8 @@ Provider catalog grid — one card per known provider family, overlaid with the 
 
 ### Add a custom provider
 
-1. On Models, click "Custom provider".
-2. Fill the dialog (OpenAI Compatible defaults). Save creates the connection.
+1. On Models, click "Custom provider" (OpenAI-compatible endpoints — there is no separate catalog card for this family).
+2. Fill the dialog (name, ID, base URL, API key, model id, …). Save creates a standalone connection card.
 
 ### Edit a provider / manage models
 

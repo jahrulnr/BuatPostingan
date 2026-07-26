@@ -15,4 +15,8 @@ type ProviderDefinition struct {
 	Configurable   bool   `json:"configurable"`
 	APIKeyOptional bool   `json:"api_key_optional,omitempty"`
 	Note           string `json:"note,omitempty"`
+	// HideFromCatalog keeps the family registered for normalize/infer but
+	// omits it from GET /api/settings/llm/provider-catalog (e.g. custom
+	// openai-compatible connections are added via "+ Custom provider").
+	HideFromCatalog bool `json:"hide_from_catalog,omitempty"`
 }

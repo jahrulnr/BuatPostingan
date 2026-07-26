@@ -21,6 +21,11 @@ import {
 } from '../api/index.js';
 import { bootAppSelects, confirmAppDialog, openAppDialog, setAppSelectValue } from './dialogs.js';
 import { chatModels } from './model-capabilities.js';
+import {
+    catalogCardProvider,
+    isMultiInstanceProviderType,
+    standaloneInstanceProviders,
+} from './provider-cards.js';
 import { loadGeneralPanel } from './settings-general.js';
 
 const PREF_KEYS = [
@@ -280,6 +285,50 @@ export function bootSettings() {
         });
     }
 
+    function providerStatusHtml(p) {
+        if (!p) return '<span class="bp-provider-status">Not configured</span>';
+        if (!p.enabled) return '<span class="bp-provider-status is-off">Disabled</span>';
+        const ready = p.api_key_set || p.api_key_optional;
+        if (ready) return '<span class="bp-provider-status is-ready">Configured</span>';
+        return '<span class="bp-provider-status is-warn">Needs API key</span>';
+    }
+
+    function renderInstanceCard(p) {
+        const modelCount = chatModels(p.models).length;
+        return (
+            '<article class="bp-provider-card bp-provider-card--instance" data-provider-id="' +
+            escapeHtml(p.id) +
+            '" data-provider-type="' +
+            escapeHtml(p.type || 'openai-compatible') +
+            '" style="--provider-accent:#64748b">' +
+            '<div class="bp-provider-card__top">' +
+            '<div class="bp-provider-card__identity">' +
+            '<span class="bp-provider-card__icon">OC</span>' +
+            '<div><h3>' +
+            escapeHtml(p.name || p.id) +
+            '</h3>' +
+            '<p class="bp-provider-card__kind">custom connection</p></div></div>' +
+            '<label class="bp-switch" title="Enabled"><input type="checkbox" data-toggle-enabled ' +
+            (p.enabled ? 'checked' : '') +
+            '><span class="bp-sr-only">Enabled</span></label>' +
+            '</div>' +
+            '<p class="bp-provider-card__description"><code>' +
+            escapeHtml(p.base_url) +
+            '</code></p>' +
+            '<div class="bp-provider-card__connection">' +
+            providerStatusHtml(p) +
+            '<span class="bp-provider-card__instance"><code>' +
+            escapeHtml(p.id) +
+            '</code> · ' +
+            modelCount +
+            ' model</span></div>' +
+            '<div class="bp-provider-card__actions">' +
+            '<button type="button" class="bp-settings__btn bp-settings__btn--ghost" data-open-provider>Details</button>' +
+            '<button type="button" class="bp-settings__btn bp-settings__btn--danger" data-del-provider>Delete</button>' +
+            '</div></article>'
+        );
+    }
+
     function renderProviders(providers, catalog, snap) {
         const meta =
             snap && snap.source
@@ -295,21 +344,12 @@ export function bootSettings() {
             if (!byType[type]) byType[type] = [];
             byType[type].push(p);
         });
-        const seen = {};
-        const cards = catalog
+        const catalogCards = catalog
             .map(function (definition) {
+                const multi = isMultiInstanceProviderType(definition.type);
                 const matches = byType[definition.type] || [];
-                const p = matches[0] || null;
-                if (p) seen[p.id] = true;
+                const p = catalogCardProvider(definition.type, byType);
                 const modelCount = p ? chatModels(p.models).length : 0;
-                const ready = p && p.enabled && (p.api_key_set || p.api_key_optional);
-                const status = !p
-                    ? '<span class="bp-provider-status">Not configured</span>'
-                    : !p.enabled
-                        ? '<span class="bp-provider-status is-off">Disabled</span>'
-                        : ready
-                            ? '<span class="bp-provider-status is-ready">Configured</span>'
-                            : '<span class="bp-provider-status is-warn">Needs API key</span>';
                 return (
                     '<article class="bp-provider-card" data-provider-id="' +
                     escapeHtml(p ? p.id : '') +
@@ -320,15 +360,41 @@ export function bootSettings() {
                     '">' +
                     '<div class="bp-provider-card__top">' +
                     '<div class="bp-provider-card__identity">' +
-                    '<span class="bp-provider-card__icon">' + escapeHtml(definition.icon || 'AI') + '</span>' +
-                    '<div><h3>' + escapeHtml(definition.name) + '</h3>' +
-                    '<p class="bp-provider-card__kind">' + escapeHtml(definition.auth_type) + ' · ' + escapeHtml(definition.api) + '</p></div></div>' +
-                    (p ? '<label class="bp-switch" title="Enabled"><input type="checkbox" data-toggle-enabled ' +
-                    (p.enabled ? 'checked' : '') + '><span class="bp-sr-only">Enabled</span></label>' : '') +
+                    '<span class="bp-provider-card__icon">' +
+                    escapeHtml(definition.icon || 'AI') +
+                    '</span>' +
+                    '<div><h3>' +
+                    escapeHtml(definition.name) +
+                    '</h3>' +
+                    '<p class="bp-provider-card__kind">' +
+                    escapeHtml(definition.auth_type) +
+                    ' · ' +
+                    escapeHtml(definition.api) +
+                    '</p></div></div>' +
+                    (p
+                        ? '<label class="bp-switch" title="Enabled"><input type="checkbox" data-toggle-enabled ' +
+                          (p.enabled ? 'checked' : '') +
+                          '><span class="bp-sr-only">Enabled</span></label>'
+                        : '') +
                     '</div>' +
-                    '<p class="bp-provider-card__description">' + escapeHtml(definition.description) + '</p>' +
-                    '<div class="bp-provider-card__connection">' + status +
-                    (p ? '<span class="bp-provider-card__instance"><code>' + escapeHtml(p.id) + '</code> · ' + modelCount + ' model</span>' : '') +
+                    '<p class="bp-provider-card__description">' +
+                    escapeHtml(definition.description) +
+                    '</p>' +
+                    '<div class="bp-provider-card__connection">' +
+                    providerStatusHtml(p) +
+                    (p
+                        ? '<span class="bp-provider-card__instance"><code>' +
+                          escapeHtml(p.id) +
+                          '</code> · ' +
+                          modelCount +
+                          ' model</span>'
+                        : multi && matches.length
+                          ? '<span class="bp-provider-card__instance">' +
+                            matches.length +
+                            ' custom connection' +
+                            (matches.length === 1 ? '' : 's') +
+                            '</span>'
+                          : '') +
                     '</div>' +
                     '<div class="bp-provider-card__actions">' +
                     (p
@@ -338,16 +404,11 @@ export function bootSettings() {
                     '</div></article>'
                 );
             })
-            .join('') +
-            providers.filter(function (p) { return !seen[p.id]; }).map(function (p) {
-                return '<article class="bp-provider-card bp-provider-card--legacy" data-provider-id="' + escapeHtml(p.id) +
-                    '" data-provider-type="' + escapeHtml(p.type || 'openai-compatible') + '">' +
-                    '<div class="bp-provider-card__top"><div class="bp-provider-card__identity"><span class="bp-provider-card__icon">OC</span>' +
-                    '<div><h3>' + escapeHtml(p.name || p.id) + '</h3><p class="bp-provider-card__kind">custom connection</p></div></div></div>' +
-                    '<p class="bp-provider-card__description"><code>' + escapeHtml(p.base_url) + '</code></p>' +
-                    '<div class="bp-provider-card__actions"><button type="button" class="bp-settings__btn bp-settings__btn--ghost" data-open-provider>Details</button>' +
-                    '<button type="button" class="bp-settings__btn bp-settings__btn--danger" data-del-provider>Delete</button></div></article>';
-            }).join('');
+            .join('');
+        const instanceCards = standaloneInstanceProviders(providers, catalog)
+            .map(renderInstanceCard)
+            .join('');
+        const cards = catalogCards + instanceCards;
         return (
             '<header class="bp-settings__head">' +
             '<div><h2>Providers</h2><p class="bp-settings__lede">Manage direct APIs and local AI gateways. Credentials stay masked.</p>' +
@@ -357,7 +418,8 @@ export function bootSettings() {
             '<i class="bi bi-plus-lg" aria-hidden="true"></i> Custom provider</button>' +
             '</header>' +
             '<div class="bp-provider-grid">' +
-            (cards || '<p class="bp-muted">No providers yet — add one or rely on <code>BP_LLM_*</code> env until first save.</p>') +
+            (cards ||
+                '<p class="bp-muted">No providers yet — add one or rely on <code>BP_LLM_*</code> env until first save.</p>') +
             '</div>'
         );
     }

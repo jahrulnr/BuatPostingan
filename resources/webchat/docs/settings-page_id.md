@@ -53,12 +53,13 @@ Editor compact untuk product knobs dari `storage/config.json`.
 Grid katalog provider — satu kartu per keluarga provider yang dikenal, ditimpa state koneksi yang sudah dikonfigurasi bila ada.
 
 - **Header**: Heading "Providers" dengan lede "Manage direct APIs and local AI gateways. Credentials stay masked." Meta opsional sumber/path config. Di kanan: tombol "Custom provider" (primer, ikon plus).
-- **Grid provider**: Kartu katalog untuk keluarga seperti OpenRouter, OmniRoute, 9Router, OpenAI, OpenAI Compatible, Claude API. Setiap kartu menampilkan:
+- **Grid provider**: Kartu katalog untuk keluarga seperti OpenRouter, OmniRoute, 9Router, OpenAI, Claude API. Setiap kartu menampilkan:
   - **Baris atas**: Ikon aksen + nama keluarga + auth type · dialek API; toggle enabled jika sudah dikonfigurasi.
-  - **Deskripsi**: Blurb singkat keluarga (atau base URL untuk kartu legacy custom).
+  - **Deskripsi**: Blurb singkat keluarga (atau base URL untuk kartu instance custom).
   - **Baris koneksi**: Status — Not configured / Configured / Needs API key / Disabled — plus ID instance dan jumlah model chat jika sudah dikonfigurasi.
   - **Aksi**: "Configure" jika belum disetup; "Details" + "Delete" jika sudah dikonfigurasi.
-  - Kartu legacy ekstra muncul untuk provider terkonfigurasi yang tidak ada di katalog.
+  - Endpoint OpenAI-compatible custom **bukan** kartu katalog — pakai "+ Custom provider". Setiap custom connection tersimpan muncul sebagai kartu instance sendiri (nama, base URL, toggle enabled, status, Details, Delete).
+  - Kartu instance ekstra juga muncul untuk provider terkonfigurasi yang tipenya tidak diklaim keluarga katalog singleton.
 - Fallback empty copy menyebut env sampai first save (biasanya katalog selalu dirender).
 
 ### Detail provider (`#/settings/models/<id>`)
@@ -119,8 +120,8 @@ Grid katalog provider — satu kartu per keluarga provider yang dikenal, ditimpa
 
 ### Menambah provider custom
 
-1. Di Models, klik "Custom provider".
-2. Isi dialog (default OpenAI Compatible). Save membuat koneksi.
+1. Di Models, klik "Custom provider" (endpoint OpenAI-compatible — tidak ada kartu katalog terpisah untuk keluarga ini).
+2. Isi dialog (name, ID, base URL, API key, model id, …). Save membuat kartu koneksi standalone.
 
 ### Mengedit provider / mengelola model
 

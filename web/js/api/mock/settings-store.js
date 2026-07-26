@@ -57,7 +57,6 @@ export function createSettingsStore() {
         { type: 'omniroute', name: 'OmniRoute', description: 'Local multi-provider AI gateway with OpenAI-compatible endpoints.', auth_type: 'local', api: 'responses', base_url: 'http://127.0.0.1:20128/v1', prefix: 'omniroute', icon: 'OM', accent: '#ef476f', configurable: true, api_key_optional: true },
         { type: '9router', name: '9Router', description: 'Local 9Router gateway using its OpenAI-compatible endpoint.', auth_type: 'local', api: 'chat', base_url: 'http://127.0.0.1:20128/v1', prefix: '9router', icon: '9R', accent: '#16c784', configurable: true, api_key_optional: true },
         { type: 'openai', name: 'OpenAI', description: 'Official OpenAI API using the Responses API by default.', auth_type: 'api_key', api: 'responses', base_url: 'https://api.openai.com/v1', prefix: 'openai', icon: 'OA', accent: '#10a37f', configurable: true },
-        { type: 'openai-compatible', name: 'OpenAI Compatible', description: 'Custom OpenAI-compatible endpoint hosted by you or another vendor.', auth_type: 'api_key', api: 'chat', base_url: '', prefix: 'compatible', icon: 'OC', accent: '#64748b', configurable: true },
         { type: 'claude', name: 'Claude API', description: 'Official Anthropic Messages API for Claude models.', auth_type: 'api_key', api: 'messages', base_url: 'https://api.anthropic.com/v1', prefix: 'claude', icon: 'AI', accent: '#d97757', configurable: true },
     ];
     const state = {

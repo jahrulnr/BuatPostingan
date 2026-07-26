@@ -37,7 +37,6 @@ func TestRegistryListsStableProviderOrder(t *testing.T) {
 		"omniroute",
 		"9router",
 		"openai",
-		"openai-compatible",
 		"claude",
 	}
 	if len(got) != len(want) {
@@ -47,6 +46,25 @@ func TestRegistryListsStableProviderOrder(t *testing.T) {
 		if got[i].Type != want[i] {
 			t.Fatalf("definition[%d]=%q want=%q", i, got[i].Type, want[i])
 		}
+	}
+}
+
+func TestOpenAICompatibleHiddenFromCatalogButNormalizable(t *testing.T) {
+	reg := newRegistry(t)
+	for _, d := range reg.List() {
+		if d.Type == "openai-compatible" {
+			t.Fatal("openai-compatible must stay out of provider catalog")
+		}
+	}
+	p, err := reg.Normalize(entity.SettingsProvider{
+		Type: "openai-compatible", ID: "SAMPLE", Name: "sample",
+		BaseURL: "http://sample.com/v1", API: "chat",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Type != "openai-compatible" || p.ID != "SAMPLE" {
+		t.Fatalf("%+v", p)
 	}
 }
 

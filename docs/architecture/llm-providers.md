@@ -63,6 +63,7 @@ Example (`storage/config.json`):
 
 Add another slot through Settings or `providers[]`. The catalog is exposed at
 `GET /api/settings/llm/provider-catalog`; it contains no credentials.
+`openai-compatible` stays registered for normalize/infer but is **hidden from the catalog** (`hide_from_catalog`) — custom connections are added via the Settings UI "+ Custom provider" button.
 
 ## API dialects
 
