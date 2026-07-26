@@ -111,6 +111,18 @@ Reuse over rewrite: treat kitchen + webchat delivery as a **copyable kit**, not 
 |---|---|
 | `make fe` / `make run-fe` | Static FE + livereload (`npx live-server`) → `:5173` (`FE_PORT=`; needs Node) |
 | `make be` / `make run-be` / `make run` | Go app + reflex reload |
-| `make build` | binary → `bin/buatpostingan` |
+| `make build` | binary → `bin/buatpostingan` (injects `VERSION` via ldflags) |
 | `make test` | `go test ./...` |
 | `make tidy` | `go mod tidy` |
+
+## Versioning
+
+Single source of truth: [`VERSION`](VERSION) (bare `MAJOR.MINOR.PATCH`, no `v` prefix). Bumped **before** merging a change that should ship. Injected into the binary via `-ldflags="-X buatpostingan/internal/version.Version=<v>"` (`make build`, `deploy/Dockerfile`, GitHub Actions). `internal/version.Version` defaults to `"dev"` when built without ldflags (e.g. `go run`).
+
+Formula: `{major}.{minor}.{patch}` — bump exactly one segment per release:
+
+- **major** — big update with **breaking changes** (API/contract/behavior that consumers or operators must adapt to)
+- **minor** — small update, new feature or capability that is **backwards-compatible**
+- **patch** — **bug fix**, optimization, refactor, or other change that does **not** add or change a user-facing surface
+
+CI (`.github/workflows/ci.yml`) only tags + publishes on push to `master`, and it auto-skips tag/publish when `VERSION` is unchanged from the latest remote tag. So: bumping `VERSION` is the trigger to release — no `VERSION` bump, no new tag, no image. If you intend to ship, bump in the same change that lands on `master`.

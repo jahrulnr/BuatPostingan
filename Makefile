@@ -7,6 +7,10 @@ MCP_ECHO_BIN=bin/mcp-echo
 WEB_DIR=web
 FE_PORT?=5173
 
+# Version from VERSION file; injectable via ldflags. Override with VERSION=foo.
+VERSION?=$(shell cat VERSION 2>/dev/null | tr -d '[:space:]')
+LDFLAGS?=-X buatpostingan/internal/version.Version=$(VERSION)
+
 # --- backend ---
 
 run: run-be
@@ -17,7 +21,7 @@ run-be be:
 
 build:
 	mkdir -p bin
-	go build -o $(BIN) $(APP)
+	go build -ldflags="$(LDFLAGS)" -o $(BIN) $(APP)
 
 mcp-echo:
 	mkdir -p bin

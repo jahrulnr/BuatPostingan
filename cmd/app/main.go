@@ -28,11 +28,14 @@ import (
 	"buatpostingan/internal/pkg/redact"
 	settingsuc "buatpostingan/internal/usecase/settings"
 	webchatusecase "buatpostingan/internal/usecase/webchat"
+	"buatpostingan/internal/version"
 )
 
 func main() {
 	envCfg := config.Load()
 	ctx := logging.SystemContext(context.Background())
+
+	logging.Info(ctx, "buatpostingan starting", "version", version.Get())
 
 	cfgPath := envCfg.ConfigPath()
 	settingsStore := appconfig.NewStore(cfgPath)

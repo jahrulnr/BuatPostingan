@@ -4,7 +4,10 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/buatpostingan ./cmd/app
+RUN VERSION=$$(cat VERSION | tr -d '[:space:]') && \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath \
+    -ldflags="-s -w -X buatpostingan/internal/version.Version=$${VERSION}" \
+    -o /out/buatpostingan ./cmd/app
 
 FROM nginx:1.27-alpine
 
