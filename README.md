@@ -11,6 +11,8 @@
   <a href="AGENTS.md">Agents</a>
 </div>
 
+---
+
 Drupal, WordPress, and Joomla were built human-first: an AI has to fight through menus, forms, and modules just to publish a page. BuatPostingan flips that — the agent designs, writes, and ships pages directly from static-pages primitives. You supply the data and the intent; it drives the CMS.
 
 ![Chat workspace — the agent drafts a page and the live preview updates alongside it](docs/screenshot/chat-workspace.png)
