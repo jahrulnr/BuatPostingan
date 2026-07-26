@@ -1,12 +1,12 @@
 # Architecture — BuatPostingan (Go)
 
-Clean Architecture **ringan** (tanpa Wire / logmanager / salt-pkg). Dependency rule:
+Lightweight Clean Architecture (without Wire / logmanager / salt-pkg). Dependency rule:
 
 ```
 delivery → usecase → domain ← infrastructure
 ```
 
-**Resep dapur** ada di **`internal/`**. **Delivery** (ruang depan) di root — adapter HTTP/SSE, bukan business rules.
+**Kitchen** is in **`internal/`**. **Delivery** (front room) at root — HTTP/SSE adapters, not business rules.
 
 **Portability:** AI core is **partially** copy-paste ready — see [`portable-ai-kit.md`](portable-ai-kit.md) for exact dirs to copy vs product shell to leave. HTTP: `MountWebchatAPI` does not require static `web/`.
 
@@ -29,7 +29,7 @@ cmd/app/                         entrypoint + manual DI
 delivery/
   http/                          net/http handlers (thin)
   presenter/                     JSON / SSE DTO helpers
-internal/                        resep dapur (private)
+internal/                        kitchen (private)
   config/                        env loader (BP_* only)
   usecase/webchat/               orchestration
   domain/
@@ -56,7 +56,7 @@ resources/webchat/docs/             knowledge MD corpus
 |---|---|
 | `delivery` → `usecase` → `domain` | `domain` → `delivery` or `infrastructure` |
 | `infrastructure` → `domain` (implements ports) | Business rules inside HTTP handlers |
-| Kitchen under `internal/` only | Resep dapur packages at repo root |
+| Kitchen under `internal/` only | Kitchen packages at repo root |
 
 Handlers call `webchat.Usecase` only. Concrete service: `webchat.NewService(Deps{…})` in `internal/usecase/webchat`. Port adapters live under `internal/infrastructure`.
 

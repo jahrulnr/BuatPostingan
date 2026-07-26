@@ -120,11 +120,11 @@ make be
 
 Restart `make be`. Expect tool rounds (docs_search / list_dir / read_file / grep / read_attachment / read_image / list_skills / read_skill / web_*) when the model calls them. Logs: `webchat.turn_start`, `webchat.tool`, `webchat.reasoning`, `webchat.turn_completed`.
 
-**Skills:** Ask the agent to use a skill (e.g. “pakai skill writing-post untuk outline postingan tentang X”). Expect `list_skills` and/or `read_skill` then `docs_search`. Details: [skills-tools.md](../architecture/skills-tools.md).
+**Skills:** Ask the agent to use a skill (e.g. “use the writing-post skill to outline a post about X”). Expect `list_skills` and/or `read_skill` then `docs_search`. Details: [skills-tools.md](../architecture/skills-tools.md).
 
 **MCP:** Edit the `mcp` block in `storage/config.json`, run `make mcp-echo`, restart `make be`. Ask to list/call MCP tools. If `list_mcp_tools` returns empty `tools` with a `hint`, servers are missing from the runtime config file. Details: [mcp-support.md](../architecture/mcp-support.md).
 
-**Vision (image attach):** With `llm.vision=auto` (default) or `on` and a vision-capable model (e.g. `xiaomi/mimo-v2.5`), attach a PNG/JPEG and ask "apa isi gambar ini?". Worker injects `image_url` / `input_image` data-URL parts (cap 4 MiB / image). Text-only models under `auto` get metadata only. Details: [llm-vision.md](../architecture/llm-vision.md).
+**Vision (image attach):** With `llm.vision=auto` (default) or `on` and a vision-capable model (e.g. `xiaomi/mimo-v2.5`), attach a PNG/JPEG and ask "what is in this image?". Worker injects `image_url` / `input_image` data-URL parts (cap 4 MiB / image). Text-only models under `auto` get metadata only. Details: [llm-vision.md](../architecture/llm-vision.md).
 
 **Effort (reasoning):** `llm.effort=auto` (default) probes `/models` and only sends `reasoning.effort` / `reasoning_effort` when the model advertises support. Explicit levels (`medium`, `high`, …) are clamped/omitted the same way. Details: [llm-effort.md](../architecture/llm-effort.md).
 

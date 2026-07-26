@@ -119,7 +119,7 @@ sequenceDiagram
   FE->>LS: read bp.modelId / bp.effort
   alt model missing from list
     FE->>LS: write default_model_id
-    FE->>FE: toast once ("Model tidak tersedia")
+    FE->>FE: toast once ("Model not available")
   end
   FE->>FE: clamp effort to supported / default
   FE->>BE: StartTurn model+effort

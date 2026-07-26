@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id" data-theme-pref="auto" data-theme="dark">
+<html lang="en" data-theme-pref="auto" data-theme="dark">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -74,7 +74,7 @@
                     </button>
                     <label class="wc-rail__search">
                         <i class="bi bi-search" aria-hidden="true"></i>
-                        <input type="search" id="conversationSearch" placeholder="Cari percakapan…" autocomplete="off" spellcheck="false">
+                        <input type="search" id="conversationSearch" placeholder="Search conversations…" autocomplete="off" spellcheck="false">
                     </label>
                 </div>
                 <ul class="wc-rail__list" id="conversationList"></ul>
@@ -106,8 +106,8 @@
                         <div class="webchat-messages" id="chatMessages" role="log" aria-live="polite">
                             <div class="chat-welcome">
                                 <div class="chat-welcome-icon"><i class="bi bi-chat-square-text"></i></div>
-                                <h5>Selamat datang di BuatPostingan</h5>
-                                <p>Ajukan pertanyaan — AI menjawab dari knowledge base (reader only).</p>
+                                <h5>Welcome to BuatPostingan</h5>
+                                <p>Ask a question — AI answers from the knowledge base (reader only).</p>
                             </div>
                         </div>
                         <button type="button" class="webchat-new-activity" id="chatNewActivity" hidden>
@@ -150,11 +150,11 @@
                                 </div>
                             </div>
                             <div class="composer-row">
-                                <button type="button" class="composer-attach" id="chatAttach" aria-label="Lampirkan file" data-wc-tooltip="Attach file">
+                                <button type="button" class="composer-attach" id="chatAttach" aria-label="Attach file" data-wc-tooltip="Attach file">
                                     <i class="bi bi-paperclip" aria-hidden="true"></i>
                                 </button>
-                                <input type="text" class="composer-input" id="chatInput" placeholder="Ketik pertanyaan…" autocomplete="off">
-                                <button class="composer-send" id="chatSend" type="button" aria-label="Kirim">
+                                <input type="text" class="composer-input" id="chatInput" placeholder="Type a question…" autocomplete="off">
+                                <button class="composer-send" id="chatSend" type="button" aria-label="Send">
                                     <i class="bi bi-send-fill"></i>
                                 </button>
                                 <button class="composer-stop" id="chatStop" type="button" aria-label="Stop" hidden>
@@ -190,8 +190,8 @@
                     <div class="wc-preview__panel is-active" role="tabpanel" id="panelPreview" aria-labelledby="tabPreview" data-preview-panel="preview">
                         <div class="wc-preview__empty">
                             <i class="bi bi-window-desktop" aria-hidden="true"></i>
-                            <strong>Kosong</strong>
-                            <p>Akan diisi nanti — wrapper preview kerja AI.</p>
+                            <strong>Empty</strong>
+                            <p>Will be filled later — AI work preview wrapper.</p>
                         </div>
                     </div>
                     <div class="wc-preview__panel wc-pages" role="tabpanel" id="panelPages" aria-labelledby="tabPages" data-preview-panel="pages" hidden>
@@ -202,7 +202,7 @@
                             </button>
                         </div>
                         <div class="wc-pages__tree" id="pagesTree" role="tree" aria-label="Page workspaces"></div>
-                        <p class="wc-pages__hint" id="pagesHint" role="status">Memuat pages…</p>
+                        <p class="wc-pages__hint" id="pagesHint" role="status">Loading pages…</p>
                         <div class="wc-pages__menu" id="pagesContextMenu" role="menu" aria-label="Page actions" hidden>
                             <button type="button" role="menuitem" data-page-action="publish"><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i> Publish</button>
                             <button type="button" role="menuitem" data-page-action="unpublish"><i class="bi bi-cloud-arrow-down" aria-hidden="true"></i> Unpublish</button>
@@ -307,7 +307,7 @@
                 <div class="wc-dialog__icon" aria-hidden="true"><i class="bi bi-paperclip"></i></div>
                 <div>
                     <span class="wc-dialog__eyebrow">Attachments</span>
-                    <h5 id="attachDialogTitle">Lampirkan file</h5>
+                    <h5 id="attachDialogTitle">Attach file</h5>
                 </div>
                 <button type="button" class="wc-dialog__close" data-attach-close aria-label="Close attach dialog" data-wc-tooltip="Close">
                     <i class="bi bi-x-lg"></i>
@@ -315,17 +315,17 @@
             </header>
             <div class="wc-attach-drop" id="attachDropZone" tabindex="0">
                 <i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>
-                <strong>Drop file di sini</strong>
-                <p>atau pilih dari disk — teks (md, txt, json, …) atau gambar (png, jpg, webp, gif)</p>
+                <strong>Drop file here</strong>
+                <p>or pick from disk — text (md, txt, json, …) or image (png, jpg, webp, gif)</p>
                 <button type="button" class="wc-dialog__button wc-dialog__button--primary" id="attachPickBtn">
-                    <span>Pilih file</span>
+                    <span>Choose file</span>
                     <i class="bi bi-folder2-open" aria-hidden="true"></i>
                 </button>
                 <input type="file" id="attachFileInput" multiple hidden accept=".md,.txt,.html,.htm,.json,.csv,.xml,.yaml,.yml,.png,.jpg,.jpeg,.gif,.webp,text/*,image/png,image/jpeg,image/gif,image/webp">
             </div>
-            <p class="wc-dialog__help" id="attachDialogHelp">Maks. 8&nbsp;MB per file. File di-upload saat Anda kirim pesan.</p>
+            <p class="wc-dialog__help" id="attachDialogHelp">Max. 8&nbsp;MB per file. Files are uploaded when you send a message.</p>
             <div class="wc-dialog__actions">
-                <button type="button" class="wc-dialog__button wc-dialog__button--ghost" data-attach-close>Selesai</button>
+                <button type="button" class="wc-dialog__button wc-dialog__button--ghost" data-attach-close>Done</button>
             </div>
         </section>
     </div>
@@ -338,7 +338,7 @@
                 <div class="wc-dialog__icon" aria-hidden="true"><i class="bi bi-folder2-open"></i></div>
                 <div>
                     <span class="wc-dialog__eyebrow">Workspace</span>
-                    <h5 id="workspaceDialogTitle">Pilih folder workspace</h5>
+                    <h5 id="workspaceDialogTitle">Choose workspace folder</h5>
                 </div>
                 <button type="button" class="wc-dialog__close" data-workspace-close aria-label="Close workspace dialog" data-wc-tooltip="Close">
                     <i class="bi bi-x-lg"></i>
@@ -353,7 +353,7 @@
                         <span class="workspace-browser__cwd" id="workspaceCwd">/</span>
                     </div>
                     <div class="workspace-browser__list" id="workspaceDirList" role="listbox" aria-label="Directories"></div>
-                    <p class="wc-dialog__help" id="workspaceDialogHelp">Pilih folder untuk mengatur working directory. Path absolut digunakan tanpa restriction.</p>
+                    <p class="wc-dialog__help" id="workspaceDialogHelp">Choose a folder to set the working directory. Absolute paths are used without restriction.</p>
                     <p class="wc-dialog__error" id="workspaceDialogError" role="alert" hidden></p>
                 </div>
                 <div class="wc-dialog__actions">

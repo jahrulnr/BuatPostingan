@@ -84,6 +84,6 @@ Mirrors the Cursor pattern: ambient catalog → read full skill when selected. A
 
 With a real LLM (stub off), ask e.g.:
 
-> Pakai skill writing-post untuk bantu aku outline postingan tentang X.
+> Use the writing-post skill to help me outline a post about X.
 
 Expect: `list_skills` and/or `read_skill` with `name=writing-post`, then `docs_search` as the skill instructs.
