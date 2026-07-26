@@ -24,7 +24,7 @@ Related: [Architecture](README.md) · [Turn loop](turn-loop.md) · [LLM provider
 | `internal/config/` | Env loader (`BP_*` only in this repo) |
 | `delivery/http/webchat_handler.go` (+ helpers used by it) | Thin `/api/webchat` adapter |
 | `delivery/presenter/` | Contract-stable JSON/SSE shapes |
-| `resources/webchat/prompts/` | system / developer / user templates *(edit product voice)* |
+| `resources/webchat/prompts/` | minimal system role, separate docs/skills/pages workflows, developer runtime context, and user templates |
 | `resources/webchat/tools/` | `*.tool.json` schemas |
 | `resources/webchat/skills/` | Agent skills (`<name>/SKILL.md`) for `list_skills` / `read_skill` |
 | `internal/infrastructure/service/mcp/` | MCP client manager (stdio); meta-tools `list_mcp_tools` / `call_mcp_tool` |

@@ -81,7 +81,7 @@ One canned `agent_message` (`(stub) received: …`) + `turn.completed`. No tools
 
 ### Agent loop
 
-1. Load tool schemas from registry; build messages from JSONL + inject prompts (`resources/webchat/prompts`)  
+1. Load tool schemas from registry; build messages from JSONL + inject prompts in order: `system.md` → `docs.md` → `skills.md` → `pages.md` → rendered `developer.md` (`resources/webchat/prompts`)
 2. **Context compaction** (optional): when `BP_CONTEXT_COMPACTION_ENABLED=true` and not stub, estimate transcript tokens (`chars/4`). If over `MAX_INPUT − RESERVE`, summarize older turns via `llm.Router` (prompt `compact.md`), append durable `context_compacted` (`compacted_through_seq`), keep the last `BP_CONTEXT_RECENT_TURNS` raw (never drop the latest user turn). Stub / disabled / LLM failure: no-op or extractive fallback — turn still proceeds (`webchat.compact` log).  
 3. For `rounds` = 1…`MaxToolRounds` (default 8):  
    - If interrupt flag → `turn.failed` (`interrupted`) and stop  

@@ -19,12 +19,18 @@ type promptVars struct {
 }
 
 func injectPrompts(promptsRoot string, messages []map[string]any, vars promptVars) ([]map[string]any, error) {
-	systemPath := filepath.Join(promptsRoot, "system.md")
-	developerPath := filepath.Join(promptsRoot, "developer.md")
-	systemRaw, err := os.ReadFile(systemPath)
-	if err != nil {
-		return nil, fmt.Errorf("missing prompt %s: %w", systemPath, err)
+	staticNames := []string{"system.md", "docs.md", "skills.md", "pages.md"}
+	staticPrompts := make([]string, 0, len(staticNames))
+	for _, name := range staticNames {
+		path := filepath.Join(promptsRoot, name)
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("missing prompt %s: %w", path, err)
+		}
+		staticPrompts = append(staticPrompts, string(raw))
 	}
+
+	developerPath := filepath.Join(promptsRoot, "developer.md")
 	developerRaw, err := os.ReadFile(developerPath)
 	if err != nil {
 		return nil, fmt.Errorf("missing prompt %s: %w", developerPath, err)
@@ -51,7 +57,7 @@ func injectPrompts(promptsRoot string, messages []map[string]any, vars promptVar
 		"admin_role_name":        "admin",
 		"admin_role_id":          "0",
 		"locale":                 "id",
-		"cms_environment":        "local",
+		"environment":        "local",
 		"available_tools":        availableTools,
 		"indexed_document_count": strconv.Itoa(vars.IndexedDocumentCount),
 		"pii_redaction":          "false",
@@ -64,15 +70,14 @@ func injectPrompts(promptsRoot string, messages []map[string]any, vars promptVar
 		"ui_path":                vars.UIPath,
 	}
 
-	// system.md is shipped as static text (no {{var}} placeholders); used verbatim.
-	system := string(systemRaw)
 	// developer.md is the single injection surface for runtime context.
 	developer := applyVars(string(developerRaw), repl)
 
-	out := []map[string]any{
-		{"role": "system", "content": system},
-		{"role": "system", "content": developer},
+	out := make([]map[string]any, 0, len(staticPrompts)+1+len(messages))
+	for _, prompt := range staticPrompts {
+		out = append(out, map[string]any{"role": "system", "content": prompt})
 	}
+	out = append(out, map[string]any{"role": "system", "content": developer})
 	for _, msg := range messages {
 		role, _ := msg["role"].(string)
 		if role == "system" || role == "developer" {

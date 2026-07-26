@@ -113,6 +113,11 @@ func (r *Registry) execReadSkill(args map[string]any) service.ToolEnvelope {
 		}
 		return skillFail("read_skill", code, msg, started)
 	}
+	supportingFiles, err := r.skills.listSupportingFiles(name)
+	if err != nil {
+		return skillFail("read_skill", "tool_error", "supporting skill files could not be listed", started)
+	}
+	body = appendSupportingFiles(body, supportingFiles)
 	skillName := coalesceSkillName(meta["name"], name)
 	return service.ToolEnvelope{
 		OK:   true,
@@ -151,6 +156,69 @@ func (s *skillsFS) readSkillFile(name string) (map[string]string, string, error)
 	}
 	meta, body := parseSkillMarkdown(string(raw))
 	return meta, body, nil
+}
+
+func (s *skillsFS) listSupportingFiles(name string) ([]string, error) {
+	if s == nil || s.root == "" {
+		return nil, fmt.Errorf("skills unavailable")
+	}
+	if !skillNameRe.MatchString(name) {
+		return nil, fmt.Errorf("invalid skill name")
+	}
+
+	skillDir, err := filepath.EvalSymlinks(filepath.Join(s.root, name))
+	if err != nil {
+		return nil, err
+	}
+	if !underRoot(s.root, skillDir) {
+		return nil, fmt.Errorf("path escape: outside skills root")
+	}
+
+	var files []string
+	err = filepath.WalkDir(skillDir, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if path == skillDir || entry.IsDir() {
+			return nil
+		}
+		if entry.Type()&os.ModeSymlink != 0 || !entry.Type().IsRegular() {
+			return nil
+		}
+
+		rel, err := filepath.Rel(skillDir, path)
+		if err != nil {
+			return err
+		}
+		if rel == "SKILL.md" || strings.ContainsAny(path, "\r\n") {
+			return nil
+		}
+		if !underRoot(skillDir, path) {
+			return fmt.Errorf("path escape: outside skill directory")
+		}
+		files = append(files, path)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(files)
+	return files, nil
+}
+
+func appendSupportingFiles(body string, files []string) string {
+	if len(files) == 0 {
+		return body
+	}
+	var out strings.Builder
+	out.WriteString(strings.TrimSpace(body))
+	out.WriteString("\n\n---\nAdditional files (read with `read_file` when needed):\n")
+	for _, path := range files {
+		out.WriteString("- ")
+		out.WriteString(path)
+		out.WriteByte('\n')
+	}
+	return strings.TrimSpace(out.String())
 }
 
 func underRoot(root, path string) bool {

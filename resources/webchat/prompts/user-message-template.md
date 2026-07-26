@@ -1,4 +1,4 @@
-[{{cms_environment}}] User question (untrusted user text):
+[{{environment}}] User question (untrusted user text):
 
 <user_message>
 {{user_message}}

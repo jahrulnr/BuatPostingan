@@ -48,8 +48,8 @@ func TestListSkillsSeeded(t *testing.T) {
 			t.Fatalf("list_skills must not return full body: %q", d)
 		}
 	}
-	if _, ok := names["writing-post"]; !ok {
-		t.Fatalf("missing writing-post: %#v", names)
+	if _, ok := names["article-writing"]; !ok {
+		t.Fatalf("missing article-writing: %#v", names)
 	}
 	if _, ok := names["docs-research"]; !ok {
 		t.Fatalf("missing docs-research: %#v", names)
@@ -64,7 +64,7 @@ func TestReadSkillBody(t *testing.T) {
 
 	env, err := reg.Execute(context.Background(), service.ToolCall{
 		Name:      "read_skill",
-		Arguments: map[string]any{"name": "writing-post"},
+		Arguments: map[string]any{"name": "article-writing"},
 	})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -74,18 +74,99 @@ func TestReadSkillBody(t *testing.T) {
 	}
 	data, _ := env.Data.(map[string]any)
 	body, _ := data["body"].(string)
-	if !strings.Contains(body, "Writing a post") {
+	if !strings.Contains(body, "Article Writing") {
 		t.Fatalf("body missing title: %q", body)
 	}
 	if strings.HasPrefix(strings.TrimSpace(body), "---") {
 		t.Fatalf("body should strip frontmatter: %q", body[:min(80, len(body))])
 	}
-	if data["name"] != "writing-post" {
+	if data["name"] != "article-writing" {
 		t.Fatalf("name=%v", data["name"])
 	}
 	desc, _ := data["description"].(string)
-	if !strings.Contains(desc, "Draft and structure") {
+	if !strings.Contains(desc, "long-form content") {
 		t.Fatalf("description=%q", desc)
+	}
+	example := filepath.Join(skillsRoot, "article-writing", "examples", "tutorial-howto.md")
+	if !strings.Contains(body, "- "+example) {
+		t.Fatalf("body missing absolute supporting file %q: %q", example, body)
+	}
+	if strings.Contains(body, filepath.Join(skillsRoot, "article-writing", "SKILL.md")) {
+		t.Fatalf("body must not list its own SKILL.md: %q", body)
+	}
+}
+
+func TestReadSkillAppendsOnlyJailedRegularSupportingFiles(t *testing.T) {
+	toolsRoot := filepath.Join(findRepoRoot(t), "resources", "webchat", "tools")
+	root := t.TempDir()
+	skillDir := filepath.Join(root, "demo")
+	if err := os.MkdirAll(filepath.Join(skillDir, "examples", "nested"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(skillDir, "scripts"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		"SKILL.md":                    "---\nname: demo\ndescription: Demo skill\n---\n# Demo\n",
+		"references.md":               "reference",
+		"examples/z-last.md":          "last",
+		"examples/nested/a-first.md":  "first",
+		"scripts/validate-example.js": "export default true",
+	}
+	for rel, content := range files {
+		if err := os.WriteFile(filepath.Join(skillDir, rel), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	outside := filepath.Join(t.TempDir(), "outside-secret.md")
+	if err := os.WriteFile(outside, []byte("secret"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(skillDir, "examples", "outside-link.md")); err != nil {
+		t.Skipf("symlink not supported: %v", err)
+	}
+
+	reg := mustSkillsRegistry(t, toolsRoot, root)
+	env, err := reg.Execute(context.Background(), service.ToolCall{
+		Name:      "read_skill",
+		Arguments: map[string]any{"name": "demo"},
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !env.OK {
+		t.Fatalf("read_skill: %+v", env)
+	}
+	data, _ := env.Data.(map[string]any)
+	body, _ := data["body"].(string)
+	wantPaths := []string{
+		filepath.Join(skillDir, "examples", "nested", "a-first.md"),
+		filepath.Join(skillDir, "examples", "z-last.md"),
+		filepath.Join(skillDir, "references.md"),
+		filepath.Join(skillDir, "scripts", "validate-example.js"),
+	}
+	if !strings.Contains(body, "\n---\nAdditional files (read with `read_file` when needed):\n") {
+		t.Fatalf("missing supporting-files footer: %q", body)
+	}
+	last := -1
+	for _, want := range wantPaths {
+		if !filepath.IsAbs(want) {
+			t.Fatalf("test path must be absolute: %q", want)
+		}
+		at := strings.Index(body, "- "+want)
+		if at < 0 {
+			t.Fatalf("missing supporting file %q: %q", want, body)
+		}
+		if at <= last {
+			t.Fatalf("supporting files are not sorted: %q", body)
+		}
+		last = at
+	}
+	if strings.Contains(body, outside) || strings.Contains(body, "outside-link.md") {
+		t.Fatalf("symlinked file must not be exposed: %q", body)
+	}
+	if strings.Contains(body, filepath.Join(skillDir, "SKILL.md")) {
+		t.Fatalf("SKILL.md must not list itself: %q", body)
 	}
 }
 

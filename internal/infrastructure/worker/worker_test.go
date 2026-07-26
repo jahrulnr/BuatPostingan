@@ -875,6 +875,15 @@ func mustWritePrompt(t *testing.T, root string) {
 	if err := os.WriteFile(filepath.Join(root, "system.md"), []byte("sys static"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(root, "docs.md"), []byte("docs static"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "skills.md"), []byte("skills static"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "pages.md"), []byte("page static"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(root, "developer.md"), []byte("dev tools={{available_tools}}"), 0o644); err != nil {
 		t.Fatal(err)
 	}

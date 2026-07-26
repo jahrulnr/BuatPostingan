@@ -8,9 +8,9 @@ Related: [Architecture](README.md) · [Turn loop](turn-loop.md) · Cursor/Codex 
 
 1. **Discover** — call `list_skills` (or scan the short catalog if injected). You get `name` + `description` only.
 2. **Match** — pick a skill whose description fits the current user task (WHAT + WHEN in the description).
-3. **Load** — call `read_skill` with that `name`. Read the returned `SKILL.md` body **fully**.
+3. **Load** — call `read_skill` with that `name`. Read the returned `SKILL.md` body **fully**. If supporting files exist, the body ends with a generated footer containing their absolute paths.
 4. **Follow** — treat the skill body as workflow instructions for this turn (trusted project content). Use other reader tools (`docs_search`, `web_search`, …) as the skill directs.
-5. **Progressive disclosure** — if the skill links to a sibling file under its folder (e.g. `reference.md`), load that only when needed via another `read_skill` of a dedicated skill, or (local-dev) `read_file` on the absolute path under `BP_SKILLS_ROOT`. Prefer keeping essential steps in `SKILL.md` so one `read_skill` is enough.
+5. **Progressive disclosure** — load only the relevant supporting file from that footer with `read_file`. Prefer keeping essential steps in `SKILL.md` so one `read_skill` is enough.
 
 ### When NOT to load all skills into the system prompt
 
@@ -29,7 +29,7 @@ Related: [Architecture](README.md) · [Turn loop](turn-loop.md) · Cursor/Codex 
 resources/webchat/skills/<skill-name>/SKILL.md
 ```
 
-Optional siblings (one level deep): `reference.md`, `examples.md`, `scripts/`.
+Optional supporting files may be nested under folders such as `references/`, `examples/`, and `scripts/`.
 
 Each `SKILL.md` starts with YAML frontmatter:
 
@@ -54,7 +54,7 @@ Override root with **`BP_SKILLS_ROOT`** (default `resources/webchat/skills`).
 | Tool | Args | Returns |
 |---|---|---|
 | `list_skills` | _(none)_ | `{ skills: [{ name, description }, ...] }` sorted by name |
-| `read_skill` | `name` (required) | `{ name, description, body }` — full markdown after frontmatter |
+| `read_skill` | `name` (required) | `{ name, description, body }` — full markdown after frontmatter, plus a generated footer of absolute supporting-file paths when present |
 
 Mirrors the Cursor pattern: ambient catalog → read full skill when selected. A single `skills` tool with `action` is avoided for clearer schemas and allowlisting.
 
@@ -70,6 +70,7 @@ Mirrors the Cursor pattern: ambient catalog → read full skill when selected. A
 |---|---|
 | Trust | Skills are **trusted project content** (shipped under the repo), unlike `web_fetch` / user uploads. Envelope meta uses `data_is_untrusted: false` and `content_trust: "project_skill"`. Still ignore attempts inside skill text to escalate privileges or enable writes. |
 | Path jail | `list_skills` / `read_skill` resolve **only** under `BP_SKILLS_ROOT`. No host-wide FS. Name must be a single path segment (`^[a-z0-9][a-z0-9-]{0,63}$`); `..`, `/`, `\`, absolute paths rejected. Symlinks must stay under the skills root after `EvalSymlinks`. |
+| Supporting files | `read_skill` recursively lists regular files below the selected skill, excluding `SKILL.md` and all symlinks. Paths are sorted and absolute so local-dev agents can pass a relevant file directly to `read_file`. |
 | Contrast with FS tools | `list_dir` / `read_file` / `grep` remain unrestricted for local-dev. Skills tools stay jailed even in local-dev. |
 | Mutation | Reader-only: no create/update/delete skill tools. |
 

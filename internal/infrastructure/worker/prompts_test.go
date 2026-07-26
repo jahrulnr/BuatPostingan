@@ -23,6 +23,15 @@ func TestInjectPrompts(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "system.md"), []byte("static role text {{admin_display_name}} stays literal"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(root, "docs.md"), []byte("docs workflow {{admin_display_name}} stays literal"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "skills.md"), []byte("skills workflow {{admin_display_name}} stays literal"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "pages.md"), []byte("page rules {{admin_display_name}} stay literal"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	// developer.md is the single injection surface.
 	if err := os.WriteFile(filepath.Join(root, "developer.md"), []byte("dev uid={{admin_user_id}} tools={{available_tools}} docs={{indexed_document_count}} name={{admin_display_name}} path={{ui_path}}"), 0o644); err != nil {
 		t.Fatal(err)
@@ -42,19 +51,31 @@ func TestInjectPrompts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(msgs) != 3 {
+	if len(msgs) != 6 {
 		t.Fatalf("len=%d %#v", len(msgs), msgs)
 	}
 	sys, _ := msgs[0]["content"].(string)
 	if strings.Contains(sys, "Ada") || !strings.Contains(sys, "{{admin_display_name}}") {
 		t.Fatalf("system.md must stay static, got=%q", sys)
 	}
-	dev, _ := msgs[1]["content"].(string)
+	docs, _ := msgs[1]["content"].(string)
+	if docs != "docs workflow {{admin_display_name}} stays literal" {
+		t.Fatalf("docs.md must be static and follow system.md, got=%q", docs)
+	}
+	skills, _ := msgs[2]["content"].(string)
+	if skills != "skills workflow {{admin_display_name}} stays literal" {
+		t.Fatalf("skills.md must be static and follow docs.md, got=%q", skills)
+	}
+	pages, _ := msgs[3]["content"].(string)
+	if pages != "page rules {{admin_display_name}} stay literal" {
+		t.Fatalf("pages.md must be static and follow skills.md, got=%q", pages)
+	}
+	dev, _ := msgs[4]["content"].(string)
 	if !strings.Contains(dev, "uid=42") || !strings.Contains(dev, "tools=(none)") || !strings.Contains(dev, "docs=3") || !strings.Contains(dev, "name=Ada") || !strings.Contains(dev, "path=http://localhost:5173/#/") {
 		t.Fatalf("developer=%q", dev)
 	}
-	if msgs[2]["role"] != "user" || msgs[2]["content"] != "hello" {
-		t.Fatalf("user=%#v", msgs[2])
+	if msgs[5]["role"] != "user" || msgs[5]["content"] != "hello" {
+		t.Fatalf("user=%#v", msgs[5])
 	}
 
 	msgs, err = injectPrompts(root, []map[string]any{
@@ -64,10 +85,10 @@ func TestInjectPrompts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(msgs) != 4 {
-		t.Fatalf("want sys+dev+summary+user got %d %#v", len(msgs), msgs)
+	if len(msgs) != 7 {
+		t.Fatalf("want sys+docs+skills+pages+dev+summary+user got %d %#v", len(msgs), msgs)
 	}
-	sum, _ := msgs[2]["content"].(string)
+	sum, _ := msgs[5]["content"].(string)
 	if !strings.HasPrefix(sum, "Conversation summary:") {
 		t.Fatalf("summary stripped: %#v", msgs)
 	}
@@ -75,13 +96,13 @@ func TestInjectPrompts(t *testing.T) {
 
 func TestInjectPromptsMissingFiles(t *testing.T) {
 	root := t.TempDir()
-	_, err := injectPrompts(root, nil, promptVars{})
-	if err == nil || !strings.Contains(err.Error(), "missing prompt") {
-		t.Fatalf("err=%v", err)
-	}
-	_ = os.WriteFile(filepath.Join(root, "system.md"), []byte("x"), 0o644)
-	_, err = injectPrompts(root, nil, promptVars{})
-	if err == nil || !strings.Contains(err.Error(), "developer.md") {
-		t.Fatalf("err=%v", err)
+	for _, name := range []string{"system.md", "docs.md", "skills.md", "pages.md", "developer.md"} {
+		_, err := injectPrompts(root, nil, promptVars{})
+		if err == nil || !strings.Contains(err.Error(), name) {
+			t.Fatalf("missing %s: err=%v", name, err)
+		}
+		if err := os.WriteFile(filepath.Join(root, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
