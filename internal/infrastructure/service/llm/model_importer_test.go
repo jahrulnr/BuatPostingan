@@ -234,6 +234,30 @@ func TestModelImporter_MissingBaseURL(t *testing.T) {
 	}
 }
 
+func TestModelImporterAcceptsNonV1OpenAICompatibleBasePath(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/paas/v4/models" {
+			t.Fatalf("request path: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]any{{"id": "glm-4.5"}},
+		})
+	}))
+	defer srv.Close()
+
+	models, err := NewModelImporter().ImportModels(context.Background(), entity.SettingsProvider{
+		BaseURL: srv.URL + "/api/paas/v4",
+		APIKey:  "test-key",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 1 || models[0].ID != "glm-4.5" {
+		t.Fatalf("models: %+v", models)
+	}
+}
+
 func TestModelImporter_MaxPagesGuard(t *testing.T) {
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
