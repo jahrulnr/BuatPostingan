@@ -818,7 +818,35 @@ input:focus-visible {
 }
 
 .composer-model-item__meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.4rem;
+    min-width: 0;
     font-size: 0.65rem;
+    color: var(--wm-muted);
+}
+
+.composer-model-item__provider {
+    display: inline-block;
+    max-width: 10rem;
+    overflow: hidden;
+    padding: 0.08rem 0.28rem;
+    border: 1px solid color-mix(in oklab, var(--wm-accent) 34%, var(--wm-border));
+    border-radius: 0.25rem;
+    background: color-mix(in oklab, var(--wm-accent) 8%, transparent);
+    color: color-mix(in oklab, var(--wm-accent) 72%, var(--wm-ink));
+    font-family: var(--wm-mono, var(--wm-font));
+    font-size: 0.58rem;
+    font-weight: 650;
+    letter-spacing: 0.035em;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.composer-model-item__capabilities {
     color: var(--wm-muted);
 }
 

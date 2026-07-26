@@ -9,6 +9,51 @@ const LS_MODEL = 'bp.modelId';
 const LS_EFFORT = 'bp.effort';
 
 /**
+ * Keep provider identity visually distinct from model capabilities. Text is
+ * omitted from output modes because every model in this picker is chat-ready.
+ *
+ * @param {Object} model
+ * @returns {{provider: string, capabilities: string[]}}
+ */
+export function modelPickerMetadata(model) {
+    const row = model || {};
+    const capabilities = [];
+    const seen = new Set();
+    const addCapability = function (value) {
+        const label = String(value || '').trim().toLowerCase();
+        if (!label || label === 'text' || seen.has(label)) return;
+        seen.add(label);
+        capabilities.push(label);
+    };
+
+    if (row.supports_vision) addCapability('vision');
+    if (Array.isArray(row.output_modes)) {
+        row.output_modes.forEach(addCapability);
+    }
+    if (row.supported_efforts && row.supported_efforts.length > 0) {
+        addCapability('reasoning');
+    }
+
+    return {
+        provider: String(row.provider || '').trim(),
+        capabilities: capabilities,
+    };
+}
+
+export function modelPickerName(model) {
+    const row = model || {};
+    const provider = String(row.provider || '').trim();
+    const label = String(row.label || row.id || '').trim();
+    if (!provider || !label) return label || 'Model';
+
+    const suffix = ' · ' + provider;
+    if (label.toLowerCase().endsWith(suffix.toLowerCase())) {
+        return label.slice(0, -suffix.length).trim() || String(row.id || '').trim() || 'Model';
+    }
+    return label;
+}
+
+/**
  * @param {{
  *   root?: ParentNode,
  *   listModels: Function,
@@ -164,10 +209,8 @@ export function bootModelPicker(opts) {
             for (let i = 0; i < filtered.length; i++) {
                 const row = filtered[i];
                 const selected = row.id === modelId;
-                const meta = [];
-                if (row.supports_vision) meta.push('vision');
+                const metadata = modelPickerMetadata(row);
                 const hasEffort = row.supported_efforts && row.supported_efforts.length > 0;
-                if (hasEffort) meta.push('reasoning');
                 html +=
                     '<li class="composer-model-row' + (selected ? ' is-selected' : '') + '">';
                 html +=
@@ -178,10 +221,22 @@ export function bootModelPicker(opts) {
                     '"' +
                     (selected ? ' aria-selected="true"' : ' aria-selected="false"') +
                     '><span class="composer-model-item__name">' +
-                    escapeHtml(row.label || row.id) +
+                    escapeHtml(modelPickerName(row)) +
                     '</span>' +
-                    (meta.length
-                        ? '<span class="composer-model-item__meta">' + escapeHtml(meta.join(' · ')) + '</span>'
+                    (metadata.provider || metadata.capabilities.length
+                        ? '<span class="composer-model-item__meta">' +
+                            (metadata.provider
+                                ? '<span class="composer-model-item__provider" title="' +
+                                    escapeAttr(metadata.provider) + '">' +
+                                    escapeHtml(metadata.provider) +
+                                    '</span>'
+                                : '') +
+                            (metadata.capabilities.length
+                                ? '<span class="composer-model-item__capabilities">' +
+                                    escapeHtml(metadata.capabilities.join(' · ')) +
+                                    '</span>'
+                                : '') +
+                            '</span>'
                         : '') +
                     '</button>';
                 if (hasEffort) {

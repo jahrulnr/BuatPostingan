@@ -31,6 +31,7 @@ import {
     isNearBottom,
     reconnectDelay,
 } from './stream-reliability.js';
+import { projectHistoricalItems } from './timeline-projection.js';
 import { bootPagePreview } from './page-preview.js';
 
 /**
@@ -823,29 +824,7 @@ export function bootChat(options) {
 
     function hydrateItems(items) {
         clearMessages(false);
-        const lines = items || [];
-        const completedTurns = {};
-        const latestFailedSeq = {};
-        lines.forEach(function (line) {
-            if ((line.type || '') === 'turn.completed' && line.turn_id) {
-                completedTurns[line.turn_id] = true;
-            }
-            if ((line.type || '') === 'turn.failed' && line.turn_id) {
-                latestFailedSeq[line.turn_id] = Number(line.seq || 0);
-            }
-        });
-        lines.forEach(function (line) {
-            const type = line.type || '';
-            if (type === 'thread.started' || type === 'turn.started' || type === 'turn.completed' || type === 'turn.resumed') {
-                return;
-            }
-            if (type === 'turn.failed' && line.turn_id && completedTurns[line.turn_id]) {
-                return;
-            }
-            if (type === 'turn.failed' && line.turn_id
-                && Number(line.seq || 0) !== latestFailedSeq[line.turn_id]) {
-                return;
-            }
+        projectHistoricalItems(items).forEach(function (line) {
             renderItem(line, true);
         });
         if (!messagesEl.querySelector('.msg')) clearMessages(true);
