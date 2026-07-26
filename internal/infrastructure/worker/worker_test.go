@@ -103,6 +103,7 @@ func (f *fakeStore) ClearActiveTurn(context.Context, valueobject.ThreadID) error
 }
 
 type fakeLock struct {
+	mu       sync.Mutex
 	released []string
 }
 
@@ -110,12 +111,22 @@ func (l *fakeLock) TryAcquire(context.Context, valueobject.ThreadID) (string, er
 	return "tok", nil
 }
 func (l *fakeLock) Release(_ context.Context, _ valueobject.ThreadID, tok string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	l.released = append(l.released, tok)
 	return nil
 }
 func (l *fakeLock) IsBusy(context.Context, valueobject.ThreadID) (bool, error) { return false, nil }
+func (l *fakeLock) Released() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	out := make([]string, len(l.released))
+	copy(out, l.released)
+	return out
+}
 
 type fakeInterrupt struct {
+	mu        sync.Mutex
 	requested bool
 	cleared   int
 }
@@ -124,9 +135,13 @@ func (i *fakeInterrupt) Request(context.Context, valueobject.ThreadID, valueobje
 	return nil
 }
 func (i *fakeInterrupt) IsRequested(context.Context, valueobject.ThreadID, valueobject.TurnID) (bool, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	return i.requested, nil
 }
 func (i *fakeInterrupt) Clear(context.Context, valueobject.ThreadID, valueobject.TurnID) error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	i.cleared++
 	i.requested = false
 	return nil
@@ -230,6 +245,12 @@ func (l *scriptLLM) Chat(_ context.Context, _ []map[string]any, _ []map[string]a
 	return service.LLMResult{Text: "fallback"}, nil
 }
 
+func (l *scriptLLM) Calls() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.calls
+}
+
 // blockingLLM waits until its context is cancelled, then returns the error.
 type blockingLLM struct {
 	blockFor time.Duration
@@ -262,7 +283,7 @@ func waitDone(t *testing.T, store *fakeStore, lock *fakeLock) {
 		store.mu.Lock()
 		cleared := store.cleared
 		store.mu.Unlock()
-		if cleared > 0 && len(lock.released) > 0 {
+		if cleared > 0 && len(lock.Released()) > 0 {
 			return
 		}
 		time.Sleep(5 * time.Millisecond)
@@ -437,8 +458,9 @@ func TestNewAndEnqueueStub(t *testing.T) {
 	if meta.Title == nil || meta.TitleSource != enum.TitleAuto {
 		t.Fatalf("auto title %#v", meta)
 	}
-	if lock.released[0] != "lock-1" {
-		t.Fatalf("released=%v", lock.released)
+	released := lock.Released()
+	if len(released) == 0 || released[0] != "lock-1" {
+		t.Fatalf("released=%v", released)
 	}
 	if trace != logging.TraceSystem {
 		t.Fatalf("background enqueue without ctx trace want system got %q", trace)
@@ -778,13 +800,14 @@ func TestEmptyModelResponseNudgeRecovers(t *testing.T) {
 			text, _ = it.Payload["text"].(string)
 		}
 	}
-	calls := llm.calls
 	store.mu.Unlock()
+	calls := llm.Calls()
 	if text != "Jawaban setelah nudge" {
 		t.Fatalf("text=%q", text)
 	}
-	if calls != 2 {
-		t.Fatalf("expected 2 LLM rounds (empty+nudge), got %d", calls)
+	// Auto-title may race a third Chat after the turn; require the two nudge rounds.
+	if calls < 2 {
+		t.Fatalf("expected at least 2 LLM rounds (empty+nudge), got %d", calls)
 	}
 }
 
@@ -865,7 +888,10 @@ func TestProcessPanicRecovery(t *testing.T) {
 	if !containsType(typesOf(store), enum.ItemTurnFailed) {
 		t.Fatalf("got=%v", typesOf(store))
 	}
-	if store.cleared == 0 || len(lock.released) == 0 {
+	store.mu.Lock()
+	cleared := store.cleared
+	store.mu.Unlock()
+	if cleared == 0 || len(lock.Released()) == 0 {
 		t.Fatal("cleanup should run after panic")
 	}
 }

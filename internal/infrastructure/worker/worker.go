@@ -325,7 +325,8 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 				}
 			}()
 
-			roundCtx = llm.WithStreamHooks(roundCtx, &llm.StreamHooks{
+			// Do not reassign roundCtx — the interrupt poll goroutine above reads it.
+			llmCtx := llm.WithStreamHooks(roundCtx, &llm.StreamHooks{
 				OnTextDelta: func(delta string) {
 					if delta == "" {
 						return
@@ -346,7 +347,7 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 				},
 			})
 
-			resp, err := w.llm.Chat(roundCtx, messages, schemas, pinned)
+			resp, err := w.llm.Chat(llmCtx, messages, schemas, pinned)
 			if err != nil {
 				// If the round context was cancelled by the interrupt goroutine (parent
 				// context is still alive), treat this as a user stop, not an LLM error.

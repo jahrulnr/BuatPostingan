@@ -4,9 +4,11 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN VERSION=$$(cat VERSION | tr -d '[:space:]') && \
+# Read VERSION at build time and inject via ldflags. Use single `$` — modern
+# BuildKit passes `$$` through literally (shell then expands `$$` to PID).
+RUN VERSION=$(tr -d '[:space:]' < VERSION) && \
     CGO_ENABLED=0 GOOS=linux go build -trimpath \
-    -ldflags="-s -w -X buatpostingan/internal/version.Version=$${VERSION}" \
+    -ldflags="-s -w -X buatpostingan/internal/version.Version=${VERSION}" \
     -o /out/buatpostingan ./cmd/app
 
 FROM nginx:1.27-alpine
