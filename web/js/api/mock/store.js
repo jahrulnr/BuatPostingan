@@ -25,7 +25,6 @@ export function createStore(fixtures) {
     const attachments = new Map();
 
     let docsIndex = { ...fixtures.docsIndexReady };
-    let rateWindow = [];
 
     function ApiError(status, code, message, extra) {
         const err = new Error(code || message || 'error');
@@ -204,14 +203,6 @@ export function createStore(fixtures) {
                 remaining_sec: remaining,
             });
         }
-        const now = Date.now();
-        rateWindow = rateWindow.filter(function (t) { return now - t < 60000; });
-        if (rateWindow.length >= 10) {
-            const err = ApiError(429, 'rate_limited', 'Too many turns');
-            err.retryAfter = '6';
-            throw err;
-        }
-        rateWindow.push(now);
     }
 
     function clearTurnTimers(turnId) {

@@ -36,7 +36,6 @@ Committed template: none. `storage/config.json` is **auto-generated** from struc
     "max_tool_rounds": 8,
     "speak_floor_ttl_sec": 600,
     "lock_ttl_sec": 300,
-    "turn_rate_limit_per_min": 10,
     "turn_job_timeout_sec": 120
   },
   "llm": {
@@ -46,8 +45,6 @@ Committed template: none. `storage/config.json` is **auto-generated** from struc
     "vision": "auto",
     "effort": "auto",
     "total_attempt_budget": 4,
-    "circuit_failure_threshold": 3,
-    "circuit_cooldown_sec": 60,
     "retry_base_delay_ms": 250,
     "retry_max_delay_ms": 5000,
     "retry_jitter": 0.2,
@@ -96,9 +93,9 @@ Committed template: none. `storage/config.json` is **auto-generated** from struc
 |---|---|---|
 | **User** | `id`, `name`, `role` | `role` ∈ `owner` \| `admin` \| `member`. IDs opaque (`usr_…`). No passwords in v1. |
 | **skills_root** | — | Env-only: `BP_SKILLS_ROOT`. Jailed root for `list_skills` / `read_skill`. |
-| **limits** | `max_tool_rounds`, `speak_floor_ttl_sec`, `lock_ttl_sec`, `turn_rate_limit_per_min`, `turn_job_timeout_sec` | Pointer fields — omit a key to keep the hardcoded default. |
+| **limits** | `max_tool_rounds`, `speak_floor_ttl_sec`, `lock_ttl_sec`, `turn_job_timeout_sec` | Pointer fields — omit a key to keep the hardcoded default. |
 | **llm.strategy / active_provider** | see provider notes | Strategy and active provider from JSON. |
-| **llm globals** | `stream`, `vision` (`auto`\|`on`\|`off`), `effort` (`auto`\|`none`\|`minimal`\|`low`\|`medium`\|`high`\|`xhigh`\|`max`), `total_attempt_budget`, `circuit_failure_threshold`, `circuit_cooldown_sec`, `retry_base_delay_ms`, `retry_max_delay_ms`, `retry_jitter` | Pointer fields — omit keeps hardcoded default. Invalid `vision` / `effort` fall back to `auto`. |
+| **llm globals** | `stream`, `vision` (`auto`\|`on`\|`off`), `effort` (`auto`\|`none`\|`minimal`\|`low`\|`medium`\|`high`\|`xhigh`\|`max`), `total_attempt_budget`, `retry_base_delay_ms`, `retry_max_delay_ms`, `retry_jitter` | Pointer fields — omit keeps hardcoded default. Invalid `vision` / `effort` fall back to `auto`. |
 | **Provider** | `id`, `name`, `prefix`, `api`, `base_url`, `api_key`, `api_keys[]`, `enabled`, `models[]`, sizing | `id` uppercased slot (router key). `api` ∈ `chat` \| `responses`. Phase 1 uses **one** `api_key`; `api_keys` reserved for future round-robin without schema break. |
 | **Model** | `id`, `label?` | First model id maps to runtime `LLMProvider.Model` (primary). Extra models are picker allowlist entries for the same provider slot. |
 | **context** | `compaction_enabled`, `max_input_tokens`, `reserve_tokens`, `recent_turns`, `summary_max_chars` | Pointer fields — omit keeps hardcoded default. |

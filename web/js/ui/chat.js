@@ -147,7 +147,7 @@ export function bootChat(options) {
         const normalized = String(text || '').toLowerCase();
         let state = 'neutral';
         if (/ready|hydrated|completed/.test(normalized)) state = 'ready';
-        else if (/failed|denied|locked|429|423|error/.test(normalized)) state = 'danger';
+        else if (/failed|denied|locked|423|error/.test(normalized)) state = 'danger';
         else if (/indexing|streaming|thinking|busy|stopping|sending|queued|retrying|reconnecting|connecting/.test(normalized)) state = 'busy';
         statusEl.dataset.state = state;
     }
@@ -731,17 +731,19 @@ export function bootChat(options) {
         if (paintTarget) paintActionBubble(messagesEl, paintTarget);
     }
 
-    function applyAgentMessage(item) {
+    function applyAgentMessage(item, historical) {
         const text = item.text || '';
         const turnId = item.turn_id || '';
         if (item.origin === 'runtime' && text === '(empty model response)') {
             discardLiveDraft(turnId);
             appendError(
                 messagesEl,
-                'Model returned no answer (reasoning-only or truncated). Retry the turn.',
+                historical
+                    ? 'Previous attempt returned no answer. Retry to try again.'
+                    : 'Model returned no answer (reasoning-only or truncated). Retry the turn.',
                 turnId,
                 true,
-                item.trace_id || ''
+                historical ? '' : (item.trace_id || '')
             );
             return;
         }
@@ -768,7 +770,7 @@ export function bootChat(options) {
         paintActionBubble(messagesEl, state);
     }
 
-    function renderItem(item) {
+    function renderItem(item, historical) {
         if (!item) return;
         const id = item.id || '';
         if (id && seenItemIds[id]) return;
@@ -800,16 +802,18 @@ export function bootChat(options) {
         } else if (type === 'tool_result') {
             applyToolResult(item);
         } else if (type === 'agent_message') {
-            applyAgentMessage(item);
+            applyAgentMessage(item, historical);
         } else if (type === 'turn.failed' && item.error) {
             const code = item.error.code || '';
             if (code !== 'interrupted') {
                 appendError(
                     messagesEl,
-                    (item.error.message || code || 'error'),
+                    historical
+                        ? 'Previous attempt failed. Retry to try again.'
+                        : (item.error.message || code || 'error'),
                     item.turn_id || '',
                     true,
-                    item.trace_id || item.error.trace_id || ''
+                    historical ? '' : (item.trace_id || item.error.trace_id || '')
                 );
             }
         } else if (type === 'turn.resumed') {
@@ -842,7 +846,7 @@ export function bootChat(options) {
                 && Number(line.seq || 0) !== latestFailedSeq[line.turn_id]) {
                 return;
             }
-            renderItem(line);
+            renderItem(line, true);
         });
         if (!messagesEl.querySelector('.msg')) clearMessages(true);
     }
@@ -1480,9 +1484,6 @@ export function bootChat(options) {
                 }
                 showToast('503 AI locked · indexing');
                 setStatus('Indexing docs…');
-            } else if (err.status === 429) {
-                showToast('429 rate limited · retry ' + (err.retryAfter || '?') + 's');
-                setStatus('429 rate limited');
             } else if (err.status === 423) {
                 applyFloorFromPayload(err.body || {});
                 floorRemainingSec = (err.body && err.body.remaining_sec) || floorRemainingSec;
@@ -1531,8 +1532,6 @@ export function bootChat(options) {
                 if (err.status === 503) {
                     applyDocsIndexGate((err.body && err.body.docs_index) || { usable: false, status: 'building', message: 'Indexing…' });
                     showToast('503 docs index');
-                } else if (err.status === 429) {
-                    showToast('429 rate limited');
                 } else if (err.status === 423) {
                     showToast('423 floor locked');
                 } else if (err.status === 409) {

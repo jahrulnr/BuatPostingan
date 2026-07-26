@@ -20,7 +20,6 @@ type memDeps struct {
 	locks         *memLock
 	interrupt     *memInterrupt
 	floor         *memFloor
-	rate          *memRate
 	docs          *memDocs
 	worker        *memWorker
 	events        *memEvents
@@ -35,7 +34,6 @@ func newMemDeps() memDeps {
 		locks:     &memLock{},
 		interrupt: &memInterrupt{},
 		floor:     &memFloor{},
-		rate:      &memRate{},
 		docs:      &memDocs{usable: true},
 		worker:    &memWorker{},
 		events:    &memEvents{},
@@ -50,7 +48,6 @@ func (d memDeps) service() *webchat.Service {
 		Locks:         d.locks,
 		Interrupt:     d.interrupt,
 		Floor:         d.floor,
-		RateLimit:     d.rate,
 		Redactor:      d.redactor,
 		Docs:          d.docs,
 		Events:        d.events,
@@ -273,40 +270,6 @@ func TestStartTurn_Busy(t *testing.T) {
 	}
 }
 
-func TestStartTurn_RateLimitedRemap(t *testing.T) {
-	t.Parallel()
-	d := newMemDeps()
-	d.rate.err = apperr.RateLimited(0) // retryAfter from Assert drives remap
-	d.rate.retryAfter = 42
-	tid, _ := valueobject.NewThreadID("thr_1")
-	d.threads.threads[tid.String()] = &entity.ThreadSnapshot{ThreadID: tid}
-
-	_, err := d.service().StartTurn(context.Background(), webchat.StartTurnInput{
-		ThreadID: tid, Message: "x", AdminUserID: 1,
-	})
-	ae, ok := apperr.As(err)
-	if !ok || ae.Code != apperr.CodeRateLimited {
-		t.Fatalf("got %v", err)
-	}
-	if ae.Extra["retry_after"] != 42 {
-		t.Fatalf("extra %+v", ae.Extra)
-	}
-}
-
-func TestStartTurn_RateLimitOtherError(t *testing.T) {
-	t.Parallel()
-	d := newMemDeps()
-	d.rate.err = errors.New("rate store down")
-	tid, _ := valueobject.NewThreadID("thr_1")
-	d.threads.threads[tid.String()] = &entity.ThreadSnapshot{ThreadID: tid}
-	_, err := d.service().StartTurn(context.Background(), webchat.StartTurnInput{
-		ThreadID: tid, Message: "x", AdminUserID: 1,
-	})
-	if err == nil || err.Error() != "rate store down" {
-		t.Fatalf("got %v", err)
-	}
-}
-
 func TestStartTurn_FloorLocked(t *testing.T) {
 	t.Parallel()
 	d := newMemDeps()
@@ -441,6 +404,39 @@ func TestRetryTurn_CompletedNotRetryable(t *testing.T) {
 	ae, ok := apperr.As(err)
 	if !ok || ae.Code != apperr.CodeNotRetryable {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestRetryTurn_EmptyModelResponseCompletedRetryable(t *testing.T) {
+	t.Parallel()
+	d := newMemDeps()
+	tid, _ := valueobject.NewThreadID("thr_1")
+	trn, _ := valueobject.NewTurnID("trn_1")
+	d.threads.threads[tid.String()] = &entity.ThreadSnapshot{
+		ThreadID: tid,
+		Items: []entity.TranscriptItem{
+			{Type: enum.ItemUserMessage, TurnID: trn, Payload: map[string]any{
+				"text": "hi", "admin_user_id": int(1), "admin_display_name": "Ada",
+			}},
+			{Type: enum.ItemAgentMessage, TurnID: trn, Payload: map[string]any{
+				"text": "(empty model response)", "origin": "runtime",
+			}},
+			{Type: enum.ItemTurnCompleted, TurnID: trn},
+		},
+	}
+	out, err := d.service().RetryTurn(context.Background(), webchat.RetryTurnInput{
+		ThreadID:    tid,
+		TurnID:      trn,
+		AdminUserID: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !d.worker.job.IsRetry || d.worker.job.Message != "hi" {
+		t.Fatalf("job %+v", d.worker.job)
+	}
+	if out.TurnID != trn {
+		t.Fatalf("turn %s", out.TurnID)
 	}
 }
 
@@ -710,7 +706,7 @@ func TestRenameThread_StoreError(t *testing.T) {
 	}
 }
 
-func TestRetryTurn_DocsBusyFloorRate(t *testing.T) {
+func TestRetryTurn_DocsBusyFloor(t *testing.T) {
 	t.Parallel()
 	d := newMemDeps()
 	tid, _ := valueobject.NewThreadID("thr_1")
@@ -727,14 +723,6 @@ func TestRetryTurn_DocsBusyFloorRate(t *testing.T) {
 		t.Fatalf("docs: %v", err)
 	}
 	d.docs.usable = true
-
-	d.rate.err = apperr.RateLimited(0)
-	d.rate.retryAfter = 0 // no remap
-	_, err = d.service().RetryTurn(context.Background(), webchat.RetryTurnInput{ThreadID: tid, TurnID: trn, AdminUserID: 1})
-	if ae, ok := apperr.As(err); !ok || ae.Code != apperr.CodeRateLimited {
-		t.Fatalf("rate: %v", err)
-	}
-	d.rate.err = nil
 
 	d.floor.assertErr = apperr.FloorLocked(1, 2)
 	_, err = d.service().RetryTurn(context.Background(), webchat.RetryTurnInput{ThreadID: tid, TurnID: trn, AdminUserID: 1})
@@ -988,15 +976,6 @@ func (m *memFloor) Remaining(_ context.Context, id valueobject.ThreadID) (*int64
 		return nil, 0, nil
 	}
 	return r.holder, r.sec, r.err
-}
-
-type memRate struct {
-	err        error
-	retryAfter int
-}
-
-func (m *memRate) Assert(context.Context, int64) (int, error) {
-	return m.retryAfter, m.err
 }
 
 type memDocs struct {

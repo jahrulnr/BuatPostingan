@@ -14,11 +14,6 @@ type SpeakFloor interface {
 	Remaining(ctx context.Context, threadID valueobject.ThreadID) (holder *int64, remainingSec int, err error)
 }
 
-// TurnRateLimit is a sliding-window limiter per admin (HTTP 429).
-type TurnRateLimit interface {
-	Assert(ctx context.Context, adminUserID int64) (retryAfterSec int, err error)
-}
-
 // SecretRedactor scrubs API keys / JWTs from user text before enqueue/JSONL.
 type SecretRedactor interface {
 	Redact(ctx context.Context, text string) (redacted string, err error)

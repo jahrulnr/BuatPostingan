@@ -19,8 +19,8 @@ import (
 func TestFromAppAndErrorUnwrap(t *testing.T) {
 	cfg := FromApp(config.Config{
 		StorageRoot: "/tmp/x", LLMStrategy: "failover", LLMActiveProvider: "A",
-		LLMTotalAttemptBudget: 3, LLMCircuitFailureThreshold: 2, LLMCircuitCooldownSec: 10,
-		LLMRetryStatuses: []int{429}, LLMProviders: map[string]config.LLMProvider{"A": {ID: "A"}},
+		LLMTotalAttemptBudget: 3,
+		LLMRetryStatuses:      []int{429}, LLMProviders: map[string]config.LLMProvider{"A": {ID: "A"}},
 		LLMStream: true,
 	})
 	if cfg.StorageRoot != "/tmp/x" || cfg.Strategy != "failover" || cfg.ActiveProvider != "A" {
@@ -47,122 +47,6 @@ func TestFromAppAndErrorUnwrap(t *testing.T) {
 	}
 }
 
-func TestCircuitStoreOpenAndCooldown(t *testing.T) {
-	root := t.TempDir()
-	c := newCircuitStore(root, 2, 1)
-	if c.failureThreshold != 2 || c.cooldownSec != 1 {
-		t.Fatalf("%#v", c)
-	}
-	// defaults
-	c2 := newCircuitStore(root, 0, 0)
-	if c2.failureThreshold != 3 || c2.cooldownSec != 60 {
-		t.Fatalf("defaults %#v", c2)
-	}
-
-	ctx := context.Background()
-	c.record(ctx, "A", false)
-	st := c.read()
-	if st["A"].Failures != 1 || st["A"].OpenedAt != nil {
-		t.Fatalf("%#v", st["A"])
-	}
-	c.record(ctx, "A", false)
-	st = c.read()
-	if st["A"].Failures != 2 || st["A"].OpenedAt == nil {
-		t.Fatalf("should open %#v", st["A"])
-	}
-	now := time.Now()
-	if c.isAvailable("A", st, now) {
-		t.Fatal("circuit should be open")
-	}
-	if !c.isAvailable("A", st, now.Add(2*time.Second)) {
-		t.Fatal("cooldown elapsed should allow")
-	}
-	if !c.isAvailable("missing", st, now) {
-		t.Fatal("missing provider available")
-	}
-	c.record(ctx, "A", true)
-	st = c.read()
-	if st["A"].Failures != 0 || st["A"].OpenedAt != nil {
-		t.Fatalf("reset %#v", st["A"])
-	}
-
-	// corrupt file → empty read (recovers safely)
-	_ = os.WriteFile(c.path(), []byte("not-json"), 0o644)
-	if len(c.read()) != 0 {
-		t.Fatal("corrupt should yield empty")
-	}
-}
-
-// TestCircuitHalfOpenProbeReopenClose exercises the full state machine:
-// threshold→open, cooldown→half-open, single probe, fail→reopen, success→close.
-func TestCircuitHalfOpenProbeReopenClose(t *testing.T) {
-	ctx := context.Background()
-	root := t.TempDir()
-	c := newCircuitStore(root, 2, 1) // threshold 2, cooldown 1s
-	c.probeTTL = 200 * time.Millisecond
-
-	// Trip open after threshold transient failures.
-	c.record(ctx, "A", false)
-	c.record(ctx, "A", false)
-	if c.read()["A"].OpenedAt == nil {
-		t.Fatal("should be open after threshold")
-	}
-	// Open → fail fast (no probe leased while within cooldown).
-	if c.tryAcquire(ctx, "A") {
-		t.Fatal("open provider must not acquire before cooldown")
-	}
-
-	// Force cooldown elapsed by backdating OpenedAt → half-open.
-	st := c.read()
-	old := unixSeconds(time.Now().Add(-5 * time.Second))
-	rec := st["A"]
-	rec.OpenedAt = &old
-	rec.ProbeAt = nil
-	st["A"] = rec
-	c.withLock(func() { c.writeAtomic(st) })
-
-	// Half-open: exactly one probe.
-	if !c.tryAcquire(ctx, "A") {
-		t.Fatal("half-open should lease first probe")
-	}
-	if c.tryAcquire(ctx, "A") {
-		t.Fatal("second concurrent probe must fail fast")
-	}
-
-	// Probe fails → reopen with a fresh cooldown.
-	c.record(ctx, "A", false)
-	st = c.read()
-	if st["A"].OpenedAt == nil || st["A"].ProbeAt != nil {
-		t.Fatalf("reopen should set OpenedAt and clear probe: %#v", st["A"])
-	}
-
-	// Backdate again → half-open probe succeeds → closed.
-	old = unixSeconds(time.Now().Add(-5 * time.Second))
-	rec = st["A"]
-	rec.OpenedAt = &old
-	rec.ProbeAt = nil
-	st["A"] = rec
-	c.withLock(func() { c.writeAtomic(st) })
-	if !c.tryAcquire(ctx, "A") {
-		t.Fatal("half-open should lease probe again")
-	}
-	c.record(ctx, "A", true)
-	st = c.read()
-	if st["A"].Failures != 0 || st["A"].OpenedAt != nil || st["A"].ProbeAt != nil {
-		t.Fatalf("success should fully close: %#v", st["A"])
-	}
-
-	// Stale probe lease is reclaimable (probeTTL elapsed).
-	old = unixSeconds(time.Now().Add(-5 * time.Second))
-	stale := unixSeconds(time.Now().Add(-1 * time.Second))
-	c.withLock(func() {
-		c.writeAtomic(map[string]providerState{"A": {Failures: 2, OpenedAt: &old, ProbeAt: &stale}})
-	})
-	if !c.tryAcquire(ctx, "A") {
-		t.Fatal("stale probe lease should be reclaimable")
-	}
-}
-
 func TestRouterCandidatesStrategies(t *testing.T) {
 	root := t.TempDir()
 	providers := map[string]config.LLMProvider{
@@ -172,7 +56,7 @@ func TestRouterCandidatesStrategies(t *testing.T) {
 	}
 	cfg := Config{
 		StorageRoot: root, Strategy: "failover", ActiveProvider: "A",
-		Providers: providers, CircuitFailureThreshold: 1, CircuitCooldownSec: 60,
+		Providers: providers,
 	}
 	r := NewRouter(cfg, NewClient(cfg))
 	got := r.candidates("")
@@ -208,12 +92,27 @@ func TestRouterCandidatesStrategies(t *testing.T) {
 		t.Fatalf("pinned %#v", pinned)
 	}
 
-	// open circuit for A → still returns enabled when all open (fallback)
-	r.circuit.record(context.Background(), "A", false)
-	r.circuit.record(context.Background(), "B", false)
-	all := r.candidates("")
-	if len(all) != 2 {
-		t.Fatalf("all open fallback %#v", all)
+}
+
+func TestRouterCandidatesIgnoreLegacyCircuitState(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "llm"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "llm", "provider_state.json"), []byte(`{"A":{"failures":9,"opened_at":9999999999}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := NewRouter(Config{
+		StorageRoot: root,
+		Strategy:    "failover",
+		Providers: map[string]config.LLMProvider{
+			"A": {ID: "A", Enabled: true},
+			"B": {ID: "B", Enabled: true},
+		},
+	}, nil)
+	got := r.candidates("")
+	if len(got) != 2 || got[0] != "A" {
+		t.Fatalf("legacy circuit state must be ignored, got %#v", got)
 	}
 }
 

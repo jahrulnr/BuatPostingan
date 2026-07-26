@@ -18,7 +18,7 @@ sequenceDiagram
 
   FE->>HTTP: POST /threads/{id}/turns
   HTTP->>UC: StartTurn
-  UC->>UC: DocsGate → rate → floor.Assert → redact
+  UC->>UC: DocsGate → floor.Assert → redact
   UC->>Lock: TryAcquire + floor.Acquire
   UC->>W: Enqueue(job) → 202-ish queued
   UC-->>FE: turn_id, seq_head, status=queued
@@ -53,12 +53,11 @@ Order in `internal/usecase/webchat` (mirrors AIPedia controller order):
 1. Validate non-empty message  
 2. **Docs gate** — index must be usable  
 3. Thread exists  
-4. **Rate limit** (`TurnRateLimitPerMin`, default 10/min)  
-5. **Speak floor Assert** — another admin may hold the floor  
-6. **Redact** secrets in message  
-7. **Lock** thread (`TryAcquire`)  
-8. Allocate `turn_id`, **floor Acquire**  
-9. Read `seq_head`, **Worker.Enqueue**, return `status=queued`
+4. **Speak floor Assert** — another admin may hold the floor
+5. **Redact** secrets in message
+6. **Lock** thread (`TryAcquire`)
+7. Allocate `turn_id`, **floor Acquire**
+8. Read `seq_head`, **Worker.Enqueue**, return `status=queued`
 
 HTTP handler stays thin: call usecase only. Retry / interrupt are separate methods (`RetryTurn`, `InterruptTurn`).
 

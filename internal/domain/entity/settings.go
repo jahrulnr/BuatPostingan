@@ -23,11 +23,10 @@ type SettingsFile struct {
 // SettingsLimits holds turn-loop / concurrency limits (JSON: limits.*).
 // Hardcoded defaults in config.Load() apply when JSON omits a key.
 type SettingsLimits struct {
-	MaxToolRounds       *int `json:"max_tool_rounds,omitempty"`
-	SpeakFloorTTLSec    *int `json:"speak_floor_ttl_sec,omitempty"`
-	LockTTLSec          *int `json:"lock_ttl_sec,omitempty"`
-	TurnRateLimitPerMin *int `json:"turn_rate_limit_per_min,omitempty"`
-	TurnJobTimeoutSec   *int `json:"turn_job_timeout_sec,omitempty"`
+	MaxToolRounds     *int `json:"max_tool_rounds,omitempty"`
+	SpeakFloorTTLSec  *int `json:"speak_floor_ttl_sec,omitempty"`
+	LockTTLSec        *int `json:"lock_ttl_sec,omitempty"`
+	TurnJobTimeoutSec *int `json:"turn_job_timeout_sec,omitempty"`
 }
 
 // SettingsContext holds context-compaction knobs (JSON: context.*).
@@ -85,7 +84,7 @@ type SettingsUser struct {
 }
 
 // SettingsLLM holds strategy + provider slots, plus global LLM knobs (JSON:
-// llm.stream, llm.vision, llm.effort, llm.total_attempt_budget, llm.circuit_*,
+// llm.stream, llm.vision, llm.effort, llm.total_attempt_budget,
 // llm.retry_*). Hardcoded defaults in config.Load() apply when JSON omits a key.
 //
 // Stub is NOT here — it stays env-only (BP_LLM_STUB) for development.
@@ -95,15 +94,13 @@ type SettingsLLM struct {
 	Providers      []SettingsProvider `json:"providers"`
 
 	// Global knobs (omitempty → omit keeps hardcoded default).
-	Stream                  *bool    `json:"stream,omitempty"`
-	Vision                  string   `json:"vision,omitempty"` // auto|on|off
-	Effort                  string   `json:"effort,omitempty"` // auto|none|minimal|low|medium|high|xhigh|max
-	TotalAttemptBudget      *int     `json:"total_attempt_budget,omitempty"`
-	CircuitFailureThreshold *int     `json:"circuit_failure_threshold,omitempty"`
-	CircuitCooldownSec      *int     `json:"circuit_cooldown_sec,omitempty"`
-	RetryBaseDelayMS        *int     `json:"retry_base_delay_ms,omitempty"`
-	RetryMaxDelayMS         *int     `json:"retry_max_delay_ms,omitempty"`
-	RetryJitter             *float64 `json:"retry_jitter,omitempty"`
+	Stream             *bool    `json:"stream,omitempty"`
+	Vision             string   `json:"vision,omitempty"` // auto|on|off
+	Effort             string   `json:"effort,omitempty"` // auto|none|minimal|low|medium|high|xhigh|max
+	TotalAttemptBudget *int     `json:"total_attempt_budget,omitempty"`
+	RetryBaseDelayMS   *int     `json:"retry_base_delay_ms,omitempty"`
+	RetryMaxDelayMS    *int     `json:"retry_max_delay_ms,omitempty"`
+	RetryJitter        *float64 `json:"retry_jitter,omitempty"`
 }
 
 // SettingsProvider is one OpenAI-compatible upstream (file form).

@@ -96,11 +96,4 @@ func TestHelpers(t *testing.T) {
 		t.Fatalf("%+v", floor.Extra)
 	}
 
-	rate := apperr.RateLimited(30)
-	if rate.Code != apperr.CodeRateLimited || rate.HTTPStatus != http.StatusTooManyRequests {
-		t.Fatalf("%+v", rate)
-	}
-	if rate.Extra["retry_after"] != 30 || rate.Extra["retry_after_sec"] != 30 {
-		t.Fatalf("%+v", rate.Extra)
-	}
 }

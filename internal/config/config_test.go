@@ -37,8 +37,8 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.MaxToolRounds != 8 || cfg.SpeakFloorTTL != 600 || cfg.LockTTL != 300 {
 		t.Fatalf("ttls %+v", cfg)
 	}
-	if cfg.TurnRateLimitPerMin != 10 || cfg.TurnJobTimeoutSec != 120 {
-		t.Fatalf("rate/job %+v", cfg)
+	if cfg.TurnJobTimeoutSec != 120 {
+		t.Fatalf("job timeout %+v", cfg)
 	}
 	if !cfg.LLMStub {
 		t.Fatal("expected stub when no provider key")

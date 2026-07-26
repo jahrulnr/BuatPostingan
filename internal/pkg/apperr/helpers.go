@@ -46,10 +46,3 @@ func FloorLocked(holderAdminID int64, remainingSec int) *Error {
 		},
 	)
 }
-
-func RateLimited(retryAfterSec int) *Error {
-	return WithExtra(
-		New(http.StatusTooManyRequests, CodeRateLimited, "Too many turns"),
-		map[string]any{"retry_after": retryAfterSec, "retry_after_sec": retryAfterSec},
-	)
-}

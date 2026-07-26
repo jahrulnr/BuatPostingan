@@ -16,11 +16,10 @@ import (
 
 // Router fails over among enabled providers; pins after first success in a turn.
 type Router struct {
-	mu      sync.RWMutex
-	cfg     Config
-	client  *Client
-	circuit *circuitStore
-	retry   *retryPolicy
+	mu     sync.RWMutex
+	cfg    Config
+	client *Client
+	retry  *retryPolicy
 }
 
 func NewRouter(cfg Config, client *Client) *Router {
@@ -28,10 +27,9 @@ func NewRouter(cfg Config, client *Client) *Router {
 		client = NewClient(cfg)
 	}
 	return &Router{
-		cfg:     cfg,
-		client:  client,
-		circuit: newCircuitStore(cfg.StorageRoot, cfg.CircuitFailureThreshold, cfg.CircuitCooldownSec),
-		retry:   newRetryPolicy(cfg),
+		cfg:    cfg,
+		client: client,
+		retry:  newRetryPolicy(cfg),
 	}
 }
 
@@ -43,7 +41,6 @@ func (r *Router) Reload(cfg Config) {
 	if r.client != nil {
 		r.client.Reload(cfg)
 	}
-	r.circuit = newCircuitStore(cfg.StorageRoot, cfg.CircuitFailureThreshold, cfg.CircuitCooldownSec)
 	r.retry = newRetryPolicy(cfg)
 }
 
@@ -51,10 +48,9 @@ func (r *Router) Chat(ctx context.Context, messages []map[string]any, tools []ma
 	r.mu.RLock()
 	cfg := r.cfg
 	client := r.client
-	circuit := r.circuit
 	policy := r.retry
 	r.mu.RUnlock()
-	candidates, allOpenFallback := candidatesFor(cfg, circuit, pinnedProvider)
+	candidates := candidatesFor(cfg, pinnedProvider)
 	attempts := 0
 	retryNum := 0
 	budget := cfg.TotalAttemptBudget
@@ -67,15 +63,6 @@ func (r *Router) Chat(ctx context.Context, messages []map[string]any, tools []ma
 		if !ok || !p.Enabled {
 			continue
 		}
-		// Half-open single-probe gate: a fully-open provider or an in-flight
-		// probe fails fast so we fail over instead of stampeding. Skipped on the
-		// degraded all-open fallback (every provider is open; try anyway).
-		if !allOpenFallback && !circuit.tryAcquire(ctx, providerID) {
-			if last == nil {
-				last = &Error{Provider: providerID, Msg: "circuit open / probe in flight", Transient: true}
-			}
-			continue
-		}
 		maxAttempts := p.MaxAttempts
 		if maxAttempts < 1 {
 			maxAttempts = 1
@@ -84,16 +71,14 @@ func (r *Router) Chat(ctx context.Context, messages []map[string]any, tools []ma
 			attempts++
 			res, err := client.ChatWithProvider(ctx, providerID, messages, tools)
 			if err == nil {
-				circuit.record(ctx, providerID, true)
 				return res, nil
 			}
 			last = err
 			le, isLE := err.(*Error)
 			transient := isLE && le.Transient
 			if transient {
-				// Only transient/provider failures count toward the circuit;
-				// auth/validation errors (non-transient) must not trip it.
-				circuit.record(ctx, providerID, false)
+				// Only transient/provider failures are eligible for retry/failover;
+				// auth/validation errors (non-transient) stop immediately.
 			} else {
 				return service.LLMResult{}, err
 			}
@@ -147,37 +132,23 @@ func statusOf(le *Error) int {
 func (r *Router) candidates(pinnedProvider string) []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	out, _ := candidatesFor(r.cfg, r.circuit, pinnedProvider)
-	return out
+	return candidatesFor(r.cfg, pinnedProvider)
 }
 
-func candidatesFor(cfg Config, circuit *circuitStore, pinnedProvider string) ([]string, bool) {
-	now := time.Now()
-	state := circuit.read()
-	allOpenFallback := false
+func candidatesFor(cfg Config, pinnedProvider string) []string {
 	var enabled []string
 	for id, p := range cfg.Providers {
 		if !p.Enabled {
 			continue
 		}
-		if circuit.isAvailable(id, state, now) {
-			enabled = append(enabled, id)
-		}
-	}
-	if len(enabled) == 0 {
-		allOpenFallback = true
-		for id, p := range cfg.Providers {
-			if p.Enabled {
-				enabled = append(enabled, id)
-			}
-		}
+		enabled = append(enabled, id)
 	}
 
 	if cfg.Strategy == "switch" {
 		if cfg.ActiveProvider != "" {
-			return []string{cfg.ActiveProvider}, allOpenFallback
+			return []string{cfg.ActiveProvider}
 		}
-		return enabled, allOpenFallback
+		return enabled
 	}
 
 	if pinnedProvider != "" {
@@ -189,7 +160,7 @@ func candidatesFor(cfg Config, circuit *circuitStore, pinnedProvider string) ([]
 						rest = append(rest, x)
 					}
 				}
-				return append([]string{pinnedProvider}, rest...), allOpenFallback
+				return append([]string{pinnedProvider}, rest...)
 			}
 		}
 	}
@@ -213,10 +184,10 @@ func candidatesFor(cfg Config, circuit *circuitStore, pinnedProvider string) ([]
 			}
 		}
 		if hasActive {
-			return append([]string{cfg.ActiveProvider}, rest...), allOpenFallback
+			return append([]string{cfg.ActiveProvider}, rest...)
 		}
 	}
-	return enabled, allOpenFallback
+	return enabled
 }
 
 func rotateRoundRobin(storageRoot string, enabled []string) []string {

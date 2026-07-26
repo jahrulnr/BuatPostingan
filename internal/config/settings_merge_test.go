@@ -162,43 +162,37 @@ func TestDefaultSeedFile(t *testing.T) {
 
 func TestApplySettingsFileLimitsContextDocsGlobals(t *testing.T) {
 	base := Config{
-		MaxToolRounds:              8,
-		SpeakFloorTTL:              600,
-		LockTTL:                    300,
-		TurnRateLimitPerMin:        10,
-		TurnJobTimeoutSec:          120,
-		LLMStream:                  true,
-		LLMVision:                  "auto",
-		LLMEffort:                  "auto",
-		LLMTotalAttemptBudget:      4,
-		LLMCircuitFailureThreshold: 3,
-		LLMCircuitCooldownSec:      60,
-		LLMRetryBaseDelayMS:        250,
-		LLMRetryMaxDelayMS:         5000,
-		LLMRetryJitter:             0.2,
-		LLMStrategy:                "failover",
-		LLMActiveProvider:          "OPENROUTER",
-		LLMStub:                    false,
-		ContextCompactionEnabled:   true,
-		ContextMaxInputTokens:      12000,
-		ContextReserveTokens:       3000,
-		ContextRecentTurns:         4,
-		ContextSummaryMaxChars:     12000,
-		DocsTopK:                   5,
-		DocsMinScore:               0.5,
-		DocsFuzzyEnabled:           true,
-		DocsAppID:                  "buatpostingan",
-		GitHubToken:                "",
-		SkillsRoot:                 "env/skills",
+		MaxToolRounds:            8,
+		SpeakFloorTTL:            600,
+		LockTTL:                  300,
+		TurnJobTimeoutSec:        120,
+		LLMStream:                true,
+		LLMVision:                "auto",
+		LLMEffort:                "auto",
+		LLMTotalAttemptBudget:    4,
+		LLMRetryBaseDelayMS:      250,
+		LLMRetryMaxDelayMS:       5000,
+		LLMRetryJitter:           0.2,
+		LLMStrategy:              "failover",
+		LLMActiveProvider:        "OPENROUTER",
+		LLMStub:                  false,
+		ContextCompactionEnabled: true,
+		ContextMaxInputTokens:    12000,
+		ContextReserveTokens:     3000,
+		ContextRecentTurns:       4,
+		ContextSummaryMaxChars:   12000,
+		DocsTopK:                 5,
+		DocsMinScore:             0.5,
+		DocsFuzzyEnabled:         true,
+		DocsAppID:                "buatpostingan",
+		GitHubToken:              "",
+		SkillsRoot:               "env/skills",
 	}
 	rounds := 4
-	rate := 30
 	timeout := 240
 	streamFalse := false
 	effortHigh := "high"
 	budget := 6
-	threshold := 5
-	cooldown := 90
 	baseDelay := 500
 	maxDelay := 7000
 	jitter := 0.3
@@ -212,19 +206,16 @@ func TestApplySettingsFileLimitsContextDocsGlobals(t *testing.T) {
 	fuzzy := false
 	doc := entity.SettingsFile{
 		Limits: entity.SettingsLimits{
-			MaxToolRounds:       &rounds,
-			TurnRateLimitPerMin: &rate,
-			TurnJobTimeoutSec:   &timeout,
+			MaxToolRounds:     &rounds,
+			TurnJobTimeoutSec: &timeout,
 		},
 		LLM: entity.SettingsLLM{
-			Stream:                  &streamFalse,
-			Effort:                  effortHigh,
-			TotalAttemptBudget:      &budget,
-			CircuitFailureThreshold: &threshold,
-			CircuitCooldownSec:      &cooldown,
-			RetryBaseDelayMS:        &baseDelay,
-			RetryMaxDelayMS:         &maxDelay,
-			RetryJitter:             &jitter,
+			Stream:             &streamFalse,
+			Effort:             effortHigh,
+			TotalAttemptBudget: &budget,
+			RetryBaseDelayMS:   &baseDelay,
+			RetryMaxDelayMS:    &maxDelay,
+			RetryJitter:        &jitter,
 		},
 		Context: entity.SettingsContext{
 			CompactionEnabled: &compact,
@@ -242,7 +233,7 @@ func TestApplySettingsFileLimitsContextDocsGlobals(t *testing.T) {
 		WebSearch: entity.SettingsWebSearch{GitHubToken: "ghp_secret"},
 	}
 	got := ApplySettingsFile(base, doc)
-	if got.MaxToolRounds != 4 || got.TurnRateLimitPerMin != 30 || got.TurnJobTimeoutSec != 240 {
+	if got.MaxToolRounds != 4 || got.TurnJobTimeoutSec != 240 {
 		t.Fatalf("limits: %+v", got)
 	}
 	if got.SpeakFloorTTL != 600 || got.LockTTL != 300 {
@@ -250,9 +241,6 @@ func TestApplySettingsFileLimitsContextDocsGlobals(t *testing.T) {
 	}
 	if got.LLMStream || got.LLMEffort != "high" || got.LLMTotalAttemptBudget != 6 {
 		t.Fatalf("llm globals: %+v", got)
-	}
-	if got.LLMCircuitFailureThreshold != 5 || got.LLMCircuitCooldownSec != 90 {
-		t.Fatalf("circuit: %+v", got)
 	}
 	if got.LLMRetryBaseDelayMS != 500 || got.LLMRetryMaxDelayMS != 7000 || got.LLMRetryJitter != 0.3 {
 		t.Fatalf("retry: %+v", got)

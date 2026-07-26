@@ -23,24 +23,21 @@ type Config struct {
 	// the LLM via developer.md). Empty → process cwd at Load() time.
 	WorkspaceRoot string
 
-	MaxToolRounds       int
-	SpeakFloorTTL       int
-	LockTTL             int
-	TurnRateLimitPerMin int
-	TurnJobTimeoutSec   int
+	MaxToolRounds     int
+	SpeakFloorTTL     int
+	LockTTL           int
+	TurnJobTimeoutSec int
 
 	LLMStub   bool
 	LLMStream bool // request stream=true (default); false → JSON non-stream
 	// LLMVision: auto|on|off — gate multimodal image parts (default auto).
 	LLMVision string
 	// LLMEffort: auto|none|minimal|low|medium|high|xhigh|max — reasoning effort (default auto).
-	LLMEffort                  string
-	LLMStrategy                string
-	LLMActiveProvider          string
-	LLMTotalAttemptBudget      int
-	LLMCircuitFailureThreshold int
-	LLMCircuitCooldownSec      int
-	LLMRetryStatuses           []int
+	LLMEffort             string
+	LLMStrategy           string
+	LLMActiveProvider     string
+	LLMTotalAttemptBudget int
+	LLMRetryStatuses      []int
 	// Retry backoff between transient attempts (exp + bounded jitter, capped).
 	LLMRetryBaseDelayMS int
 	LLMRetryMaxDelayMS  int
@@ -127,37 +124,34 @@ func Load() Config {
 		LLMRetryStatuses: parseIntList(getenvFirst("BP_LLM_RETRY_STATUSES", "408,409,413,425,429,500,502,503,504")),
 
 		// Product knobs — hardcoded defaults; config.json overrides via ApplySettingsFile.
-		MaxToolRounds:              8,
-		SpeakFloorTTL:              600,
-		LockTTL:                    300,
-		TurnRateLimitPerMin:        10,
-		TurnJobTimeoutSec:          120,
-		LLMStream:                  true,
-		LLMVision:                  "auto",
-		LLMEffort:                  "auto",
-		LLMStrategy:                "failover",
-		LLMActiveProvider:          "",
-		LLMTotalAttemptBudget:      4,
-		LLMCircuitFailureThreshold: 3,
-		LLMCircuitCooldownSec:      60,
-		LLMRetryBaseDelayMS:        250,
-		LLMRetryMaxDelayMS:         5000,
-		LLMRetryJitter:             0.2,
-		LLMProviders:               nil,
-		ContextCompactionEnabled:   true,
-		ContextMaxInputTokens:      12000,
-		ContextReserveTokens:       3000,
-		ContextRecentTurns:         4,
-		ContextSummaryMaxChars:     12000,
-		DocsTopK:                   5,
-		DocsMinScore:               0.5,
-		DocsFuzzyEnabled:           true,
-		DocsAppID:                  "buatpostingan",
-		GitHubToken:                "",
-		MCPEnabled:                 true,
-		MCPConnectTimeoutSec:       15,
-		MCPCallTimeoutSec:          30,
-		MCPServers:                 nil,
+		MaxToolRounds:            8,
+		SpeakFloorTTL:            600,
+		LockTTL:                  300,
+		TurnJobTimeoutSec:        120,
+		LLMStream:                true,
+		LLMVision:                "auto",
+		LLMEffort:                "auto",
+		LLMStrategy:              "failover",
+		LLMActiveProvider:        "",
+		LLMTotalAttemptBudget:    4,
+		LLMRetryBaseDelayMS:      250,
+		LLMRetryMaxDelayMS:       5000,
+		LLMRetryJitter:           0.2,
+		LLMProviders:             nil,
+		ContextCompactionEnabled: true,
+		ContextMaxInputTokens:    12000,
+		ContextReserveTokens:     3000,
+		ContextRecentTurns:       4,
+		ContextSummaryMaxChars:   12000,
+		DocsTopK:                 5,
+		DocsMinScore:             0.5,
+		DocsFuzzyEnabled:         true,
+		DocsAppID:                "buatpostingan",
+		GitHubToken:              "",
+		MCPEnabled:               true,
+		MCPConnectTimeoutSec:     15,
+		MCPCallTimeoutSec:        30,
+		MCPServers:               nil,
 	}
 
 	switch cfg.LLMStrategy {

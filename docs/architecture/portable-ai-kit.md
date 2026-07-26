@@ -13,10 +13,9 @@ Related: [Architecture](README.md) · [Turn loop](turn-loop.md) · [LLM provider
 | `internal/domain/` | Entities, ports (`repository`, `service`), value objects, enums |
 | `internal/usecase/webchat/` | Orchestration (`Usecase` + `Service`) |
 | `internal/infrastructure/repository/jsonl/` | Durable JSONL + lock + interrupt + speak-floor |
-| `internal/infrastructure/ratelimit/` | Turn rate limiter |
 | `internal/infrastructure/service/docs/` | Lexical docs index |
 | `internal/infrastructure/service/tools/` | Allowlisted host tools |
-| `internal/infrastructure/service/llm/` | Client, router, circuit, SSE parse, XML/pipe tool call fallback (`xml_tool_parse.go`) |
+| `internal/infrastructure/service/llm/` | Client, multi-provider router, SSE parse, XML/pipe tool call fallback (`xml_tool_parse.go`) |
 | `internal/infrastructure/worker/` | Agent turn loop |
 | `internal/infrastructure/sse/` | EventStreamer (JSONL seq → SSE) |
 | `internal/infrastructure/stub/` | Optional 501 stubs for tests |

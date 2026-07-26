@@ -12,7 +12,6 @@ type Deps struct {
 	Locks       repository.ThreadLock
 	Interrupt   repository.InterruptFlag
 	Floor       service.SpeakFloor
-	RateLimit   service.TurnRateLimit
 	Redactor    service.SecretRedactor
 	Docs        service.DocsIndex
 	Events      service.EventStreamer

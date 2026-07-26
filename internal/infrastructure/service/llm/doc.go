@@ -8,13 +8,11 @@ import (
 
 // Config subset used by client/router (from config.Config).
 type Config struct {
-	StorageRoot             string
-	Strategy                string
-	ActiveProvider          string
-	TotalAttemptBudget      int
-	CircuitFailureThreshold int
-	CircuitCooldownSec      int
-	RetryStatuses           []int
+	StorageRoot        string
+	Strategy           string
+	ActiveProvider     string
+	TotalAttemptBudget int
+	RetryStatuses      []int
 	// Retry backoff between transient attempts.
 	RetryBaseDelayMS int
 	RetryMaxDelayMS  int
@@ -31,20 +29,18 @@ type Config struct {
 func FromApp(cfg config.Config) Config {
 	stream := cfg.LLMStream
 	return Config{
-		StorageRoot:             cfg.StorageRoot,
-		Strategy:                cfg.LLMStrategy,
-		ActiveProvider:          cfg.LLMActiveProvider,
-		TotalAttemptBudget:      cfg.LLMTotalAttemptBudget,
-		CircuitFailureThreshold: cfg.LLMCircuitFailureThreshold,
-		CircuitCooldownSec:      cfg.LLMCircuitCooldownSec,
-		RetryStatuses:           cfg.LLMRetryStatuses,
-		RetryBaseDelayMS:        cfg.LLMRetryBaseDelayMS,
-		RetryMaxDelayMS:         cfg.LLMRetryMaxDelayMS,
-		RetryJitter:             cfg.LLMRetryJitter,
-		Providers:               cfg.LLMProviders,
-		Stream:                  &stream,
-		Vision:                  config.ParseVisionMode(cfg.LLMVision),
-		Effort:                  config.ParseEffortMode(cfg.LLMEffort),
+		StorageRoot:        cfg.StorageRoot,
+		Strategy:           cfg.LLMStrategy,
+		ActiveProvider:     cfg.LLMActiveProvider,
+		TotalAttemptBudget: cfg.LLMTotalAttemptBudget,
+		RetryStatuses:      cfg.LLMRetryStatuses,
+		RetryBaseDelayMS:   cfg.LLMRetryBaseDelayMS,
+		RetryMaxDelayMS:    cfg.LLMRetryMaxDelayMS,
+		RetryJitter:        cfg.LLMRetryJitter,
+		Providers:          cfg.LLMProviders,
+		Stream:             &stream,
+		Vision:             config.ParseVisionMode(cfg.LLMVision),
+		Effort:             config.ParseEffortMode(cfg.LLMEffort),
 	}
 }
 

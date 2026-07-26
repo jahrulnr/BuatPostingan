@@ -89,14 +89,6 @@ func (SpeakFloor) Remaining(context.Context, valueobject.ThreadID) (*int64, int,
 	return nil, 0, nil // soft: list/get tolerate missing floor probe
 }
 
-type TurnRateLimit struct{}
-
-var _ service.TurnRateLimit = TurnRateLimit{}
-
-func (TurnRateLimit) Assert(context.Context, int64) (int, error) {
-	return 0, apperr.NotImplemented("TurnRateLimit.Assert")
-}
-
 type SecretRedactor struct{}
 
 var _ service.SecretRedactor = SecretRedactor{}

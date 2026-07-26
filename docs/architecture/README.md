@@ -38,7 +38,6 @@ internal/                        resep dapur (private)
     service/                     SpeakFloor, DocsIndex, LLM*, TurnWorker, EventStreamer
   infrastructure/
     repository/jsonl/            durable JSONL + lock + interrupt + floor
-    ratelimit/                   turn rate limiter
     service/docs|tools|llm       RAG index, host tools, LLM client/router
     worker/                      in-process agent loop
     sse/                         EventStreamer (poll JSONL → SSE events)
@@ -86,7 +85,7 @@ Handlers call `webchat.Usecase` only. Concrete service: `webchat.NewService(Deps
 
 1. Ensure storage dirs; `docs.NewIndex` (+ Reindex) + Gate log  
 2. Ensure `storage/pages`; `tools.NewRegistry` (reader/meta tools, host FS tools, and static-page lifecycle tools) + optional `mcp.NewManager`; mount the read-only `/api/pages/<slug>/…` draft preview route
-3. `llm.NewClient` + `llm.NewRouter` (failover / circuit)  
+3. `llm.NewClient` + `llm.NewRouter` (multi-provider failover)
 4. `worker.New` + `sse.NewStreamer`  
 5. `webchat.NewService(Deps{…})` → HTTP server  
 
@@ -149,7 +148,7 @@ attachments/{threadId}/{attId}.data
 - **lock** — single active turn worker per thread  
 - **interrupt flags** — cooperative stop between LLM rounds  
 - **attachments** — multipart uploads; `POST /api/webchat/threads/{id}/attachments`; StartTurn accepts `attachment_ids`  
-- Speak-floor + rate-limit state also under storage (see jsonl / ratelimit packages)  
+- Speak-floor state also under storage (see jsonl package)
 
 ## Frontend
 
@@ -177,7 +176,7 @@ Full copy checklist: [`portable-ai-kit.md`](portable-ai-kit.md).
 ## Status
 
 1. ✅ Delivery HTTP + usecase orchestration  
-2. ✅ JSONL store / lock / interrupt / speak-floor / rate-limit / redact  
+2. ✅ JSONL store / lock / interrupt / speak-floor / redact
 3. ✅ DocsIndex + ToolRegistry  
 4. ✅ TurnWorker + LLM router + EventStreamer wired in `cmd/app`  
 5. FE default is **real** (`mockMode=false`); mock via `?mock=1`  

@@ -7,7 +7,6 @@ import (
 
 	httpdelivery "buatpostingan/delivery/http"
 	"buatpostingan/internal/config"
-	"buatpostingan/internal/infrastructure/ratelimit"
 	"buatpostingan/internal/infrastructure/repository/appconfig"
 	"buatpostingan/internal/infrastructure/repository/attachments"
 	"buatpostingan/internal/infrastructure/repository/jsonl"
@@ -55,7 +54,7 @@ func main() {
 		logging.Error(ctx, "pages.root", err)
 		os.Exit(1)
 	}
-	for _, sub := range []string{"threads", "interrupt", "rl", "llm", "attachments"} {
+	for _, sub := range []string{"threads", "interrupt", "llm", "attachments"} {
 		_ = os.MkdirAll(filepath.Join(cfg.StorageRoot, sub), 0o775)
 	}
 
@@ -65,7 +64,6 @@ func main() {
 	locks := jsonl.NewLock(cfg.StorageRoot, cfg.LockTTL)
 	intr := jsonl.NewInterrupt(cfg.StorageRoot)
 	floor := jsonl.NewSpeakFloor(store, cfg.SpeakFloorTTL)
-	rl := ratelimit.NewTurnLimiter(cfg.StorageRoot, cfg.TurnRateLimitPerMin)
 	red := redact.New()
 	attStore, err := attachments.NewStore(cfg.StorageRoot, 0)
 	if err != nil {
@@ -164,7 +162,6 @@ func main() {
 		Locks:         locks,
 		Interrupt:     intr,
 		Floor:         floor,
-		RateLimit:     rl,
 		Redactor:      red,
 		Docs:          docsIndex,
 		Events:        events,

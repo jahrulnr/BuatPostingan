@@ -91,7 +91,7 @@ Prefer leaving stream on for local OpenAI-compatible proxies that degrade Respon
 
 **Important:** application SSE to the browser (`/events`) is **not** LLM token streaming. It tails durable JSONL seq after the worker appends items. LLM SSE is internal to the client→provider hop.
 
-## Router + circuit
+## Multi-provider router
 
 `llm.NewRouter` wraps the client. These knobs live in `storage/config.json` under `llm.*` — see [settings-config.md](settings-config.md).
 
@@ -100,8 +100,6 @@ Prefer leaving stream on for local OpenAI-compatible proxies that degrade Respon
 | Strategy | `llm.strategy` | `failover` | `failover` \| `round_robin` \| `switch` |
 | Active provider | `llm.active_provider` | first enabled (sorted) | Preferred head of candidate list |
 | Attempt budget | `llm.total_attempt_budget` | 4 | Cap across providers |
-| Circuit threshold | `llm.circuit_failure_threshold` | 3 | Open after N failures |
-| Circuit cooldown | `llm.circuit_cooldown_sec` | 60 | Skip open providers until cool |
 | Retry HTTP statuses | — (env-only: `BP_LLM_RETRY_STATUSES`) | 408,409,413,425,429,500–504 | Transient → retry/failover |
 | Retry base delay | `llm.retry_base_delay_ms` | 250 | First backoff step |
 | Retry max delay | `llm.retry_max_delay_ms` | 5000 | Backoff ceiling |
@@ -112,22 +110,13 @@ Prefer leaving stream on for local OpenAI-compatible proxies that degrade Respon
 - **switch:** only `ActiveProvider`
 - Non-transient errors stop immediately (no failover)
 - Transient errors (retry HTTP statuses, connect/timeout, **SSE transport incomplete**) retry within the provider's `MaxAttempts`, then failover, until the total budget is spent
-- Circuit state lives under `{StorageRoot}/llm/`
+- Provider state is not persisted between turns.
 
 ### Retry backoff
 
 Between transient attempts the router waits `base·2^(n-1)` (retry `n`, 1-based) perturbed by `±jitter`, capped at the max delay — never an immediate re-hit. A provider **`Retry-After`** header (delta-seconds *or* HTTP-date) overrides the computed delay, still capped by the max. Waits honor `context` cancellation/deadline: once the turn context is done the router never sleeps and returns the last provider error. Each wait logs `webchat.llm.retry_backoff` (WARN, `trace_id`) with `provider`, `attempt`, `delay_ms`, `retry_after_ms`, `status`, and `kind` (`sse_transport` \| `http_status` \| `connect`).
 
-### Circuit (half-open, cross-process)
-
-The per-provider circuit is a **closed → open → half-open → closed/open** machine persisted to `{StorageRoot}/llm/provider_state.json`:
-
-- **closed** — normal; transient failures accumulate. At `FailureThreshold` the circuit **opens** (records `opened_at`).
-- **open** — within `CooldownSec` the provider is dropped from the candidate list (fail fast / fail over).
-- **half-open** — after cooldown a single probe is leased (`probe_at`); concurrent turns fail fast on that provider and use an alternate. A stale probe lease (older than the cooldown-derived TTL) is reclaimable so a crashed probe never wedges the provider.
-- **probe result** — success fully closes and resets failures; a transient failure reopens with a fresh cooldown.
-
-Only transient/provider failures count; **auth/validation errors (401/402/403, 4xx) never trip the circuit**. Writes are atomic (temp file + rename) under an advisory file lock (`flock` on `provider_state.lock`, Linux/macOS) plus an in-process mutex, so goroutines and separate processes cannot corrupt or clobber state. A missing or corrupt file recovers safely as all-closed with a `webchat.llm.circuit … state=corrupt_reset` WARN. Transitions log `webchat.llm.circuit` (WARN/INFO, `trace_id`) with `state` (`open` \| `closed` \| `half_open_probe`) and `reason`. If all providers are open, the router falls back to trying them anyway (degraded last resort) rather than locking the user out.
+### Retry behavior
 
 ## Model ref
 

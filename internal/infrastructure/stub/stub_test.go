@@ -64,10 +64,6 @@ func TestStubPortsReturnNotImplemented(t *testing.T) {
 		t.Fatalf("Remaining soft: %v %d %v", h, rem, err)
 	}
 
-	var rl stub.TurnRateLimit
-	_, err = rl.Assert(ctx, 1)
-	mustNI(err)
-
 	var red stub.SecretRedactor
 	out, err := red.Redact(ctx, "secret")
 	if err != nil || out != "secret" {

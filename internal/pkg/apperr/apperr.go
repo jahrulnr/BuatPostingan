@@ -14,7 +14,6 @@ const (
 	CodeNotFound          Code = "not_found"
 	CodeThreadBusy        Code = "thread_busy"
 	CodeFloorLocked       Code = "floor_locked"
-	CodeRateLimited       Code = "rate_limited"
 	CodeDocsIndexNotReady Code = "docs_index_not_ready"
 	CodeForbidden         Code = "forbidden"
 	CodeNotInitiator      Code = "not_initiator"

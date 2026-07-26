@@ -30,7 +30,7 @@ handler := httpdelivery.TraceMiddleware(mux)
 - **ERROR** at boundaries only:
   - HTTP adapter: `writeErr` → `BoundaryHTTPError` (5xx / unknown; skips 4xx noise)
   - Worker: `webchat.turn_failed` / `webchat.turn_panic`
-  - Important infra (LLM hard failures bubble to turn_failed; `stream_fallback`, `retry_backoff`, and circuit transitions are WARN)
+  - Important infra (LLM hard failures bubble to turn_failed; `stream_fallback` and `retry_backoff` are WARN)
 - Do not re-log the same error on every wrap layer.
 
 Example line shape (text handler on stderr):
@@ -55,14 +55,13 @@ rg 'trace_id=system'
 3. Useful ops once you have the id:
 
 ```bash
-rg 'trace_id=tr_…' | rg 'webchat\.(turn_failed|turn_start|tool|llm|empty_model_response|reasoning|retry_backoff|stream_fallback|circuit)'
+rg 'trace_id=tr_…' | rg 'webchat\.(turn_failed|turn_start|tool|llm|empty_model_response|reasoning|retry_backoff|stream_fallback)'
 ```
 
 **LLM reliability signals:**
 
 ```bash
 rg 'webchat.llm.retry_backoff'   # WARN per transient retry: provider, attempt, delay_ms, retry_after_ms, status, kind
-rg 'webchat.llm.circuit'         # provider circuit transitions: state=open|closed|half_open_probe|corrupt_reset, reason
 ```
 
 ## Finding model “Thinking” / reasoning text

@@ -49,7 +49,7 @@ Useful env (defaults in parentheses). Most knobs now live in `storage/config.jso
 | `BP_LLM_STUB` | `true` if no provider API key |
 | `BP_LLM_RETRY_STATUSES` | `408,409,413,425,429,500–504` |
 
-Everything else (provider slots, stream/vision/effort, circuit, retry backoff, context, docs, skills root, mcp) is configurable via `storage/config.json` — see [settings-config](../architecture/settings-config.md) and [LLM providers](../architecture/llm-providers.md).
+Everything else (provider slots, stream/vision/effort, retry backoff, context, docs, skills root, mcp) is configurable via `storage/config.json` — see [settings-config](../architecture/settings-config.md) and [LLM providers](../architecture/llm-providers.md).
 
 ## Frontend (`make fe`)
 

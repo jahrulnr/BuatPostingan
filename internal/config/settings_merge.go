@@ -28,7 +28,7 @@ func (c Config) ConfigPath() string {
 //   - providers: file providers are the sole source — Load() sets nil. When
 //     JSON has providers, they populate the map; when JSON omits providers,
 //     the map stays nil (stub mode via BP_LLM_STUB).
-//   - llm globals (stream/vision/effort/circuit/retry): pointer-set wins; omit
+//   - llm globals (stream/vision/effort/retry): pointer-set wins; omit
 //     keeps the hardcoded default.
 //   - limits / context / docs / web_search: pointer-set wins; omit keeps the
 //     hardcoded default. This keeps old/missing files working.
@@ -118,7 +118,7 @@ func ApplySettingsFile(base Config, doc entity.SettingsFile) Config {
 }
 
 // applyLLMGlobalsFromFile overlays LLM global knobs (stream/vision/effort/
-// circuit/retry backoff). Pointer-set wins; omit keeps hardcoded default.
+// retry backoff). Pointer-set wins; omit keeps hardcoded default.
 // Applied even when providers are absent (so globals move to JSON
 // independently).
 func applyLLMGlobalsFromFile(base Config, llm entity.SettingsLLM) Config {
@@ -134,12 +134,6 @@ func applyLLMGlobalsFromFile(base Config, llm entity.SettingsLLM) Config {
 	}
 	if llm.TotalAttemptBudget != nil && *llm.TotalAttemptBudget > 0 {
 		out.LLMTotalAttemptBudget = *llm.TotalAttemptBudget
-	}
-	if llm.CircuitFailureThreshold != nil && *llm.CircuitFailureThreshold > 0 {
-		out.LLMCircuitFailureThreshold = *llm.CircuitFailureThreshold
-	}
-	if llm.CircuitCooldownSec != nil && *llm.CircuitCooldownSec > 0 {
-		out.LLMCircuitCooldownSec = *llm.CircuitCooldownSec
 	}
 	if llm.RetryBaseDelayMS != nil && *llm.RetryBaseDelayMS > 0 {
 		out.LLMRetryBaseDelayMS = *llm.RetryBaseDelayMS
@@ -172,9 +166,6 @@ func applyLimitsFromFile(base Config, limits entity.SettingsLimits) Config {
 	}
 	if limits.LockTTLSec != nil && *limits.LockTTLSec > 0 {
 		out.LockTTL = *limits.LockTTLSec
-	}
-	if limits.TurnRateLimitPerMin != nil && *limits.TurnRateLimitPerMin > 0 {
-		out.TurnRateLimitPerMin = *limits.TurnRateLimitPerMin
 	}
 	if limits.TurnJobTimeoutSec != nil && *limits.TurnJobTimeoutSec > 0 {
 		out.TurnJobTimeoutSec = *limits.TurnJobTimeoutSec
@@ -302,12 +293,9 @@ func DefaultSeedFile(base Config) entity.SettingsFile {
 	maxToolRounds := base.MaxToolRounds
 	speakFloorTTL := base.SpeakFloorTTL
 	lockTTL := base.LockTTL
-	turnRate := base.TurnRateLimitPerMin
 	turnTimeout := base.TurnJobTimeoutSec
 	stream := base.LLMStream
 	totalAttempts := base.LLMTotalAttemptBudget
-	circuitFail := base.LLMCircuitFailureThreshold
-	circuitCool := base.LLMCircuitCooldownSec
 	retryBase := base.LLMRetryBaseDelayMS
 	retryMax := base.LLMRetryMaxDelayMS
 	retryJitter := base.LLMRetryJitter
@@ -324,25 +312,22 @@ func DefaultSeedFile(base Config) entity.SettingsFile {
 		Version: 1,
 		Users:   []entity.SettingsUser{{ID: "usr_owner", Name: "Owner", Role: "owner"}},
 		Limits: entity.SettingsLimits{
-			MaxToolRounds:       &maxToolRounds,
-			SpeakFloorTTLSec:    &speakFloorTTL,
-			LockTTLSec:          &lockTTL,
-			TurnRateLimitPerMin: &turnRate,
-			TurnJobTimeoutSec:   &turnTimeout,
+			MaxToolRounds:     &maxToolRounds,
+			SpeakFloorTTLSec:  &speakFloorTTL,
+			LockTTLSec:        &lockTTL,
+			TurnJobTimeoutSec: &turnTimeout,
 		},
 		LLM: entity.SettingsLLM{
-			Strategy:                base.LLMStrategy,
-			ActiveProvider:          base.LLMActiveProvider,
-			Stream:                  &stream,
-			Vision:                  base.LLMVision,
-			Effort:                  base.LLMEffort,
-			TotalAttemptBudget:      &totalAttempts,
-			CircuitFailureThreshold: &circuitFail,
-			CircuitCooldownSec:      &circuitCool,
-			RetryBaseDelayMS:        &retryBase,
-			RetryMaxDelayMS:         &retryMax,
-			RetryJitter:             &retryJitter,
-			Providers:               RuntimeProvidersToFile(base.LLMProviders),
+			Strategy:           base.LLMStrategy,
+			ActiveProvider:     base.LLMActiveProvider,
+			Stream:             &stream,
+			Vision:             base.LLMVision,
+			Effort:             base.LLMEffort,
+			TotalAttemptBudget: &totalAttempts,
+			RetryBaseDelayMS:   &retryBase,
+			RetryMaxDelayMS:    &retryMax,
+			RetryJitter:        &retryJitter,
+			Providers:          RuntimeProvidersToFile(base.LLMProviders),
 		},
 		Context: entity.SettingsContext{
 			CompactionEnabled: &compaction,

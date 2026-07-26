@@ -90,8 +90,8 @@ func (s *Service) DeleteThread(ctx context.Context, threadID valueobject.ThreadI
 }
 
 func (s *Service) StartTurn(ctx context.Context, in StartTurnInput) (StartTurnResult, error) {
-	// Order mirrors AipediaWebchatController::startTurn
-	// DocsGate → validate → access → rate → floor.assert → redact → lock → floor.acquire → enqueue
+	// Order mirrors AipediaWebchatController::startTurn.
+	// DocsGate → validate → access → floor.assert → redact → lock → floor.acquire → enqueue
 	msg := strings.TrimSpace(in.Message)
 	attIDs := uniqueNonEmpty(in.AttachmentIDs)
 	if msg == "" && len(attIDs) == 0 {
@@ -113,9 +113,6 @@ func (s *Service) StartTurn(ctx context.Context, in StartTurnInput) (StartTurnRe
 		return StartTurnResult{}, err
 	}
 	if err := s.assertAttachments(ctx, in.ThreadID, attIDs); err != nil {
-		return StartTurnResult{}, err
-	}
-	if err := s.assertRate(ctx, in.AdminUserID); err != nil {
 		return StartTurnResult{}, err
 	}
 	if err := s.deps.Floor.Assert(ctx, in.ThreadID, in.AdminUserID); err != nil {
@@ -294,9 +291,6 @@ func (s *Service) RetryTurn(ctx context.Context, in RetryTurnInput) (StartTurnRe
 	if initiator != 0 && initiator != in.AdminUserID {
 		return StartTurnResult{}, apperr.NotInitiator("only initiator can retry")
 	}
-	if err := s.assertRate(ctx, in.AdminUserID); err != nil {
-		return StartTurnResult{}, err
-	}
 	if err := s.deps.Floor.Assert(ctx, in.ThreadID, in.AdminUserID); err != nil {
 		return StartTurnResult{}, err
 	}
@@ -384,17 +378,6 @@ func (s *Service) requireDocsReady(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) assertRate(ctx context.Context, adminUserID int64) error {
-	retryAfter, err := s.deps.RateLimit.Assert(ctx, adminUserID)
-	if err == nil {
-		return nil
-	}
-	if ae, ok := apperr.As(err); ok && ae.Code == apperr.CodeRateLimited && retryAfter > 0 {
-		return apperr.RateLimited(retryAfter)
-	}
-	return err
-}
-
 func findUserMessage(items []entity.TranscriptItem, turnID valueobject.TurnID) (entity.TranscriptItem, bool) {
 	for _, it := range items {
 		if it.Type == enum.ItemUserMessage && it.TurnID == turnID {
@@ -407,20 +390,28 @@ func findUserMessage(items []entity.TranscriptItem, turnID valueobject.TurnID) (
 func isRetryableFailed(items []entity.TranscriptItem, turnID valueobject.TurnID) bool {
 	var lastFailed *entity.TranscriptItem
 	var completed bool
+	var emptyResponse bool
 	for i := range items {
 		it := &items[i]
 		if it.TurnID != turnID {
 			continue
 		}
 		switch it.Type {
+		case enum.ItemAgentMessage:
+			text, _ := it.Payload["text"].(string)
+			emptyResponse = strings.TrimSpace(text) == "(empty model response)"
 		case enum.ItemTurnCompleted:
 			completed = true
 		case enum.ItemTurnFailed:
 			lastFailed = it
 			completed = false
+			emptyResponse = false
 		}
 	}
-	if completed || lastFailed == nil {
+	if completed {
+		return emptyResponse
+	}
+	if lastFailed == nil {
 		return false
 	}
 	if errObj, ok := lastFailed.Payload["error"].(map[string]any); ok {

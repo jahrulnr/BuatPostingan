@@ -9,7 +9,7 @@ Human + agent documentation grounded in **current code**. Start here, then dive 
 | [Architecture](architecture/README.md) | Clean Architecture layers, foldering, tools, persistence, frontend overview |
 | [Turn loop](architecture/turn-loop.md) | StartTurn → worker → LLM/tools → JSONL → SSE end-to-end |
 | [Realtime streaming](architecture/realtime-streaming.md) | FE↔BE perceived realtime vs ChatGPT/Claude/Cursor patterns; P0/P1 gaps |
-| [LLM providers](architecture/llm-providers.md) | OpenAI-compatible `chat` / `responses`, stub, env, router/circuit |
+| [LLM providers](architecture/llm-providers.md) | OpenAI-compatible `chat` / `responses`, stub, env, multi-provider router |
 | [LLM vision](architecture/llm-vision.md) | Multimodal image parts, `BP_LLM_VISION`, capability gate |
 | [LLM effort](architecture/llm-effort.md) | Reasoning effort (`BP_LLM_EFFORT`), catalog probe, request shapes |
 | [LLM model picker](architecture/llm-model-picker.md) | Composer model + effort UI, `GET /models`, StartTurn overrides |
@@ -17,7 +17,7 @@ Human + agent documentation grounded in **current code**. Start here, then dive 
 | [Settings + JSON config](architecture/settings-config.md) | UI settings, `storage/config.json`, env merge, `/api/settings` |
 | [Observability](architecture/observability.md) | `trace_id` middleware, worker propagation, grep failing turns |
 | [Portable AI kit](architecture/portable-ai-kit.md) | What to copy vs leave when reusing the webchat stack |
-| [Codex gap analysis](architecture/codex-gap-analysis.md) | Codex vs BP prioritized gaps (compaction, title, retry/circuit, N/A coding features) |
+| [Codex gap analysis](architecture/codex-gap-analysis.md) | Codex vs BP prioritized gaps (compaction, title, retry, N/A coding features) |
 | [Skills tools](architecture/skills-tools.md) | Progressive skill discovery (`list_skills` / `read_skill`) |
 | [Static pages](architecture/static-pages.md) | Draft workspace and symlink-only publication tools |
 | [MCP support](architecture/mcp-support.md) | MCP client (meta-tools), `mcp.servers` config, mutation deny |
