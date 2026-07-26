@@ -49,7 +49,7 @@ Useful env (defaults in parentheses). Most knobs now live in `storage/config.jso
 | `BP_WORKSPACE_ROOT` | `.` (resolved to absolute process cwd at boot) — the agent's working dir: surfaced to the LLM as `{{cwd}}` in `developer.md`, AND used as the default base for relative `list_dir` / `read_file` / `grep` / `write_file` / `edit_file` paths when the turn doesn't override. Per-turn override (sent via StartTurn `workspace`) wins. |
 | `BP_LLM_STUB` | `true` if no provider API key |
 | `BP_LLM_RETRY_STATUSES` | `408,409,413,425,429,500–504` |
-| `BP_AUTH_DB_PATH` | `{dirname(BP_STORAGE_ROOT)}/auth.sqlite3` |
+| `BP_AUTH_DB_PATH` | `{dirname(BP_STORAGE_ROOT)}/users.sqlite` |
 | `BP_AUTH_ADMIN_USERNAME` | empty; set together with password for first boot |
 | `BP_AUTH_ADMIN_PASSWORD` | empty; 8–128 chars, never commit it |
 | `BP_AUTH_SESSION_TTL_HOURS` | `24` |
@@ -98,7 +98,7 @@ cannot be reached from the public site. Override the host port with
 ### Admin authentication
 
 Chat JSONL remains under `storage/webchat/`. User accounts and hashed session
-metadata are stored separately in SQLite at `storage/auth.sqlite3`. On an empty
+metadata are stored separately in SQLite at `storage/users.sqlite`. On an empty
 database, the app creates one admin user only when both bootstrap variables are
 provided:
 

@@ -123,7 +123,7 @@ func Load() Config {
 		// Default to absolute process cwd so the LLM sees a stable path even
 		// if the binary is launched from elsewhere; explicit env wins.
 		WorkspaceRoot:       resolveWorkspace(getenvFirst("BP_WORKSPACE_ROOT", ".")),
-		AuthDBPath:          getenvFirst("BP_AUTH_DB_PATH", "storage/auth.sqlite3"),
+		AuthDBPath:          getenvFirst("BP_AUTH_DB_PATH", "storage/users.sqlite"),
 		AuthUsername:        getenvFirst("BP_AUTH_ADMIN_USERNAME", ""),
 		AuthPassword:        getenvFirst("BP_AUTH_ADMIN_PASSWORD", ""),
 		AuthSessionTTLHours: getenvIntFirst([]string{"BP_AUTH_SESSION_TTL_HOURS"}, 24),

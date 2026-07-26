@@ -4,6 +4,7 @@ node_modules/
 web/.cache/
 bin/
 storage/webchat/**
+storage/*.sqlite
 !storage/webchat/.gitkeep
 storage/pages/**
 !storage/pages/.gitkeep

@@ -16,7 +16,7 @@ services:
       BP_TOOLS_ROOT: "/app/resources/webchat/tools"
       BP_SKILLS_ROOT: "/app/resources/webchat/skills"
       BP_WORKSPACE_ROOT: "/app/storage/pages"
-      BP_AUTH_DB_PATH: "/app/storage/auth.sqlite3"
+      BP_AUTH_DB_PATH: "/app/storage/users.sqlite"
       BP_AUTH_ADMIN_USERNAME: "${BP_AUTH_ADMIN_USERNAME:-}"
       BP_AUTH_ADMIN_PASSWORD: "${BP_AUTH_ADMIN_PASSWORD:-}"
       BP_CORS_ORIGIN: "${BP_CORS_ORIGIN:-http://localhost:5173}"
