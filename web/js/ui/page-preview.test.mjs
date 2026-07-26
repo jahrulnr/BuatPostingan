@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createPagePreviewTracker } from './page-preview.js';
+import { bootPagePreview, createPagePreviewTracker } from './page-preview.js';
 
 function pageCall(callID, name, pageID) {
     return { type: 'tool_call', call_id: callID, name: name, arguments: { page_id: pageID } };
@@ -53,4 +53,108 @@ test('page preview keeps stale detection per page and resets for another convers
     tracker.reset();
     tracker.observeToolCall(pageCall('c', 'page_edit', 'about-us'));
     assert.deepEqual(tracker.observeToolResult(pageResult('c', 'page_edit', 1, true)), { pageID: 'about-us', seq: 1 });
+});
+
+function fakePanel() {
+    const kids = [];
+    const panel = {
+        innerHTML: '<div class="wc-preview__empty">empty</div>',
+        textContent: '',
+        appendChild: function (node) { kids.push(node); return node; },
+        _kids: kids,
+    };
+    Object.defineProperty(panel, 'textContent', {
+        set: function () { kids.length = 0; panel.innerHTML = ''; },
+        get: function () { return ''; },
+    });
+    return panel;
+}
+
+function installDocumentStub() {
+    const prev = globalThis.document;
+    globalThis.document = {
+        createElement: function (tag) {
+            const attrs = {};
+            return {
+                tagName: String(tag).toUpperCase(),
+                className: '',
+                title: '',
+                src: '',
+                setAttribute: function (k, v) { attrs[k] = v; },
+                getAttribute: function (k) { return attrs[k]; },
+            };
+        },
+    };
+    return function restore() {
+        if (prev === undefined) delete globalThis.document;
+        else globalThis.document = prev;
+    };
+}
+
+test('page preview loads home by default when the draft exists', async function () {
+    const restore = installDocumentStub();
+    try {
+        const panel = fakePanel();
+        const urls = [];
+        const preview = bootPagePreview({
+            panelEl: panel,
+            previewURL: function (req) {
+                urls.push(req);
+                return '/api/pages/' + req.pageID + '/?v=' + req.version;
+            },
+            fetch: async function () { return { ok: true }; },
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+        assert.equal(urls[0].pageID, 'home');
+        assert.equal(panel._kids.length, 1);
+        assert.equal(panel._kids[0].tagName, 'IFRAME');
+        assert.match(panel._kids[0].src, /\/api\/pages\/home\/\?v=/);
+        preview.reset();
+    } finally {
+        restore();
+    }
+});
+
+test('page preview keeps empty state when home draft is missing', async function () {
+    const restore = installDocumentStub();
+    try {
+        const panel = fakePanel();
+        bootPagePreview({
+            panelEl: panel,
+            previewURL: function (req) { return '/api/pages/' + req.pageID + '/?v=' + req.version; },
+            fetch: async function () { return { ok: false, status: 404 }; },
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+        assert.equal(panel._kids.length, 0);
+        assert.match(panel.innerHTML, /wc-preview__empty/);
+    } finally {
+        restore();
+    }
+});
+
+test('agent page mutation wins over an in-flight home default', async function () {
+    const restore = installDocumentStub();
+    try {
+        let resolveHome;
+        const homePending = new Promise(function (resolve) { resolveHome = resolve; });
+        const panel = fakePanel();
+        const preview = bootPagePreview({
+            panelEl: panel,
+            previewURL: function (req) {
+                return '/api/pages/' + req.pageID + '/?v=' + req.version;
+            },
+            fetch: function () { return homePending; },
+        });
+        preview.observeToolCall(pageCall('edit-1', 'page_edit', 'about-us'));
+        preview.observeToolResult(pageResult('edit-1', 'page_edit', 9, true));
+        assert.equal(panel._kids[0].src, '/api/pages/about-us/?v=9');
+        resolveHome({ ok: true });
+        await Promise.resolve();
+        await Promise.resolve();
+        assert.equal(panel._kids[0].src, '/api/pages/about-us/?v=9');
+    } finally {
+        restore();
+    }
 });

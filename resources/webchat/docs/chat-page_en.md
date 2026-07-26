@@ -27,7 +27,7 @@ The chat card contains, from top to bottom:
 - **Toast** (thin strip above messages area): Hidden by default. Slides in for ~3 seconds with messages like "Docs index siap · AI aktif", "Conversation deleted", "Stop · floor tidak dilepas".
 - **New activity button** (floating above status bar): Hidden by default. Appears as a pill button at the bottom-center of the messages area when new messages arrive while the user is scrolled up. Shows "New activity ↓". Click to scroll to latest.
 - **Attachments in messages**: Image files show a thumbnail preview. Text files show a file-document icon. Each attachment chip shows filename and file size.
-- **Welcome state** (when no conversation is loaded): Centered card with a chat-bubble icon, heading "Selamat datang di BuatPostingan", and description "Ajukan pertanyaan — AI menjawab dari knowledge base (reader only)."
+- **Welcome state** (when no conversation is loaded): Centered card with a chat-bubble icon, heading "Selamat datang di BuatPostingan"
 - **Typing indicator** (when agent is thinking but no text yet): Three bouncing dots with "Thinking…" label inside the agent bubble.
 
 ## What we can do at this page
@@ -55,7 +55,7 @@ The chat card contains, from top to bottom:
 
 ### Stop a turn
 
-1. While the AI is responding, the send button hides and a Stop button (square icon + "Stop" text) appears in its place — same position, far right of the input row.
+1. While the AI is responding, the send button hides and a Stop button (stop-square icon only) appears in its place — same slot, far right of the input row.
 2. Click Stop to interrupt. The Stop button is only clickable if you are the turn initiator. Non-initiators see it greyed out.
 3. After stopping, status shows "Interrupted · floor tetap Anda" and a toast appears.
 

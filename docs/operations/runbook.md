@@ -193,5 +193,6 @@ Details: [LLM providers](../architecture/llm-providers.md).
 ## Related
 
 - [Turn loop](../architecture/turn-loop.md)
-- [Architecture](../architecture/README.md)
 - [Docs index](../README.md)
+- [Development guide](../DEVELOPMENT.md)
+- [Architecture](../architecture/README.md)

@@ -55,9 +55,21 @@ Add endpoints in `web/js/api/mock` + `web/js/api/real` + bind in `web/js/api/ind
 
 Default is **real** (`mockMode=false`) — hits Go BE. Mock via `?mock=1`. Preferred: `make be` + http://localhost:8080/ ; or `make fe` + http://localhost:5173/ (API base auto → `:8080`; override with `?api=`).
 
+## UI → knowledge docs (required)
+
+Any UI change that alters what the user sees or can do **must** update [`resources/webchat/docs/`](resources/webchat/docs/) in the **same change**. That corpus is what the agent (and operators) read about the product UI — stale docs are a product bug.
+
+Update when the change touches `web/` JS, CSS, or HTML and does any of:
+
+- Moves, renames, or reshapes controls / layout / panels
+- Adds, removes, or changes a user-facing feature or interaction
+- Changes visible copy, empty states, badges, or button/control affordances (icon-only vs labeled, show/hide rules, defaults)
+
+Do **not** skip docs for “small” UI polish if the documented surface changes. Keep both language variants in sync: `*_en.md` and `*_id.md` for the same topic (e.g. `chat-page`, `composer-toolbar`, `preview-panel`, `settings-page`). Pure internal refactors with no user-visible difference do not need a docs bump.
+
 ## Docs map
 
-Human + agent docs (grounded in current code): [`docs/README.md`](docs/README.md) — architecture, [turn loop](docs/architecture/turn-loop.md), [LLM providers](docs/architecture/llm-providers.md), [runbook](docs/operations/runbook.md), portable kit.
+Human + agent docs (grounded in current code): [`docs/README.md`](docs/README.md) — architecture, [turn loop](docs/architecture/turn-loop.md), [LLM providers](docs/architecture/llm-providers.md), [runbook](docs/operations/runbook.md), [development](docs/DEVELOPMENT.md), portable kit. UI surface docs for the in-product agent: [`resources/webchat/docs/`](resources/webchat/docs/).
 
 ## Portable AI kit
 

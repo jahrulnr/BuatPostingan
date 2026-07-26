@@ -113,7 +113,6 @@
                             <div class="chat-welcome">
                                 <div class="chat-welcome-icon"><i class="bi bi-chat-square-text"></i></div>
                                 <h5>Welcome to BuatPostingan</h5>
-                                <p>Ask a question — AI answers from the knowledge base (reader only).</p>
                             </div>
                         </div>
                         <button type="button" class="webchat-new-activity" id="chatNewActivity" hidden>
@@ -163,8 +162,8 @@
                                 <button class="composer-send" id="chatSend" type="button" aria-label="Send">
                                     <i class="bi bi-send-fill"></i>
                                 </button>
-                                <button class="composer-stop" id="chatStop" type="button" aria-label="Stop" hidden>
-                                    <i class="bi bi-stop-fill"></i> Stop
+                                <button class="composer-stop" id="chatStop" type="button" aria-label="Stop" data-wc-tooltip="Stop" hidden>
+                                    <i class="bi bi-stop-fill" aria-hidden="true"></i>
                                 </button>
                             </div>
                         </div>
@@ -197,7 +196,7 @@
                         <div class="wc-preview__empty">
                             <i class="bi bi-window-desktop" aria-hidden="true"></i>
                             <strong>Empty</strong>
-                            <p>Will be filled later — AI work preview wrapper.</p>
+                            <p>No draft loaded — defaults to <code>home</code> when that page exists.</p>
                         </div>
                     </div>
                     <div class="wc-preview__panel wc-pages" role="tabpanel" id="panelPages" aria-labelledby="tabPages" data-preview-panel="pages" hidden>

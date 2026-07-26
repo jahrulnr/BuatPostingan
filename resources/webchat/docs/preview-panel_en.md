@@ -11,7 +11,7 @@ The preview panel is a collapsible sidebar on the right side of the chat workspa
 - **Tab bar** (top of panel): Two tab buttons side by side:
   - **Preview tab**: Active by default (highlighted). Text "Preview".
   - **Pages tab**: Inactive by default. Text "Pages".
-- **Preview panel body** (below tab bar, active by default): Empty state centered in the panel — a desktop/window icon, bold "Kosong" label, and description "Akan diisi nanti — wrapper preview kerja AI."
+- **Preview panel body** (below tab bar, active by default): Loads the draft of page `home` in an iframe when that page exists (Docker seeds and publishes `home` on first boot). If `home` is missing, shows the empty state — a desktop/window icon, bold "Empty" label, and a short note that the panel defaults to `home` when available. After the agent successfully runs `page_create` / `page_edit` / `page_delete`, the iframe switches to that page's draft.
 - **Pages panel body** (below tab bar, hidden by default): An expandable folder tree for every page workspace. Expanding a page shows relative files and folders such as `assets/`, `index.html`, `page.css`, and `page.js`. Each page folder has a **Draft** or **Published** badge.
 - **Pages context menu**: Right-click a page folder for Publish, Unpublish, and Delete. Publish/Unpublish changes the page publication marker. Delete removes the complete page workspace after browser confirmation.
 - **Resize handle** (vertical bar between chat area and preview panel): A thin separator bar with a tooltip "Drag to resize · double-click to reset". Only visible on desktop (≥ 1101px).

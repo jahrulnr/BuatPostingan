@@ -18,8 +18,8 @@ Above both rows is a conditional attachment chips area.
 - **Workspace picker pill** (right side of toolbar row): A button with a folder-open icon on the left, label text in the center (e.g. "my-project" or "Workspace"), and a chevron-down icon on the right. Tooltip: "Workspace folder".
 - **Attach button** (left side of input row): Paperclip icon. Tooltip: "Attach file". Greyed out when AI is busy or floor is blocked.
 - **Text input** (center of input row): Text field with placeholder "Ketik pertanyaan…". Greyed out when AI is busy or floor is blocked.
-- **Send button** (right side of input row): Paper-plane icon. Greyed out when input is empty and no attachments pending, or when AI is busy. Hidden when AI is responding (replaced by Stop).
-- **Stop button** (right side of input row, same position as Send): Square icon + "Stop" text. Hidden by default. Appears when AI is responding. Greyed out for non-initiators.
+- **Send button** (right side of input row): Paper-plane icon only. Greyed out when input is empty and no attachments pending. Hidden while the AI is responding (replaced by Stop in the same slot).
+- **Stop button** (right side of input row, same slot as Send): Stop-square icon only (no label). Hidden by default. Appears only while the AI is responding. Greyed out for non-initiators.
 
 ### Model picker dropdown
 
@@ -88,6 +88,6 @@ Hidden by default. Opens when the workspace picker pill is clicked. See below fo
 
 ### Stop an AI turn
 
-1. While the AI is responding, the send button is hidden and a Stop button (square icon + "Stop" text) appears in its place — same position, far right of the input row.
+1. While the AI is responding, the send button is hidden and a Stop button (stop-square icon only) appears in its place — same slot, far right of the input row.
 2. Click Stop to interrupt. The Stop button is only clickable if you are the turn initiator. Non-initiators see it greyed out.
 3. After stopping, the send button reappears and the input is re-enabled.

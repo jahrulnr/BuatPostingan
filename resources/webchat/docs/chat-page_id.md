@@ -27,7 +27,7 @@ Kartu chat berisi, dari atas ke bawah:
 - **Toast** (strip tipis di atas area pesan): Tersembunyi secara default. Meluncur masuk selama ~3 detik dengan pesan seperti "Docs index siap · AI aktif", "Conversation deleted", "Stop · floor tidak dilepas".
 - **Tombol New activity** (melayang di atas status bar): Tersembunyi secara default. Muncul sebagai tombol pill di bawah-tengah area pesan saat pesan baru tiba dan pengguna sedang scroll ke atas. Menampilkan "New activity ↓". Klik untuk scroll ke terbaru.
 - **Lampiran dalam pesan**: File gambar menampilkan thumbnail preview. File teks menampilkan ikon dokumen-file. Setiap chip lampiran menampilkan nama file dan ukuran file.
-- **State welcome** (saat tidak ada percakapan dimuat): Kartu terpusat dengan ikon chat-bubble, heading "Selamat datang di BuatPostingan", dan deskripsi "Ajukan pertanyaan — AI menjawab dari knowledge base (reader only)."
+- **State welcome** (saat tidak ada percakapan dimuat): Kartu terpusat dengan ikon chat-bubble, heading "Selamat datang di BuatPostingan"
 - **Indikator typing** (saat agen berpikir tapi belum ada teks): Tiga titik memantul dengan label "Thinking…" di dalam bubble agen.
 
 ## Apa yang bisa dilakukan di halaman ini
@@ -55,7 +55,7 @@ Kartu chat berisi, dari atas ke bawah:
 
 ### Menghentikan turn
 
-1. Saat AI sedang merespons, tombol kirim disembunyikan dan tombol Stop (ikon kotak + teks "Stop") muncul di tempatnya — posisi sama, paling kanan baris input.
+1. Saat AI sedang merespons, tombol kirim disembunyikan dan tombol Stop (ikon kotak stop saja) muncul di tempatnya — slot sama, paling kanan baris input.
 2. Klik Stop untuk menghentikan. Tombol Stop hanya bisa diklik jika Anda adalah inisiator turn. Non-inisiator melihatnya abu-abu.
 3. Setelah berhenti, status menampilkan "Interrupted · floor tetap Anda" dan toast muncul.
 

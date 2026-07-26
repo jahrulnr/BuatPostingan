@@ -1,5 +1,6 @@
 const pageMutationTools = new Set(['page_create', 'page_edit', 'page_delete']);
 const pageIDPattern = /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/;
+const DEFAULT_PAGE_ID = 'home';
 
 function itemSeq(item) {
     const seq = Number(item && item.seq);
@@ -48,13 +49,23 @@ export function createPagePreviewTracker() {
     return { observeToolCall: observeToolCall, observeToolResult: observeToolResult, reset: reset };
 }
 
-/** Mount the existing preview panel and reload it only for a fresh page revision. */
+function resolveDefaultPageID(value) {
+    return pageID(value) || DEFAULT_PAGE_ID;
+}
+
+/**
+ * Mount the existing preview panel and reload it only for a fresh page revision.
+ * When no agent page is loaded yet, fall back to the seeded `home` draft (if present).
+ */
 export function bootPagePreview(options) {
     const opts = options || {};
     const panel = opts.panelEl;
     const previewURL = opts.previewURL;
+    const fetchImpl = typeof opts.fetch === 'function' ? opts.fetch : (typeof fetch === 'function' ? fetch.bind(globalThis) : null);
+    const defaultPageID = resolveDefaultPageID(opts.defaultPageID);
     const tracker = createPagePreviewTracker();
     let frame = null;
+    let defaultToken = 0;
     const emptyMarkup = panel ? panel.innerHTML : '';
 
     function ensureFrame() {
@@ -69,6 +80,25 @@ export function bootPagePreview(options) {
         return frame;
     }
 
+    function showURL(url) {
+        if (!url) return;
+        const currentFrame = ensureFrame();
+        if (currentFrame) currentFrame.src = url;
+    }
+
+    function showDefault() {
+        if (!panel || typeof previewURL !== 'function' || !fetchImpl) return;
+        const url = previewURL({ pageID: defaultPageID, version: Date.now() });
+        if (!url) return;
+        const token = ++defaultToken;
+        fetchImpl(url, { credentials: 'include', headers: { Accept: 'text/html' } })
+            .then(function (res) {
+                if (token !== defaultToken || !res || !res.ok) return;
+                showURL(url);
+            })
+            .catch(function () { /* keep empty state when home is missing */ });
+    }
+
     function observeToolCall(item) {
         tracker.observeToolCall(item);
     }
@@ -78,19 +108,23 @@ export function bootPagePreview(options) {
         if (!change || typeof previewURL !== 'function') return;
         const url = previewURL({ pageID: change.pageID, version: change.seq });
         if (!url) return;
-        const currentFrame = ensureFrame();
-        if (currentFrame) currentFrame.src = url;
+        defaultToken += 1;
+        showURL(url);
     }
 
     function reset() {
         tracker.reset();
         frame = null;
         if (panel) panel.innerHTML = emptyMarkup;
+        showDefault();
     }
+
+    showDefault();
 
     return {
         observeToolCall: observeToolCall,
         observeToolResult: observeToolResult,
         reset: reset,
+        showDefault: showDefault,
     };
 }

@@ -15,9 +15,9 @@ Human + agent documentation grounded in **current code**. Start here, then dive 
 | [LLM model picker](architecture/llm-model-picker.md) | Composer model + effort UI, `GET /models`, StartTurn overrides |
 | [XML / pipe tool calls](architecture/xml-tool-calls.md) | Fenced, Anthropic native, `<tool_use>`, Kimi K2 pipe — parsing + stream recovery |
 | [Settings + JSON config](architecture/settings-config.md) | UI settings, `storage/config.json`, env merge, `/api/settings` |
+| [Development guide](DEVELOPMENT.md) | Local setup, repo layout, `make` targets, env vars |
 | [Observability](architecture/observability.md) | `trace_id` middleware, worker propagation, grep failing turns |
 | [Portable AI kit](architecture/portable-ai-kit.md) | What to copy vs leave when reusing the webchat stack |
-| [Codex gap analysis](architecture/codex-gap-analysis.md) | Codex vs BP prioritized gaps (compaction, title, retry, N/A coding features) |
 | [Skills tools](architecture/skills-tools.md) | Progressive skill discovery (`list_skills` / `read_skill`) |
 | [Static pages](architecture/static-pages.md) | Draft workspace and symlink-only publication tools |
 | [MCP support](architecture/mcp-support.md) | MCP client (meta-tools), `mcp.servers` config, mutation deny |
@@ -33,8 +33,8 @@ make be                # Go + static FE → http://localhost:8080/
 # or: make fe          # static + livereload :5173 (needs Node/npx); needs make be for real API
 ```
 
-Without provider API keys the backend runs **LLM stub** (canned replies). Details: [Runbook](operations/runbook.md), [LLM providers](architecture/llm-providers.md).
+Without provider API keys the backend runs **LLM stub** (canned replies). Details: [Runbook](operations/runbook.md), [LLM providers](architecture/llm-providers.md), [Development guide](DEVELOPMENT.md).
 
 ## Agent entry
 
-Coding agents should also read root [`AGENTS.md`](../AGENTS.md). Architecture non-negotiables and the portable kit boundary live under [`docs/architecture/`](architecture/README.md).
+Coding agents should also read root [`AGENTS.md`](../AGENTS.md). Local setup and repo layout: [`DEVELOPMENT.md`](DEVELOPMENT.md). Architecture non-negotiables and the portable kit boundary live under [`docs/architecture/`](architecture/README.md).

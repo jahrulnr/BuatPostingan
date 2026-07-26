@@ -1069,31 +1069,36 @@ input:focus-visible {
 }
 
 .composer-stop {
+    width: 2.55rem;
     height: 2.55rem;
-    min-width: 2.55rem;
-    padding: 0 0.75rem;
+    padding: 0;
     border: 1px solid var(--wm-fail-border);
     border-radius: 0.55rem;
     background: var(--wm-fail-bg);
     color: var(--wm-fail);
-    font-family: var(--wm-font);
-    font-size: 0.78rem;
-    font-weight: 600;
     cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
+    display: grid;
+    place-items: center;
     flex-shrink: 0;
-    transition: background 0.15s var(--wm-ease), transform 0.15s var(--wm-ease);
+    transition: background 0.15s var(--wm-ease), transform 0.15s var(--wm-ease), filter 0.15s var(--wm-ease);
 }
 
 .composer-stop:hover:not(:disabled) {
     filter: brightness(1.05);
 }
 
+.composer-stop:active:not(:disabled) {
+    transform: scale(0.96);
+}
+
 .composer-stop:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+}
+
+.composer-send[hidden],
+.composer-stop[hidden] {
+    display: none;
 }
 
 .msg__who {

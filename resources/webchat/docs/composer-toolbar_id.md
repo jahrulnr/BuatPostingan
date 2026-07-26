@@ -18,8 +18,8 @@ Di atas kedua baris ada area chip lampiran kondisional.
 - **Pill workspace picker** (sisi kanan baris toolbar): Tombol dengan ikon folder-open di kiri, teks label di tengah (mis. "my-project" atau "Workspace"), dan ikon chevron-down di kanan. Tooltip: "Workspace folder".
 - **Tombol lampir** (sisi kiri baris input): Ikon paperclip. Tooltip: "Attach file". Abu-abu saat AI sibuk atau floor diblokir.
 - **Input teks** (tengah baris input): Field teks dengan placeholder "Ketik pertanyaan…". Abu-abu saat AI sibuk atau floor diblokir.
-- **Tombol kirim** (sisi kanan baris input): Ikon pesawat kertas. Abu-abu saat input kosong dan tidak ada lampiran pending, atau saat AI sibuk. Disembunyikan saat AI merespons (diganti Stop).
-- **Tombol Stop** (sisi kanan baris input, posisi sama dengan Kirim): Ikon kotak + teks "Stop". Tersembunyi default. Muncul saat AI merespons. Abu-abu untuk non-inisiator.
+- **Tombol kirim** (sisi kanan baris input): Ikon pesawat kertas saja. Abu-abu saat input kosong dan tidak ada lampiran pending. Disembunyikan saat AI merespons (diganti Stop di slot yang sama).
+- **Tombol Stop** (sisi kanan baris input, slot sama dengan Kirim): Ikon kotak stop saja (tanpa label). Tersembunyi default. Muncul hanya saat AI merespons. Abu-abu untuk non-inisiator.
 
 ### Dropdown model picker
 
@@ -88,6 +88,6 @@ Tersembunyi default. Terbuka saat pill workspace picker diklik. Lihat detail di 
 
 ### Menghentikan turn AI
 
-1. Saat AI sedang merespons, tombol kirim disembunyikan dan tombol Stop (ikon kotak + teks "Stop") muncul di tempatnya — posisi sama, paling kanan baris input.
+1. Saat AI sedang merespons, tombol kirim disembunyikan dan tombol Stop (ikon kotak stop saja) muncul di tempatnya — slot sama, paling kanan baris input.
 2. Klik Stop untuk menghentikan. Tombol Stop hanya bisa diklik jika Anda adalah inisiator turn. Non-inisiator melihatnya abu-abu.
 3. Setelah berhenti, tombol kirim muncul kembali dan input di-enable kembali.

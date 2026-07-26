@@ -148,8 +148,7 @@ export function welcomeHtml(productName) {
     return (
         '<div class="chat-welcome">' +
         '<div class="chat-welcome-icon"><i class="bi bi-chat-square-text"></i></div>' +
-        '<h5>Welcome to ' + escapeHtml(String(name)) + '</h5>' +
-        '<p>Ask a question — AI answers from the knowledge base (reader only).</p></div>'
+        '<h5>Welcome to ' + escapeHtml(String(name)) + '</h5>'
     );
 }
 

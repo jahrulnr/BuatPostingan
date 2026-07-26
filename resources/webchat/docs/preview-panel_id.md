@@ -11,7 +11,7 @@ Panel preview adalah sidebar yang dapat diciutkan di sisi kanan workspace chat. 
 - **Tab bar** (atas panel): Dua tombol tab berdampingan:
   - **Tab Preview**: Aktif secara default (disorot). Teks "Preview".
   - **Tab Pages**: Tidak aktif default. Teks "Pages".
-- **Body panel Preview** (di bawah tab bar, aktif default): Empty state terpusat di panel — ikon desktop/window, label bold "Kosong", dan deskripsi "Akan diisi nanti — wrapper preview kerja AI."
+- **Body panel Preview** (di bawah tab bar, aktif default): Memuat draft page `home` di iframe bila page itu ada (Docker men-seed dan mem-publish `home` pada boot pertama). Jika `home` belum ada, menampilkan empty state — ikon desktop/window, label bold "Empty", dan catatan singkat bahwa panel default ke `home` bila tersedia. Setelah agen sukses menjalankan `page_create` / `page_edit` / `page_delete`, iframe beralih ke draft page tersebut.
 - **Body panel Pages** (di bawah tab bar, tersembunyi default): Tree folder untuk setiap page workspace. Folder page dapat di-expand untuk melihat file dan folder relatif seperti `assets/`, `index.html`, `page.css`, dan `page.js`. Setiap folder page memiliki badge **Draft** atau **Published**.
 - **Menu konteks Pages**: Klik kanan folder page membuka aksi Publish, Unpublish, dan Delete. Publish/Unpublish mengubah marker publikasi page. Delete menghapus seluruh workspace page dan meminta konfirmasi browser terlebih dahulu.
 - **Handle resize** (bar vertikal antara area chat dan panel preview): Bar pemisah tipis dengan tooltip "Drag to resize · double-click to reset". Hanya terlihat di desktop (≥ 1101px).
