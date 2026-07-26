@@ -14,6 +14,7 @@ function maskKey(key) {
 function toPublic(p) {
     const m = maskKey(p.api_key);
     return {
+        type: p.type || 'openai-compatible',
         id: p.id,
         name: p.name,
         prefix: p.prefix || '',
@@ -21,6 +22,7 @@ function toPublic(p) {
         base_url: p.base_url,
         api_key_set: m.set,
         api_key_masked: m.masked,
+        api_key_optional: !!p.api_key_optional,
         enabled: !!p.enabled,
         models: (p.models || []).map(function (x) {
             return { id: x.id, label: x.label || '' };
@@ -32,6 +34,14 @@ function toPublic(p) {
 }
 
 export function createSettingsStore() {
+    const providerCatalog = [
+        { type: 'openrouter', name: 'OpenRouter', description: 'One API for models from many upstream providers.', auth_type: 'api_key', api: 'chat', base_url: 'https://openrouter.ai/api/v1', prefix: 'openrouter', icon: 'OR', accent: '#7c5cff', configurable: true },
+        { type: 'omniroute', name: 'OmniRoute', description: 'Local multi-provider AI gateway with OpenAI-compatible endpoints.', auth_type: 'local', api: 'responses', base_url: 'http://127.0.0.1:20128/v1', prefix: 'omniroute', icon: 'OM', accent: '#ef476f', configurable: true, api_key_optional: true },
+        { type: '9router', name: '9Router', description: 'Local 9Router gateway using its OpenAI-compatible endpoint.', auth_type: 'local', api: 'chat', base_url: 'http://127.0.0.1:20128/v1', prefix: '9router', icon: '9R', accent: '#16c784', configurable: true, api_key_optional: true },
+        { type: 'openai', name: 'OpenAI', description: 'Official OpenAI API using the Responses API by default.', auth_type: 'api_key', api: 'responses', base_url: 'https://api.openai.com/v1', prefix: 'openai', icon: 'OA', accent: '#10a37f', configurable: true },
+        { type: 'openai-compatible', name: 'OpenAI Compatible', description: 'Custom OpenAI-compatible endpoint hosted by you or another vendor.', auth_type: 'api_key', api: 'chat', base_url: '', prefix: 'compatible', icon: 'OC', accent: '#64748b', configurable: true },
+        { type: 'claude', name: 'Claude API', description: 'Official Anthropic Messages API for Claude models.', auth_type: 'api_key', api: 'messages', base_url: 'https://api.anthropic.com/v1', prefix: 'claude', icon: 'AI', accent: '#d97757', configurable: true },
+    ];
     /** @type {{users: Object[], llm: {strategy:string, active_provider:string, stub:boolean, providers: Object[]}}} */
     const state = {
         users: [{ id: 'usr_owner', name: 'Owner', role: 'owner' }],
@@ -115,6 +125,10 @@ export function createSettingsStore() {
         return { providers: state.llm.providers.map(toPublic) };
     }
 
+    function listProviderCatalog() {
+        return { providers: providerCatalog.map(function (p) { return Object.assign({}, p); }) };
+    }
+
     function getProvider(id) {
         const p = state.llm.providers.find(function (x) {
             return String(x.id).toUpperCase() === String(id || '').toUpperCase();
@@ -132,14 +146,15 @@ export function createSettingsStore() {
         const base = String(body.base_url || '').replace(/\/+$/, '');
         if (!base) throw ApiError(422, 'validation', 'base_url required');
         let api = String(body.api || 'responses').toLowerCase();
-        if (api !== 'chat' && api !== 'responses') {
-            throw ApiError(422, 'validation', 'api must be chat|responses');
+        if (api !== 'chat' && api !== 'responses' && api !== 'messages') {
+            throw ApiError(422, 'validation', 'api must be chat|responses|messages');
         }
         const models = Array.isArray(body.models) ? body.models.slice() : [];
         if (!models.length && body.model_id) {
             models.push({ id: String(body.model_id), label: '' });
         }
         const p = {
+            type: String(body.type || 'openai-compatible'),
             id: id,
             name: String(body.name || id).trim(),
             prefix: String(body.prefix || id.toLowerCase()).trim(),
@@ -168,8 +183,8 @@ export function createSettingsStore() {
         if (body.prefix) p.prefix = String(body.prefix).trim();
         if (body.api) {
             const api = String(body.api).toLowerCase();
-            if (api !== 'chat' && api !== 'responses') {
-                throw ApiError(422, 'validation', 'api must be chat|responses');
+            if (api !== 'chat' && api !== 'responses' && api !== 'messages') {
+                throw ApiError(422, 'validation', 'api must be chat|responses|messages');
             }
             p.api = api;
         }
@@ -237,6 +252,7 @@ export function createSettingsStore() {
         updateUser,
         deleteUser,
         listProviders,
+        listProviderCatalog,
         getProvider,
         createProvider,
         updateProvider,

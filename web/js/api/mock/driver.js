@@ -275,6 +275,9 @@ export function deleteSettingsUserMock(_api, id) {
 export function listLLMProvidersMock() {
     return wrapSettings(function () { return settingsStore.listProviders(); });
 }
+export function listLLMProviderCatalogMock() {
+    return wrapSettings(function () { return settingsStore.listProviderCatalog(); });
+}
 export function getLLMProviderMock(_api, id) {
     return wrapSettings(function () { return settingsStore.getProvider(id); });
 }

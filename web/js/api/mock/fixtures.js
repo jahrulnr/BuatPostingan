@@ -10,7 +10,7 @@ export const docsIndexReady = {
 export const docsIndexBuilding = {
     usable: false,
     status: 'building',
-    message: 'Docs index sedang dibangun. AI sementara tidak tersedia.',
+    message: 'The docs index is building. AI is temporarily unavailable.',
     document_count: 0,
 };
 

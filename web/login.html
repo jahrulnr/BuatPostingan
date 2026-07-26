@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="id">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,12 +14,12 @@
     <main class="auth-card">
         <div class="auth-brand"><img src="./assets/buatpostingan-mark.svg" alt=""><span>BuatPostingan</span></div>
         <h1>Admin workspace</h1>
-        <p class="auth-intro">Masuk untuk mengelola percakapan, draft page, dan publikasi konten.</p>
+        <p class="auth-intro">Sign in to manage conversations, page drafts, and published content.</p>
         <form id="loginForm">
             <label>Username <input name="username" autocomplete="username" required autofocus></label>
             <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
             <p class="auth-error" id="loginError" role="alert"></p>
-            <button type="submit" id="loginSubmit">Masuk</button>
+            <button type="submit" id="loginSubmit">Sign in</button>
         </form>
     </main>
     <script type="module">
@@ -37,7 +37,7 @@
             const data = new FormData(form);
             authLogin(api, { username: data.get('username'), password: data.get('password') })
                 .then(function () { window.location.replace(next.startsWith('/') ? next : './' + next.replace(/^\.\//, '')); })
-                .catch(function () { error.textContent = 'Username atau password tidak valid.'; submit.disabled = false; });
+                .catch(function () { error.textContent = 'Username or password is invalid.'; submit.disabled = false; });
         });
     </script>
 </body>

@@ -10,6 +10,7 @@ import {
     updateSettingsUser,
     deleteSettingsUser,
     listLLMProviders,
+    listLLMProviderCatalog,
     getLLMProvider,
     createLLMProvider,
     updateLLMProvider,
@@ -18,6 +19,7 @@ import {
     removeLLMModel,
     importLLMModels,
 } from '../api/index.js';
+import { bootAppSelects, confirmAppDialog, openAppDialog, setAppSelectValue } from './dialogs.js';
 
 const PREF_KEYS = [
     'bp.theme',
@@ -58,6 +60,25 @@ function errMsg(err) {
     return err.message || String(err);
 }
 
+function userFields(user) {
+    const current = user || {};
+    return [
+        { name: 'name', label: 'Name', required: true, value: current.name || '', placeholder: 'Display name' },
+        {
+            name: 'role',
+            label: 'Role',
+            type: 'choice',
+            required: true,
+            value: current.role || 'member',
+            options: [
+                { value: 'owner', label: 'Owner' },
+                { value: 'admin', label: 'Admin' },
+                { value: 'member', label: 'Member' },
+            ],
+        },
+    ];
+}
+
 export function bootSettings() {
     const shell = document.getElementById('bpShell');
     const workspace = document.getElementById('bpWorkspace');
@@ -67,6 +88,7 @@ export function bootSettings() {
     const toastEl = document.getElementById('settingsToast');
 
     if (!shell || !settingsRoot) return;
+    bootAppSelects();
 
     let route = parseHash();
 
@@ -116,19 +138,24 @@ export function bootSettings() {
             } else if (section === 'users') {
                 const data = await listSettingsUsers(api);
                 panel.innerHTML = renderUsers(data.users || []);
-                wireUsers(panel);
+                wireUsers(panel, data.users || []);
             } else if (route.providerId) {
                 const p = await getLLMProvider(api, route.providerId);
                 panel.innerHTML = renderProviderDetail(p);
                 wireProviderDetail(panel, p);
             } else {
-                const data = await listLLMProviders(api);
+                const results = await Promise.all([
+                    listLLMProviders(api),
+                    listLLMProviderCatalog(api),
+                ]);
+                const data = results[0];
+                const catalog = results[1];
                 let snap = null;
                 try {
                     snap = await getSettingsSnapshot(api);
                 } catch (e) { /* optional */ }
-                panel.innerHTML = renderProviders(data.providers || [], snap);
-                wireProviders(panel);
+                panel.innerHTML = renderProviders(data.providers || [], catalog.providers || [], snap);
+                wireProviders(panel, catalog.providers || []);
             }
         } catch (err) {
             panel.innerHTML =
@@ -187,15 +214,21 @@ export function bootSettings() {
         );
     }
 
-    function wireUsers(panel) {
+    function wireUsers(panel, users) {
         const addBtn = panel.querySelector('[data-add-user]');
         if (addBtn) {
             addBtn.addEventListener('click', async function () {
-                const name = window.prompt('Name');
-                if (!name) return;
-                const role = window.prompt('Role (owner|admin|member)', 'member') || 'member';
+                const values = await openAppDialog({
+                    eyebrow: 'Settings',
+                    title: 'Add user',
+                    message: 'Add a local workspace user and choose their role.',
+                    icon: 'bi-person-plus',
+                    confirmLabel: 'Add user',
+                    fields: userFields({ role: 'member' }),
+                });
+                if (!values) return;
                 try {
-                    await createSettingsUser(api, { name: name, role: role });
+                    await createSettingsUser(api, values);
                     toast('User created');
                     renderSettings();
                 } catch (err) {
@@ -208,13 +241,20 @@ export function bootSettings() {
                 const tr = btn.closest('tr');
                 const id = tr && tr.getAttribute('data-user-id');
                 if (!id) return;
-                const name = window.prompt('Name');
-                if (name == null) return;
-                const role = window.prompt('Role (owner|admin|member)');
+                const user = (users || []).find(function (item) { return item.id === id; });
+                const values = await openAppDialog({
+                    eyebrow: 'Settings',
+                    title: 'Edit user',
+                    message: 'Update this local workspace user.',
+                    icon: 'bi-person-gear',
+                    confirmLabel: 'Save changes',
+                    fields: userFields(user || {}),
+                });
+                if (!values) return;
                 try {
                     await updateSettingsUser(api, id, {
-                        name: name || undefined,
-                        role: role || undefined,
+                        name: values.name || undefined,
+                        role: values.role || undefined,
                     });
                     toast('User updated');
                     renderSettings();
@@ -227,7 +267,16 @@ export function bootSettings() {
             btn.addEventListener('click', async function () {
                 const tr = btn.closest('tr');
                 const id = tr && tr.getAttribute('data-user-id');
-                if (!id || !window.confirm('Delete user ' + id + '?')) return;
+                if (!id) return;
+                const approved = await confirmAppDialog({
+                    eyebrow: 'Settings',
+                    title: 'Delete user?',
+                    message: 'User “' + id + '” will be removed from this workspace.',
+                    icon: 'bi-person-x',
+                    confirmLabel: 'Delete user',
+                    tone: 'danger',
+                });
+                if (!approved) return;
                 try {
                     await deleteSettingsUser(api, id);
                     toast('User deleted');
@@ -239,7 +288,7 @@ export function bootSettings() {
         });
     }
 
-    function renderProviders(providers, snap) {
+    function renderProviders(providers, catalog, snap) {
         const meta =
             snap && snap.source
                 ? '<p class="bp-settings__meta">Source: <strong>' +
@@ -248,54 +297,72 @@ export function bootSettings() {
                   escapeHtml(snap.config_path || '') +
                   '</code></p>'
                 : '';
-        const cards = providers
-            .map(function (p) {
-                const modelCount = (p.models || []).length;
+        const byType = {};
+        providers.forEach(function (p) {
+            const type = p.type || 'openai-compatible';
+            if (!byType[type]) byType[type] = [];
+            byType[type].push(p);
+        });
+        const seen = {};
+        const cards = catalog
+            .map(function (definition) {
+                const matches = byType[definition.type] || [];
+                const p = matches[0] || null;
+                if (p) seen[p.id] = true;
+                const modelCount = p ? (p.models || []).length : 0;
+                const ready = p && p.enabled && (p.api_key_set || p.api_key_optional);
+                const status = !p
+                    ? '<span class="bp-provider-status">Not configured</span>'
+                    : !p.enabled
+                        ? '<span class="bp-provider-status is-off">Disabled</span>'
+                        : ready
+                            ? '<span class="bp-provider-status is-ready">Configured</span>'
+                            : '<span class="bp-provider-status is-warn">Needs API key</span>';
                 return (
                     '<article class="bp-provider-card" data-provider-id="' +
-                    escapeHtml(p.id) +
+                    escapeHtml(p ? p.id : '') +
+                    '" data-provider-type="' +
+                    escapeHtml(definition.type) +
+                    '" style="--provider-accent:' +
+                    escapeHtml(definition.accent || '#64748b') +
                     '">' +
                     '<div class="bp-provider-card__top">' +
-                    '<div><h3>' +
-                    escapeHtml(p.name || p.id) +
-                    '</h3>' +
-                    '<p class="bp-muted"><code>' +
-                    escapeHtml(p.id) +
-                    '</code> · ' +
-                    escapeHtml(p.api) +
-                    (p.enabled ? '' : ' · <span class="bp-badge-off">disabled</span>') +
-                    '</p></div>' +
-                    '<label class="bp-switch" title="Enabled">' +
-                    '<input type="checkbox" data-toggle-enabled ' +
-                    (p.enabled ? 'checked' : '') +
-                    '>' +
-                    '<span>Enabled</span></label>' +
+                    '<div class="bp-provider-card__identity">' +
+                    '<span class="bp-provider-card__icon">' + escapeHtml(definition.icon || 'AI') + '</span>' +
+                    '<div><h3>' + escapeHtml(definition.name) + '</h3>' +
+                    '<p class="bp-provider-card__kind">' + escapeHtml(definition.auth_type) + ' · ' + escapeHtml(definition.api) + '</p></div></div>' +
+                    (p ? '<label class="bp-switch" title="Enabled"><input type="checkbox" data-toggle-enabled ' +
+                    (p.enabled ? 'checked' : '') + '><span class="bp-sr-only">Enabled</span></label>' : '') +
                     '</div>' +
-                    '<p class="bp-provider-card__url"><code>' +
-                    escapeHtml(p.base_url) +
-                    '</code></p>' +
-                    '<p class="bp-provider-card__key">' +
-                    (p.api_key_set
-                        ? 'Key ' + escapeHtml(p.api_key_masked)
-                        : '<span class="bp-muted">No API key</span>') +
-                    '</p>' +
-                    '<p class="bp-provider-card__models"><span class="bp-muted">Models:</span> ' +
-                    '<span class="bp-badge-count">' + modelCount + '</span>' +
-                    '</p>' +
+                    '<p class="bp-provider-card__description">' + escapeHtml(definition.description) + '</p>' +
+                    '<div class="bp-provider-card__connection">' + status +
+                    (p ? '<span class="bp-provider-card__instance"><code>' + escapeHtml(p.id) + '</code> · ' + modelCount + ' model</span>' : '') +
+                    '</div>' +
                     '<div class="bp-provider-card__actions">' +
-                    '<button type="button" class="bp-settings__btn bp-settings__btn--ghost" data-open-provider>Details</button>' +
-                    '<button type="button" class="bp-settings__btn bp-settings__btn--danger" data-del-provider>Delete</button>' +
+                    (p
+                        ? '<button type="button" class="bp-settings__btn bp-settings__btn--ghost" data-open-provider>Details</button>' +
+                          '<button type="button" class="bp-settings__btn bp-settings__btn--danger" data-del-provider>Delete</button>'
+                        : '<button type="button" class="bp-settings__btn bp-settings__btn--ghost" data-configure-provider>Configure</button>') +
                     '</div></article>'
                 );
             })
-            .join('');
+            .join('') +
+            providers.filter(function (p) { return !seen[p.id]; }).map(function (p) {
+                return '<article class="bp-provider-card bp-provider-card--legacy" data-provider-id="' + escapeHtml(p.id) +
+                    '" data-provider-type="' + escapeHtml(p.type || 'openai-compatible') + '">' +
+                    '<div class="bp-provider-card__top"><div class="bp-provider-card__identity"><span class="bp-provider-card__icon">OC</span>' +
+                    '<div><h3>' + escapeHtml(p.name || p.id) + '</h3><p class="bp-provider-card__kind">custom connection</p></div></div></div>' +
+                    '<p class="bp-provider-card__description"><code>' + escapeHtml(p.base_url) + '</code></p>' +
+                    '<div class="bp-provider-card__actions"><button type="button" class="bp-settings__btn bp-settings__btn--ghost" data-open-provider>Details</button>' +
+                    '<button type="button" class="bp-settings__btn bp-settings__btn--danger" data-del-provider>Delete</button></div></article>';
+            }).join('');
         return (
             '<header class="bp-settings__head">' +
-            '<div><h2>Models</h2><p class="bp-settings__lede">OpenAI-compatible LLM providers.</p>' +
+            '<div><h2>Providers</h2><p class="bp-settings__lede">Manage direct APIs and local AI gateways. Credentials stay masked.</p>' +
             meta +
             '</div>' +
             '<button type="button" class="bp-settings__btn bp-settings__btn--primary" data-add-provider>' +
-            '<i class="bi bi-plus-lg" aria-hidden="true"></i> Add OpenAI Compatible</button>' +
+            '<i class="bi bi-plus-lg" aria-hidden="true"></i> Custom provider</button>' +
             '</header>' +
             '<div class="bp-provider-grid">' +
             (cards || '<p class="bp-muted">No providers yet — add one or rely on <code>BP_LLM_*</code> env until first save.</p>') +
@@ -303,13 +370,24 @@ export function bootSettings() {
         );
     }
 
-    function wireProviders(panel) {
+    function wireProviders(panel, catalog) {
         const add = panel.querySelector('[data-add-provider]');
         if (add) {
             add.addEventListener('click', function () {
-                openProviderModal();
+                openProviderModal(null, {
+                    type: 'openai-compatible', name: 'OpenAI Compatible',
+                    prefix: 'compatible', api: 'chat', base_url: '',
+                });
             });
         }
+        panel.querySelectorAll('[data-configure-provider]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const card = btn.closest('[data-provider-type]');
+                const type = card && card.getAttribute('data-provider-type');
+                const definition = catalog.find(function (d) { return d.type === type; });
+                openProviderModal(null, definition || { type: type });
+            });
+        });
         panel.querySelectorAll('[data-open-provider]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 const id = btn.closest('[data-provider-id]').getAttribute('data-provider-id');
@@ -319,7 +397,15 @@ export function bootSettings() {
         panel.querySelectorAll('[data-del-provider]').forEach(function (btn) {
             btn.addEventListener('click', async function () {
                 const id = btn.closest('[data-provider-id]').getAttribute('data-provider-id');
-                if (!window.confirm('Delete provider ' + id + '?')) return;
+                const approved = await confirmAppDialog({
+                    eyebrow: 'Providers',
+                    title: 'Delete provider?',
+                    message: 'Provider “' + id + '” and its configured models will be removed.',
+                    icon: 'bi-plug',
+                    confirmLabel: 'Delete provider',
+                    tone: 'danger',
+                });
+                if (!approved) return;
                 try {
                     await deleteLLMProvider(api, id);
                     toast('Provider deleted');
@@ -451,11 +537,20 @@ export function bootSettings() {
         const add = panel.querySelector('[data-add-model]');
         if (add) {
             add.addEventListener('click', async function () {
-                const id = window.prompt('Model id');
-                if (!id) return;
-                const label = window.prompt('Label (optional)', '') || '';
+                const values = await openAppDialog({
+                    eyebrow: 'Models',
+                    title: 'Add model',
+                    message: 'Add a model identifier for this provider.',
+                    icon: 'bi-cpu',
+                    confirmLabel: 'Add model',
+                    fields: [
+                        { name: 'id', label: 'Model id', required: true, placeholder: 'provider/model-name' },
+                        { name: 'label', label: 'Display label (optional)', placeholder: 'Friendly model name' },
+                    ],
+                });
+                if (!values) return;
                 try {
-                    await addLLMModel(api, p.id, { id: id, label: label });
+                    await addLLMModel(api, p.id, values);
                     toast('Model added');
                     document.dispatchEvent(new CustomEvent('bp:models-changed'));
                     renderSettings();
@@ -479,23 +574,25 @@ export function bootSettings() {
         });
     }
 
-    function openProviderModal(existing) {
+    function openProviderModal(existing, definition) {
         const dlg = document.getElementById('providerDialog');
         const form = document.getElementById('providerForm');
         const title = document.getElementById('providerDialogTitle');
         if (!dlg || !form) return;
         if (title) title.textContent = existing ? 'Edit Provider' : 'Add Provider';
         form.reset();
-        form.elements.namedItem('id').value = existing ? existing.id : '';
+        const preset = definition || {};
+        form.elements.namedItem('type').value = existing ? existing.type || 'openai-compatible' : preset.type || 'openai-compatible';
+        form.elements.namedItem('id').value = existing ? existing.id : String(preset.type || '').toUpperCase().replace(/-/g, '_');
         form.elements.namedItem('id').readOnly = !!existing;
-        form.elements.namedItem('name').value = existing ? existing.name || '' : '';
-        form.elements.namedItem('prefix').value = existing ? existing.prefix || '' : '';
-        form.elements.namedItem('api').value = existing ? existing.api || 'responses' : 'responses';
-        form.elements.namedItem('base_url').value = existing ? existing.base_url || '' : '';
+        form.elements.namedItem('name').value = existing ? existing.name || '' : preset.name || '';
+        form.elements.namedItem('prefix').value = existing ? existing.prefix || '' : preset.prefix || '';
+        setAppSelectValue(form.querySelector('[data-ui-select]'), existing ? existing.api || 'responses' : preset.api || 'chat');
+        form.elements.namedItem('base_url').value = existing ? existing.base_url || '' : preset.base_url || '';
         form.elements.namedItem('api_key').value = '';
         form.elements.namedItem('api_key').placeholder = existing && existing.api_key_set
             ? 'Leave blank to keep ' + (existing.api_key_masked || 'existing key')
-            : 'sk-…';
+            : (existing && existing.api_key_optional) || preset.api_key_optional ? 'Optional for this local gateway' : 'sk-…';
         form.elements.namedItem('model_id').value =
             existing && existing.models && existing.models[0] ? existing.models[0].id : '';
         form.elements.namedItem('enabled').checked = existing ? !!existing.enabled : true;
@@ -525,6 +622,7 @@ export function bootSettings() {
             e.preventDefault();
             const fd = new FormData(providerForm);
             const body = {
+                type: String(fd.get('type') || 'openai-compatible').trim(),
                 id: String(fd.get('id') || '').trim(),
                 name: String(fd.get('name') || '').trim(),
                 prefix: String(fd.get('prefix') || '').trim(),

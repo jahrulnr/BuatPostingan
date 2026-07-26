@@ -7,6 +7,8 @@ import (
 
 	"buatpostingan/internal/config"
 	"buatpostingan/internal/domain/entity"
+	"buatpostingan/internal/infrastructure/provider"
+	"buatpostingan/internal/infrastructure/provider/omniroute"
 	"buatpostingan/internal/infrastructure/repository/appconfig"
 	"buatpostingan/internal/pkg/apperr"
 )
@@ -14,6 +16,26 @@ import (
 type fakeModelImporter struct {
 	models []entity.SettingsModel
 	err    error
+}
+
+func TestCreateTypedProviderUsesInjectedDefaults(t *testing.T) {
+	dir := t.TempDir()
+	store := appconfig.NewStore(filepath.Join(dir, "config.json"))
+	registry, err := provider.NewRegistry(omniroute.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := NewService(store, config.Config{LLMStrategy: "failover"}, nil, nil, registry)
+	created, err := svc.CreateProvider(context.Background(), ProviderInput{Type: "omniroute"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.Type != "omniroute" || created.ID != "OMNIROUTE" {
+		t.Fatalf("identity=%+v", created)
+	}
+	if created.API != "responses" || created.BaseURL != "http://127.0.0.1:20128/v1" || !created.APIKeyOptional {
+		t.Fatalf("defaults=%+v", created)
+	}
 }
 
 func (f *fakeModelImporter) ImportModels(_ context.Context, _ entity.SettingsProvider) ([]entity.SettingsModel, error) {
@@ -40,7 +62,7 @@ func TestCRUDUsersAndMask(t *testing.T) {
 		},
 	}
 	rel := &fakeReloader{}
-	svc := NewService(store, env, rel, nil)
+	svc := NewService(store, env, rel, nil, nil)
 	ctx := context.Background()
 
 	snap, err := svc.GetSnapshot(ctx)
@@ -110,7 +132,7 @@ func TestCRUDUsersAndMask(t *testing.T) {
 		{ID: "m2", Label: "Model 2"},
 		{ID: "m1", Label: "Model 1"}, // duplicate should be skipped
 	}}
-	svcWithImporter := NewService(store, env, rel, fakeImporter)
+	svcWithImporter := NewService(store, env, rel, fakeImporter, nil)
 	_, err = svcWithImporter.CreateProvider(ctx, ProviderInput{
 		ID: "REMOTE", Name: "Remote", API: "chat",
 		BaseURL: "http://example.com/v1", APIKey: &key,

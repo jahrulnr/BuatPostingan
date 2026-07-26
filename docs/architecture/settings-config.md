@@ -4,7 +4,7 @@ Product settings UI and durable app config **without a database**. Chat history 
 
 ## Goals
 
-- Persist **users** (minimal) and **LLM providers** (OpenAI-compatible) so operators can manage them from the UI.
+- Persist users and typed LLM provider connections so operators can manage them from the UI.
 - Keep **env (`BP_*`)** for process-level paths and a few env-only toggles.
 - Make **`storage/config.json`** the runtime source of truth once it has LLM providers.
 - Use **hardcoded defaults** in `config.Load()` when JSON omits a key.
@@ -50,6 +50,7 @@ Committed template: none. `storage/config.json` is **auto-generated** from struc
     "retry_jitter": 0.2,
     "providers": [
       {
+        "type": "openrouter",
         "id": "OPENROUTER",
         "name": "OpenRouter",
         "prefix": "openrouter",
@@ -96,7 +97,7 @@ Committed template: none. `storage/config.json` is **auto-generated** from struc
 | **limits** | `max_tool_rounds`, `speak_floor_ttl_sec`, `lock_ttl_sec`, `turn_job_timeout_sec` | Pointer fields — omit a key to keep the hardcoded default. |
 | **llm.strategy / active_provider** | see provider notes | Strategy and active provider from JSON. |
 | **llm globals** | `stream`, `vision` (`auto`\|`on`\|`off`), `effort` (`auto`\|`none`\|`minimal`\|`low`\|`medium`\|`high`\|`xhigh`\|`max`), `total_attempt_budget`, `retry_base_delay_ms`, `retry_max_delay_ms`, `retry_jitter` | Pointer fields — omit keeps hardcoded default. Invalid `vision` / `effort` fall back to `auto`. |
-| **Provider** | `id`, `name`, `prefix`, `api`, `base_url`, `api_key`, `api_keys[]`, `enabled`, `models[]`, sizing | `id` uppercased slot (router key). `api` ∈ `chat` \| `responses`. Phase 1 uses **one** `api_key`; `api_keys` reserved for future round-robin without schema break. |
+| **Provider** | `type?`, `id`, `name`, `prefix`, `api`, `base_url`, `api_key`, `api_key_optional`, `api_keys[]`, `enabled`, `models[]`, sizing | `type` selects an injected provider adapter; omitted legacy entries are inferred. `id` is the uppercased router slot. `api` ∈ `chat` \| `responses` \| `messages`. `api_key_optional` is registry-owned for local gateways. |
 | **Model** | `id`, `label?` | First model id maps to runtime `LLMProvider.Model` (primary). Extra models are picker allowlist entries for the same provider slot. |
 | **context** | `compaction_enabled`, `max_input_tokens`, `reserve_tokens`, `recent_turns`, `summary_max_chars` | Pointer fields — omit keeps hardcoded default. |
 | **docs** | `top_k`, `min_score`, `fuzzy_enabled`, `app_id` | Pointer fields (except `app_id`) — omit keeps hardcoded default. |
@@ -137,7 +138,8 @@ Base: **`/api/settings`** (product-level; separate from chat turns). Mount via `
 | `PATCH` | `/api/settings/users/{id}` | Update name/role |
 | `DELETE` | `/api/settings/users/{id}` | Delete (forbid deleting last owner) |
 | `GET` | `/api/settings/llm/providers` | List providers (masked keys) |
-| `POST` | `/api/settings/llm/providers` | Create OpenAI-compatible provider |
+| `GET` | `/api/settings/llm/provider-catalog` | List credential-free provider definitions and defaults |
+| `POST` | `/api/settings/llm/providers` | Create a typed provider connection |
 | `GET` | `/api/settings/llm/providers/{id}` | Detail + models (masked) |
 | `PATCH` | `/api/settings/llm/providers/{id}` | Update fields; omit/`""` `api_key` = keep existing |
 | `DELETE` | `/api/settings/llm/providers/{id}` | Delete provider |
@@ -168,7 +170,9 @@ After any LLM-mutating write, call `LLMRuntime.Reload(mergedConfig)` so Router /
 ### Navigation
 
 - Left rail footer: profile card (**Owner** hardcoded display) + gear → `#/settings/models`.
-- Settings = **full-page swap** of the main workspace (hide chat columns; show settings shell). Not a modal overlay — matches IDE “settings editor” feel.
+- Settings = **full-page swap** of the main workspace. The provider page renders
+  registry definitions as cards and overlays configured connection state; custom
+  OpenAI-compatible slots remain available.
 - Hash routes:
   - `#/settings` → redirect Models
   - `#/settings/general` — stub panel

@@ -11,8 +11,8 @@ function paintModeBadge() {
     badge.dataset.mode = api.mockMode ? 'mock' : 'real';
     badge.textContent = 'mode: ' + (api.mockMode ? 'mock' : 'real');
     badge.title = api.mockMode
-        ? 'Mock driver aktif (?mock=0 untuk kembali ke real)'
-        : 'Real driver → ' + api.baseUrl + ' (?mock=1 untuk mock)';
+        ? 'Mock driver active (?mock=0 to return to real)'
+        : 'Real driver → ' + api.baseUrl + ' (?mock=1 for mock)';
 }
 
 function bootChrome() {

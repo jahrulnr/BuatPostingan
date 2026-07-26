@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -143,6 +144,7 @@ func candidatesFor(cfg Config, pinnedProvider string) []string {
 		}
 		enabled = append(enabled, id)
 	}
+	sort.Strings(enabled)
 
 	if cfg.Strategy == "switch" {
 		if cfg.ActiveProvider != "" {

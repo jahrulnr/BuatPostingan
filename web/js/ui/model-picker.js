@@ -117,7 +117,7 @@ export function bootModelPicker(opts) {
             writeLS(LS_MODEL, modelId);
             if (!goneToastShown) {
                 goneToastShown = true;
-                showToast('Model tidak tersedia · memakai default');
+                showToast('Model unavailable · using default');
             }
         }
         if (!modelId && catalog.default_model_id) {

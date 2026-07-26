@@ -388,6 +388,7 @@
                 </button>
             </header>
             <form class="bp-provider-form" id="providerForm" novalidate>
+                <input name="type" type="hidden" value="openai-compatible">
                 <label class="bp-provider-form__field bp-provider-form__field--full">Name
                     <input name="name" type="text" required placeholder="OpenRouter" autocomplete="off">
                 </label>
@@ -397,12 +398,21 @@
                 <label class="bp-provider-form__field bp-provider-form__field--half">Prefix (optional)
                     <input name="prefix" type="text" placeholder="openrouter" autocomplete="off">
                 </label>
-                <label class="bp-provider-form__field bp-provider-form__field--half bp-provider-form__field--select">API type
-                    <select name="api">
-                        <option value="responses">responses</option>
-                        <option value="chat">chat</option>
-                    </select>
-                </label>
+                <div class="bp-provider-form__field bp-provider-form__field--half bp-provider-form__field--select">
+                    <span>API type</span>
+                    <div class="bp-ui-select" data-ui-select>
+                        <input name="api" type="hidden" value="responses">
+                        <button type="button" class="bp-ui-select__trigger" data-ui-select-trigger aria-haspopup="listbox" aria-expanded="false" aria-controls="providerApiList">
+                            <span data-ui-select-label>responses</span>
+                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                        </button>
+                        <div class="bp-ui-select__list" id="providerApiList" role="listbox" aria-label="API type" data-ui-select-list hidden>
+                            <button type="button" role="option" data-ui-select-option data-value="responses" aria-selected="true">responses</button>
+                            <button type="button" role="option" data-ui-select-option data-value="chat" aria-selected="false">chat</button>
+                            <button type="button" role="option" data-ui-select-option data-value="messages" aria-selected="false">messages</button>
+                        </div>
+                    </div>
+                </div>
                 <label class="bp-provider-form__field bp-provider-form__field--full">Base URL
                     <input name="base_url" type="url" required placeholder="https://openrouter.ai/api/v1" autocomplete="off">
                 </label>
@@ -419,6 +429,30 @@
                 <div class="wc-dialog__actions bp-provider-form__field--full">
                     <button type="button" class="wc-dialog__button wc-dialog__button--ghost" data-provider-close>Cancel</button>
                     <button type="submit" class="wc-dialog__button wc-dialog__button--primary">Save</button>
+                </div>
+            </form>
+        </section>
+    </div>
+
+    <div class="wc-dialog" id="appDialog" hidden>
+        <div class="wc-dialog__backdrop" data-app-dialog-backdrop></div>
+        <section class="wc-dialog__panel wc-dialog__panel--app" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle" tabindex="-1" data-app-dialog-panel>
+            <div class="wc-dialog__accent" aria-hidden="true"></div>
+            <header class="wc-dialog__header">
+                <div class="wc-dialog__icon" aria-hidden="true"><i class="bi bi-pencil-square" data-app-dialog-icon></i></div>
+                <div>
+                    <span class="wc-dialog__eyebrow" data-app-dialog-eyebrow>Workspace</span>
+                    <h5 id="appDialogTitle" data-app-dialog-title>Confirm action</h5>
+                </div>
+                <button type="button" class="wc-dialog__close" data-app-dialog-close aria-label="Close dialog"><i class="bi bi-x-lg"></i></button>
+            </header>
+            <form class="wc-dialog__form wc-dialog__form--app" data-app-dialog-form novalidate>
+                <p class="wc-dialog__message" data-app-dialog-message></p>
+                <div class="wc-dialog__fields" data-app-dialog-fields></div>
+                <p class="wc-dialog__error" data-app-dialog-error role="alert" hidden></p>
+                <div class="wc-dialog__actions">
+                    <button type="button" class="wc-dialog__button wc-dialog__button--ghost" data-app-dialog-cancel>Cancel</button>
+                    <button type="submit" class="wc-dialog__button wc-dialog__button--primary" data-app-dialog-submit>Save</button>
                 </div>
             </form>
         </section>

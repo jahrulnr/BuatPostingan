@@ -24,6 +24,7 @@ func (h *SettingsHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/settings/users/{id}", h.UpdateUser)
 	mux.HandleFunc("DELETE /api/settings/users/{id}", h.DeleteUser)
 	mux.HandleFunc("GET /api/settings/llm/providers", h.ListProviders)
+	mux.HandleFunc("GET /api/settings/llm/provider-catalog", h.ListProviderCatalog)
 	mux.HandleFunc("POST /api/settings/llm/providers", h.CreateProvider)
 	mux.HandleFunc("GET /api/settings/llm/providers/{id}", h.GetProvider)
 	mux.HandleFunc("PATCH /api/settings/llm/providers/{id}", h.UpdateProvider)
@@ -31,6 +32,10 @@ func (h *SettingsHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/settings/llm/providers/{id}/models", h.AddModel)
 	mux.HandleFunc("DELETE /api/settings/llm/providers/{id}/models/{modelId}", h.RemoveModel)
 	mux.HandleFunc("POST /api/settings/llm/providers/{id}/import-models", h.ImportModels)
+}
+
+func (h *SettingsHandler) ListProviderCatalog(w http.ResponseWriter, _ *http.Request) {
+	presenter.WriteJSON(w, http.StatusOK, map[string]any{"providers": h.UC.ListProviderCatalog()})
 }
 
 func (h *SettingsHandler) GetSnapshot(w http.ResponseWriter, r *http.Request) {

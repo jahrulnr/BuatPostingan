@@ -87,13 +87,15 @@ type MCPServer struct {
 	AllowMutations bool
 }
 
-// LLMProvider is one OpenAI-compatible upstream.
+// LLMProvider is one configured upstream.
 type LLMProvider struct {
+	Type            string
 	ID              string
 	BaseURL         string
 	APIKey          string
 	Model           string
-	API             string // chat | responses
+	API             string // chat | responses | messages
+	APIKeyOptional  bool
 	TimeoutSec      int
 	MaxAttempts     int
 	Weight          int

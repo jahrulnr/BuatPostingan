@@ -268,7 +268,7 @@ export function bootChat(options) {
                 '<span class="attach-chip__size">' + escapeHtml(formatBytes(a.size)) + '</span>' +
                 '</span>' +
                 '<button type="button" class="attach-chip__remove" data-remove-attach="' +
-                escapeHtml(a.localId) + '" aria-label="Hapus ' + escapeHtml(a.name) + '">' +
+                escapeHtml(a.localId) + '" aria-label="Remove ' + escapeHtml(a.name) + '">' +
                 '<i class="bi bi-x" aria-hidden="true"></i></button>';
             attachChipsEl.appendChild(chip);
         });
@@ -280,7 +280,7 @@ export function bootChat(options) {
         files.forEach(function (file) {
             if (!file || !file.size) return;
             if (file.size > 8 * 1024 * 1024) {
-                showToast('File terlalu besar (max 8 MB): ' + file.name);
+                showToast('File is too large (max 8 MB): ' + file.name);
                 return;
             }
             const kind = inferKind(file);
@@ -378,7 +378,7 @@ export function bootChat(options) {
                 indexBannerEl.hidden = false;
                 indexBannerEl.innerHTML =
                     '<i class="bi bi-hourglass-split" aria-hidden="true"></i> ' +
-                    escapeHtml(gate.message || 'Docs index belum siap. AI terkunci.');
+                    escapeHtml(gate.message || 'Docs index is not ready. AI is locked.');
             }
         }
         if (!docsIndexUsable) {
@@ -400,7 +400,7 @@ export function bootChat(options) {
                     applyDocsIndexGate(list.docs_index);
                     if (docsIndexUsable) {
                         setStatus('Ready');
-                        showToast('Docs index siap · AI aktif');
+                        showToast('Docs index ready · AI active');
                     }
                 }
             } catch (e) {
@@ -421,7 +421,7 @@ export function bootChat(options) {
         floorEl.hidden = false;
         floorEl.innerHTML =
             '<i class="bi bi-mic-mute-fill" aria-hidden="true"></i> ' +
-            '<strong>Admin #' + floorHolderId + '</strong> menahan floor · sisa ' +
+            '<strong>Admin #' + floorHolderId + '</strong> holds the floor · ' +
             m + 'm ' + String(s).padStart(2, '0') + 's';
     }
 
@@ -1066,8 +1066,8 @@ export function bootChat(options) {
         }
         removeAssistantPlaceholder(failedTurn);
         if (code === 'interrupted') {
-            setStatus('Interrupted · floor tetap Anda');
-            showToast('Stop · floor tidak dilepas');
+            setStatus('Interrupted · your floor is retained');
+            showToast('Stopped · floor retained');
         } else {
             setStatus('Failed · bisa Retry');
             appendError(messagesEl, detail || 'error', failedTurn, true, trace);
@@ -1396,11 +1396,11 @@ export function bootChat(options) {
         const hasAttach = pendingAttachments.length > 0;
         if ((!message && !hasAttach) || busy) return;
         if (!docsIndexUsable) {
-            showToast('503 docs index belum siap');
+            showToast('503 docs index is not ready');
             return;
         }
         if (floorRemainingSec > 0 && floorHolderId !== adminUserId) {
-            showToast('423 floor_locked · sisa ' + floorRemainingSec + 's');
+            showToast('423 floor_locked · ' + floorRemainingSec + 's remaining');
             return;
         }
 
@@ -1479,7 +1479,7 @@ export function bootChat(options) {
                     applyDocsIndexGate({
                         usable: false,
                         status: 'building',
-                        message: 'Docs index sedang dibangun. AI sementara tidak tersedia.',
+                        message: 'The docs index is building. AI is temporarily unavailable.',
                     });
                 }
                 showToast('503 AI locked · indexing');
@@ -1632,7 +1632,7 @@ export function bootChat(options) {
 
     function openRenameDialog() {
         if (!threadId || !renameDialog || !renameInput) {
-            showToast('Kirim pesan dulu untuk membuat room');
+            showToast('Send a message first to create a conversation');
             return;
         }
         renameReturnFocus = document.activeElement && document.activeElement !== document.body

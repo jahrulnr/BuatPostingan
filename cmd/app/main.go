@@ -8,6 +8,13 @@ import (
 	httpdelivery "buatpostingan/delivery/http"
 	"buatpostingan/internal/config"
 	"buatpostingan/internal/infrastructure/auth"
+	"buatpostingan/internal/infrastructure/provider"
+	ninerouter "buatpostingan/internal/infrastructure/provider/9router"
+	"buatpostingan/internal/infrastructure/provider/claude"
+	"buatpostingan/internal/infrastructure/provider/omniroute"
+	"buatpostingan/internal/infrastructure/provider/openai"
+	openaicompatible "buatpostingan/internal/infrastructure/provider/openai-compatible"
+	"buatpostingan/internal/infrastructure/provider/openrouter"
 	"buatpostingan/internal/infrastructure/repository/appconfig"
 	"buatpostingan/internal/infrastructure/repository/attachments"
 	"buatpostingan/internal/infrastructure/repository/jsonl"
@@ -175,7 +182,19 @@ func main() {
 	})
 	llmRuntime := llm.NewRuntime(llmRouter, modelCatalog, visionPolicy, effortPolicy, tw)
 	modelImporter := llm.NewModelImporter()
-	settingsSvc := settingsuc.NewService(settingsStore, envCfg, llmRuntime, modelImporter)
+	providerRegistry, err := provider.NewRegistry(
+		openrouter.New(),
+		omniroute.New(),
+		ninerouter.New(),
+		openai.New(),
+		openaicompatible.New(),
+		claude.New(),
+	)
+	if err != nil {
+		logging.Error(ctx, "provider.registry", err)
+		os.Exit(1)
+	}
+	settingsSvc := settingsuc.NewService(settingsStore, envCfg, llmRuntime, modelImporter, providerRegistry)
 	events := sse.NewStreamer(store, hub)
 
 	logging.Info(ctx, "webchat ready",

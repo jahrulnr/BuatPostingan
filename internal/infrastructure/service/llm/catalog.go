@@ -77,7 +77,7 @@ func (c *Catalog) ListModels(ctx context.Context) (entity.ModelsCatalog, error) 
 		if !p.Enabled {
 			continue
 		}
-		if strings.TrimSpace(p.Model) == "" && strings.TrimSpace(p.APIKey) == "" && len(modelLists[id]) == 0 {
+		if strings.TrimSpace(p.Model) == "" && strings.TrimSpace(p.APIKey) == "" && !p.APIKeyOptional && len(modelLists[id]) == 0 {
 			continue
 		}
 		ids = append(ids, id)

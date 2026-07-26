@@ -103,20 +103,22 @@ type SettingsLLM struct {
 	RetryJitter        *float64 `json:"retry_jitter,omitempty"`
 }
 
-// SettingsProvider is one OpenAI-compatible upstream (file form).
+// SettingsProvider is one configured LLM upstream (file form).
 type SettingsProvider struct {
-	ID          string          `json:"id"`
-	Name        string          `json:"name"`
-	Prefix      string          `json:"prefix,omitempty"`
-	API         string          `json:"api"` // chat | responses
-	BaseURL     string          `json:"base_url"`
-	APIKey      string          `json:"api_key,omitempty"`
-	APIKeys     []string        `json:"api_keys,omitempty"` // reserved; unused in v1
-	Enabled     bool            `json:"enabled"`
-	Models      []SettingsModel `json:"models"`
-	TimeoutSec  int             `json:"timeout_sec,omitempty"`
-	MaxAttempts int             `json:"max_attempts,omitempty"`
-	Weight      int             `json:"weight,omitempty"`
+	Type           string          `json:"type,omitempty"`
+	ID             string          `json:"id"`
+	Name           string          `json:"name"`
+	Prefix         string          `json:"prefix,omitempty"`
+	API            string          `json:"api"` // chat | responses | messages
+	BaseURL        string          `json:"base_url"`
+	APIKey         string          `json:"api_key,omitempty"`
+	APIKeys        []string        `json:"api_keys,omitempty"` // reserved; unused in v1
+	APIKeyOptional bool            `json:"api_key_optional,omitempty"`
+	Enabled        bool            `json:"enabled"`
+	Models         []SettingsModel `json:"models"`
+	TimeoutSec     int             `json:"timeout_sec,omitempty"`
+	MaxAttempts    int             `json:"max_attempts,omitempty"`
+	Weight         int             `json:"weight,omitempty"`
 }
 
 // SettingsModel is a selectable model id under a provider.

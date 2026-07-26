@@ -161,6 +161,10 @@ export const listLLMProviders = mockMode
     ? mock.listLLMProvidersMock
     : real.listLLMProvidersImpl;
 
+export const listLLMProviderCatalog = mockMode
+    ? mock.listLLMProviderCatalogMock
+    : real.listLLMProviderCatalogImpl;
+
 export const getLLMProvider = mockMode
     ? mock.getLLMProviderMock
     : real.getLLMProviderImpl;

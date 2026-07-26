@@ -106,14 +106,14 @@ func ApplySettingsFile(base Config, doc entity.SettingsFile) Config {
 			}
 		}
 	}
-	anyKey := false
+	anyUsableProvider := false
 	for _, p := range providers {
-		if strings.TrimSpace(p.APIKey) != "" {
-			anyKey = true
+		if p.Enabled && (strings.TrimSpace(p.APIKey) != "" || p.APIKeyOptional) {
+			anyUsableProvider = true
 			break
 		}
 	}
-	out.LLMStub = !anyKey
+	out.LLMStub = !anyUsableProvider
 	return out
 }
 
@@ -351,7 +351,7 @@ func DefaultSeedFile(base Config) entity.SettingsFile {
 func FileProviderToRuntime(sp entity.SettingsProvider) LLMProvider {
 	id := strings.ToUpper(strings.TrimSpace(sp.ID))
 	api := strings.ToLower(strings.TrimSpace(sp.API))
-	if api != "chat" && api != "responses" {
+	if api != "chat" && api != "responses" && api != "messages" {
 		api = "responses"
 	}
 	model := ""
@@ -375,15 +375,17 @@ func FileProviderToRuntime(sp entity.SettingsProvider) LLMProvider {
 		key = strings.TrimSpace(sp.APIKeys[0])
 	}
 	return LLMProvider{
-		ID:          id,
-		BaseURL:     strings.TrimRight(strings.TrimSpace(sp.BaseURL), "/"),
-		APIKey:      key,
-		Model:       model,
-		API:         api,
-		TimeoutSec:  timeout,
-		MaxAttempts: maxAttempts,
-		Weight:      weight,
-		Enabled:     sp.Enabled,
+		Type:           strings.ToLower(strings.TrimSpace(sp.Type)),
+		ID:             id,
+		BaseURL:        strings.TrimRight(strings.TrimSpace(sp.BaseURL), "/"),
+		APIKey:         key,
+		Model:          model,
+		API:            api,
+		APIKeyOptional: sp.APIKeyOptional,
+		TimeoutSec:     timeout,
+		MaxAttempts:    maxAttempts,
+		Weight:         weight,
+		Enabled:        sp.Enabled,
 		// Keep sensible defaults for sizing (env-era defaults).
 		ContextWindow:   131072,
 		MaxOutputTokens: 4096,
@@ -406,18 +408,20 @@ func RuntimeProvidersToFile(providers map[string]LLMProvider) []entity.SettingsP
 			models = append(models, entity.SettingsModel{ID: p.Model})
 		}
 		out = append(out, entity.SettingsProvider{
-			ID:          p.ID,
-			Name:        p.ID,
-			Prefix:      strings.ToLower(p.ID),
-			API:         p.API,
-			BaseURL:     p.BaseURL,
-			APIKey:      p.APIKey,
-			APIKeys:     nil,
-			Enabled:     p.Enabled,
-			Models:      models,
-			TimeoutSec:  p.TimeoutSec,
-			MaxAttempts: p.MaxAttempts,
-			Weight:      p.Weight,
+			Type:           p.Type,
+			ID:             p.ID,
+			Name:           p.ID,
+			Prefix:         strings.ToLower(p.ID),
+			API:            p.API,
+			BaseURL:        p.BaseURL,
+			APIKey:         p.APIKey,
+			APIKeys:        nil,
+			APIKeyOptional: p.APIKeyOptional,
+			Enabled:        p.Enabled,
+			Models:         models,
+			TimeoutSec:     p.TimeoutSec,
+			MaxAttempts:    p.MaxAttempts,
+			Weight:         p.Weight,
 		})
 	}
 	return out

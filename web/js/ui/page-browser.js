@@ -1,3 +1,5 @@
+import { confirmAppDialog } from './dialogs.js';
+
 function normalizePages(raw) {
     const pages = raw && Array.isArray(raw.pages) ? raw.pages : [];
     return pages.map(function (page) {
@@ -48,10 +50,10 @@ export function bootPageBrowser(options) {
     function render() {
         tree.textContent = '';
         if (!pages.length) {
-            setHint('Belum ada page workspace.', 'empty');
+            setHint('No page workspaces yet.', 'empty');
             return;
         }
-        setHint('Klik kanan folder page untuk aksi.', '');
+        setHint('Right-click a page folder for actions.', '');
         pages.forEach(function (page) {
             const expanded = openPages.has(page.id);
             const item = document.createElement('div');
@@ -114,37 +116,47 @@ export function bootPageBrowser(options) {
 
     function refresh() {
         if (typeof api.listPages !== 'function') {
-            setHint('Pages API belum tersedia.', 'error');
+            setHint('Pages API is not available.', 'error');
             return Promise.resolve();
         }
         if (refreshBtn) refreshBtn.disabled = true;
-        setHint('Memuat pages…', 'loading');
+        setHint('Loading pages…', 'loading');
         return api.listPages().then(function (out) {
             pages = normalizePages(out);
             render();
         }).catch(function () {
             pages = [];
             render();
-            setHint('Tidak bisa memuat pages.', 'error');
+            setHint('Unable to load pages.', 'error');
         }).finally(function () {
             if (refreshBtn) refreshBtn.disabled = false;
         });
     }
 
-    function mutate(action) {
+    async function mutate(action) {
         const id = menuPageID;
         closeMenu();
         if (!id) return;
-        if (action === 'delete' && !window.confirm('Hapus page "' + id + '" beserta seluruh file-nya?')) return;
+        if (action === 'delete') {
+            const approved = await confirmAppDialog({
+                eyebrow: 'Pages',
+                title: 'Delete page?',
+                message: 'Page “' + id + '” and every file within it will be deleted. This cannot be undone.',
+                icon: 'bi-folder-x',
+                confirmLabel: 'Delete page',
+                tone: 'danger',
+            });
+            if (!approved) return;
+        }
         const fn = action === 'publish' ? api.publishPage
             : (action === 'unpublish' ? api.unpublishPage : api.deletePage);
         if (typeof fn !== 'function') {
-            setHint('Aksi Pages belum tersedia.', 'error');
+            setHint('This Pages action is not available.', 'error');
             return;
         }
-        setHint(action === 'delete' ? 'Menghapus page…' : 'Memperbarui status page…', 'loading');
+        setHint(action === 'delete' ? 'Deleting page…' : 'Updating page status…', 'loading');
         Promise.resolve(fn({ pageId: id })).then(refresh).catch(function () {
-            setHint('Aksi page gagal.', 'error');
+            setHint('Page action failed.', 'error');
         });
     }
 

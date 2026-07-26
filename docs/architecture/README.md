@@ -14,7 +14,7 @@ Deep dives:
 
 - [`turn-loop.md`](turn-loop.md) — StartTurn → worker → tools → JSONL → SSE  
 - [`realtime-streaming.md`](realtime-streaming.md) — token deltas, SSE notify, perceived-latency vs industry  
-- [`llm-providers.md`](llm-providers.md) — stub, OpenAI-compatible `chat`/`responses`, router  
+- [`llm-providers.md`](llm-providers.md) — provider registry, `chat`/`responses`/`messages`, router
 - [`llm-model-picker.md`](llm-model-picker.md) — composer model/effort picker + `/models`  
 - [`xml-tool-calls.md`](xml-tool-calls.md) — XML/pipe tool call fallback parser (fenced, Anthropic, tool_use, Kimi K2)  
 - [`settings-config.md`](settings-config.md) — JSON settings UI + `/api/settings`  

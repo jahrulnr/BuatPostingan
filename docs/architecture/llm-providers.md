@@ -1,30 +1,40 @@
 # LLM providers
 
-Grounded in `internal/config` + `internal/infrastructure/service/llm/`.
+Grounded in `internal/config`, `internal/infrastructure/provider/`, and `internal/infrastructure/service/llm/`.
 
-There is **no Anthropic/Claude-native client**. Upstream must speak **OpenAI-compatible** HTTP: either Chat Completions (`chat`) or the Responses API (`responses`). OpenRouter, local OpenAI-shaped proxies, and similar gateways work via config slots — not via a separate Claude SDK.
+Provider families are explicit registry entries injected at startup. OpenRouter,
+OmniRoute, 9Router, OpenAI, OpenAI-compatible endpoints, and the official Claude
+API are currently mapped. The transport supports Chat Completions (`chat`),
+Responses (`responses`), and Anthropic Messages (`messages`).
 
 ## Stub vs real
 
 | Mode | When | Behavior |
 |---|---|---|
 | **Stub** | `BP_LLM_STUB` = true (default), **or** no providers configured in `config.json` | Worker skips HTTP; appends canned `agent_message` + `turn.completed` |
-| **Real** | `BP_LLM_STUB=false` **and** at least one provider in `config.json` has an API key | `llm.Router` → `llm.Client` HTTP |
+| **Real** | `BP_LLM_STUB=false` and at least one enabled provider is usable | `llm.Router` → `llm.Client` HTTP |
 
 Default stub is intentional (ready-to-use local turns). Configure providers in `storage/config.json` and set `BP_LLM_STUB=false` for real LLM.
 
 ## Provider slots (config)
 
-Providers are **named slots**, not hardcoded vendor packages. Configure them in `storage/config.json` under `llm.providers[]` — this is the sole source for providers (env-based provider bootstrap has been removed).
+Configured connections remain named slots under `llm.providers[]`. The optional
+`type` maps a slot to one injected provider adapter. Old entries without `type`
+remain valid: the registry infers known providers from ID/base URL and otherwise
+uses `openai-compatible`.
+
+Provider definitions are separated under `internal/infrastructure/provider/<type>/`.
+`cmd/app` builds the registry and injects its domain interface into settings;
+the use case does not import concrete provider packages.
 
 For each `ID`:
 
 | Knob | JSON (`llm.providers[]`) | Default |
 |---|---|---|
 | Base URL | `base_url` (no trailing slash) | — |
-| Bearer token | `api_key` | — |
+| Credential | `api_key` | Bearer for OpenAI-shaped APIs; `x-api-key` for Claude |
 | Model id | first `models[].id` | — |
-| Dialect | `api` | `responses` (or `chat`) |
+| Dialect | `api` | Provider default: `chat`, `responses`, or `messages` |
 | HTTP timeout | `timeout_sec` | 60 |
 | Per-provider attempts | `max_attempts` | 1 |
 | Enable toggle | `enabled` | true |
@@ -37,6 +47,7 @@ Example (`storage/config.json`):
   "llm": {
     "providers": [
       {
+        "type": "openrouter",
         "id": "OPENROUTER",
         "name": "OpenRouter",
         "api": "responses",
@@ -50,7 +61,8 @@ Example (`storage/config.json`):
 }
 ```
 
-Add another slot by adding another `providers[]` entry. Invalid `api` values fall back to `responses`.
+Add another slot through Settings or `providers[]`. The catalog is exposed at
+`GET /api/settings/llm/provider-catalog`; it contains no credentials.
 
 ## API dialects
 
@@ -67,6 +79,17 @@ Add another slot by adding another `providers[]` entry. Invalid `api` values fal
 - Tools as Responses `function` objects; **`stream`** (from config)
 - Parses `output[]` (`message`, `function_call`, `reasoning`) and optional `output_text`
 - If the proxy returns chat.completion-shaped JSON, client falls back to the chat parser
+
+### `API=messages` — Anthropic Messages API
+
+- POST `{base}/messages`
+- Sends `x-api-key` and `anthropic-version`; never sends the key as Bearer auth
+- Maps system/developer content to `system`, function tools to `input_schema`,
+  assistant tool calls to `tool_use`, and tool results to `tool_result`
+- Parses text, thinking blocks, usage, and native `tool_use`
+- This first implementation is deliberately non-streaming. Anthropic SSE has a
+  different event protocol and will be added with its own parser rather than
+  being forced through the OpenAI SSE parser.
 
 ### Streaming
 
@@ -124,7 +147,7 @@ Successful results carry `ModelRef{Provider, ID, API}` (provider slot id + confi
 
 ## What is not supported
 
-- Native Anthropic Messages API / Claude SDK
+- Claude Code OAuth/account import (use the official Claude API key provider)
 - Non–OpenAI-compatible vendor protocols without a compatible proxy
 - Mutation or admin tools in the LLM tools array (product lock — see [Architecture](README.md#tools))
 

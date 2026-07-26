@@ -47,7 +47,7 @@ Useful env (defaults in parentheses). Most knobs now live in `storage/config.jso
 | `BP_TOOLS_ROOT` | `resources/webchat/tools` |
 | `BP_SKILLS_ROOT` | `resources/webchat/skills` |
 | `BP_WORKSPACE_ROOT` | `.` (resolved to absolute process cwd at boot) — the agent's working dir: surfaced to the LLM as `{{cwd}}` in `developer.md`, AND used as the default base for relative `list_dir` / `read_file` / `grep` / `write_file` / `edit_file` paths when the turn doesn't override. Per-turn override (sent via StartTurn `workspace`) wins. |
-| `BP_LLM_STUB` | `true` if no provider API key |
+| `BP_LLM_STUB` | `true` for canned responses; set `false` after configuring a usable provider (local gateways may be keyless) |
 | `BP_LLM_RETRY_STATUSES` | `408,409,413,425,429,500–504` |
 | `BP_AUTH_DB_PATH` | `{dirname(BP_STORAGE_ROOT)}/users.sqlite` |
 | `BP_AUTH_ADMIN_USERNAME` | empty; set together with password for first boot |
@@ -160,7 +160,7 @@ Details: [LLM providers](../architecture/llm-providers.md).
 2. `GET /api/webchat/conversations` → sidebar + docs gate  
 3. Create thread → start turn → SSE `/events` shows `item.completed` / `turn.completed`  
 4. Inspect `storage/webchat/threads/thr_*.jsonl` for durable seq  
-5. Settings: gear on left rail → `#/settings/models` → add OpenAI-compatible provider; file lands at `storage/config.json` (gitignored). See [settings-config](../architecture/settings-config.md).  
+5. Settings: gear on left rail → `#/settings/models` → configure a provider card or add a custom compatible endpoint; file lands at `storage/config.json` (gitignored). See [settings-config](../architecture/settings-config.md).
 
 ## Troubleshooting
 

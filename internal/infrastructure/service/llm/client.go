@@ -70,7 +70,7 @@ func (c *Client) ChatWithProvider(ctx context.Context, providerID string, messag
 	if !ok {
 		return service.LLMResult{}, &Error{Provider: providerID, Msg: "provider missing", Transient: false}
 	}
-	if strings.TrimSpace(p.APIKey) == "" {
+	if strings.TrimSpace(p.APIKey) == "" && !p.APIKeyOptional {
 		return service.LLMResult{}, &Error{Provider: providerID, Msg: "API key missing", Transient: false}
 	}
 	if override, ok := ModelOverrideFromContext(ctx); ok {
@@ -78,6 +78,9 @@ func (c *Client) ChatWithProvider(ctx context.Context, providerID string, messag
 	}
 	if p.API == "responses" {
 		return c.chatViaResponses(ctx, p, messages, tools)
+	}
+	if p.API == "messages" {
+		return c.chatViaMessages(ctx, p, messages, tools)
 	}
 	return c.chatViaCompletions(ctx, p, messages, tools)
 }
@@ -138,6 +141,17 @@ func (c *Client) chatViaResponses(ctx context.Context, p config.LLMProvider, mes
 		return parseChatCompletionPayload(p, payload), nil
 	}
 	return parseResponsesPayload(p, payload), nil
+}
+
+func (c *Client) chatViaMessages(ctx context.Context, p config.LLMProvider, messages []map[string]any, tools []map[string]any) (service.LLMResult, error) {
+	body := toMessagesRequest(p, messages, tools)
+	// Anthropic streaming uses a distinct event protocol. Keep this rail
+	// non-streaming until that protocol has its own parser.
+	payload, err := c.postJSONStream(ctx, p, "messages", body, false, false)
+	if err != nil {
+		return service.LLMResult{}, err
+	}
+	return parseMessagesPayload(p, payload), nil
 }
 
 func (c *Client) applyEffort(ctx context.Context, p config.LLMProvider, body map[string]any) {
@@ -267,7 +281,14 @@ func (c *Client) postJSONStream(ctx context.Context, p config.LLMProvider, path 
 	if err != nil {
 		return nil, &Error{Provider: p.ID, Msg: "build request", Cause: err, Transient: true}
 	}
-	req.Header.Set("Authorization", "Bearer "+p.APIKey)
+	if strings.TrimSpace(p.APIKey) != "" {
+		if p.API == "messages" {
+			req.Header.Set("x-api-key", p.APIKey)
+			req.Header.Set("anthropic-version", "2023-06-01")
+		} else {
+			req.Header.Set("Authorization", "Bearer "+p.APIKey)
+		}
+	}
 	req.Header.Set("Content-Type", "application/json")
 	if stream {
 		req.Header.Set("Accept", "text/event-stream, application/json")

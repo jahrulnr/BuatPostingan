@@ -26,14 +26,15 @@ type Service struct {
 	envCfg        config.Config // immutable bootstrap snapshot
 	reloader      Reloader
 	modelImporter service.ProviderModelImporter
+	providers     service.ProviderRegistry
 }
 
-// NewService wires store + optional hot-reload target.
-func NewService(store repository.SettingsStore, envCfg config.Config, reloader Reloader, modelImporter service.ProviderModelImporter) *Service {
+// NewService wires store, hot-reload target, importer, and provider registry.
+func NewService(store repository.SettingsStore, envCfg config.Config, reloader Reloader, modelImporter service.ProviderModelImporter, providers service.ProviderRegistry) *Service {
 	if modelImporter == nil {
 		modelImporter = &stubModelImporter{}
 	}
-	return &Service{store: store, envCfg: envCfg, reloader: reloader, modelImporter: modelImporter}
+	return &Service{store: store, envCfg: envCfg, reloader: reloader, modelImporter: modelImporter, providers: providers}
 }
 
 // Snapshot is GET /api/settings.
@@ -54,18 +55,20 @@ type LLMPublic struct {
 
 // ProviderPublic never includes raw api_key.
 type ProviderPublic struct {
-	ID           string                 `json:"id"`
-	Name         string                 `json:"name"`
-	Prefix       string                 `json:"prefix,omitempty"`
-	API          string                 `json:"api"`
-	BaseURL      string                 `json:"base_url"`
-	APIKeySet    bool                   `json:"api_key_set"`
-	APIKeyMasked string                 `json:"api_key_masked,omitempty"`
-	Enabled      bool                   `json:"enabled"`
-	Models       []entity.SettingsModel `json:"models"`
-	TimeoutSec   int                    `json:"timeout_sec,omitempty"`
-	MaxAttempts  int                    `json:"max_attempts,omitempty"`
-	Weight       int                    `json:"weight,omitempty"`
+	Type           string                 `json:"type"`
+	ID             string                 `json:"id"`
+	Name           string                 `json:"name"`
+	Prefix         string                 `json:"prefix,omitempty"`
+	API            string                 `json:"api"`
+	BaseURL        string                 `json:"base_url"`
+	APIKeySet      bool                   `json:"api_key_set"`
+	APIKeyMasked   string                 `json:"api_key_masked,omitempty"`
+	APIKeyOptional bool                   `json:"api_key_optional,omitempty"`
+	Enabled        bool                   `json:"enabled"`
+	Models         []entity.SettingsModel `json:"models"`
+	TimeoutSec     int                    `json:"timeout_sec,omitempty"`
+	MaxAttempts    int                    `json:"max_attempts,omitempty"`
+	Weight         int                    `json:"weight,omitempty"`
 }
 
 func (s *Service) GetSnapshot(ctx context.Context) (Snapshot, error) {
@@ -80,8 +83,17 @@ func (s *Service) GetSnapshot(ctx context.Context) (Snapshot, error) {
 		Source:     source,
 		ConfigPath: s.store.Path(),
 		Users:      doc.Users,
-		LLM:        publicLLM(rt, doc),
+		LLM:        publicLLM(rt, doc, s.providers),
 	}, nil
+}
+
+// ListProviderCatalog returns credential-free provider families available in
+// this build.
+func (s *Service) ListProviderCatalog() []entity.ProviderDefinition {
+	if s.providers == nil {
+		return []entity.ProviderDefinition{}
+	}
+	return s.providers.List()
 }
 
 func (s *Service) ListUsers(ctx context.Context) ([]entity.SettingsUser, error) {
@@ -213,6 +225,7 @@ func (s *Service) GetProvider(ctx context.Context, id string) (ProviderPublic, e
 
 // ProviderInput is create/update body.
 type ProviderInput struct {
+	Type        string                 `json:"type"`
 	ID          string                 `json:"id"`
 	Name        string                 `json:"name"`
 	Prefix      string                 `json:"prefix"`
@@ -232,7 +245,7 @@ func (s *Service) CreateProvider(ctx context.Context, in ProviderInput) (Provide
 	if id == "" {
 		id = strings.ToUpper(strings.TrimSpace(in.Prefix))
 	}
-	if id == "" {
+	if id == "" && strings.TrimSpace(in.Type) == "" {
 		return ProviderPublic{}, apperr.Validation("id or prefix required")
 	}
 	name := strings.TrimSpace(in.Name)
@@ -240,14 +253,14 @@ func (s *Service) CreateProvider(ctx context.Context, in ProviderInput) (Provide
 		name = id
 	}
 	api := strings.ToLower(strings.TrimSpace(in.API))
-	if api == "" {
+	if api == "" && (s.providers == nil || strings.TrimSpace(in.Type) == "") {
 		api = "responses"
 	}
-	if api != "chat" && api != "responses" {
-		return ProviderPublic{}, apperr.Validation("api must be chat|responses")
+	if api != "" && api != "chat" && api != "responses" && api != "messages" {
+		return ProviderPublic{}, apperr.Validation("api must be chat|responses|messages")
 	}
 	base := strings.TrimRight(strings.TrimSpace(in.BaseURL), "/")
-	if base == "" {
+	if base == "" && (s.providers == nil || strings.TrimSpace(in.Type) == "") {
 		return ProviderPublic{}, apperr.Validation("base_url required")
 	}
 
@@ -256,11 +269,6 @@ func (s *Service) CreateProvider(ctx context.Context, in ProviderInput) (Provide
 	doc, _, err := s.loadOrSeedLocked(ctx)
 	if err != nil {
 		return ProviderPublic{}, err
-	}
-	for _, p := range doc.LLM.Providers {
-		if strings.EqualFold(p.ID, id) {
-			return ProviderPublic{}, apperr.Validation("provider id already exists")
-		}
 	}
 	models := in.Models
 	if len(models) == 0 {
@@ -281,6 +289,7 @@ func (s *Service) CreateProvider(ctx context.Context, in ProviderInput) (Provide
 		prefix = strings.ToLower(id)
 	}
 	sp := entity.SettingsProvider{
+		Type:        strings.ToLower(strings.TrimSpace(in.Type)),
 		ID:          id,
 		Name:        name,
 		Prefix:      prefix,
@@ -293,6 +302,18 @@ func (s *Service) CreateProvider(ctx context.Context, in ProviderInput) (Provide
 		MaxAttempts: in.MaxAttempts,
 		Weight:      in.Weight,
 	}
+	if s.providers != nil {
+		sp, err = s.providers.Normalize(sp)
+		if err != nil {
+			return ProviderPublic{}, apperr.Validation(err.Error())
+		}
+		id = sp.ID
+	}
+	for _, p := range doc.LLM.Providers {
+		if strings.EqualFold(p.ID, id) {
+			return ProviderPublic{}, apperr.Validation("provider id already exists")
+		}
+	}
 	doc.LLM.Providers = append(doc.LLM.Providers, sp)
 	if doc.LLM.ActiveProvider == "" {
 		doc.LLM.ActiveProvider = id
@@ -301,7 +322,7 @@ func (s *Service) CreateProvider(ctx context.Context, in ProviderInput) (Provide
 		return ProviderPublic{}, err
 	}
 	s.reloadLocked(doc)
-	return toPublic(sp), nil
+	return toPublic(sp, s.providers), nil
 }
 
 func (s *Service) UpdateProvider(ctx context.Context, id string, in ProviderInput) (ProviderPublic, error) {
@@ -330,8 +351,8 @@ func (s *Service) UpdateProvider(ctx context.Context, id string, in ProviderInpu
 		sp.Prefix = p
 	}
 	if a := strings.ToLower(strings.TrimSpace(in.API)); a != "" {
-		if a != "chat" && a != "responses" {
-			return ProviderPublic{}, apperr.Validation("api must be chat|responses")
+		if a != "chat" && a != "responses" && a != "messages" {
+			return ProviderPublic{}, apperr.Validation("api must be chat|responses|messages")
 		}
 		sp.API = a
 	}
@@ -367,7 +388,7 @@ func (s *Service) UpdateProvider(ctx context.Context, id string, in ProviderInpu
 		return ProviderPublic{}, err
 	}
 	s.reloadLocked(doc)
-	return toPublic(sp), nil
+	return toPublic(sp, s.providers), nil
 }
 
 func (s *Service) DeleteProvider(ctx context.Context, id string) error {
@@ -436,7 +457,7 @@ func (s *Service) AddModel(ctx context.Context, providerID string, model entity.
 		return ProviderPublic{}, err
 	}
 	s.reloadLocked(doc)
-	return toPublic(sp), nil
+	return toPublic(sp, s.providers), nil
 }
 
 func (s *Service) RemoveModel(ctx context.Context, providerID, modelID string) (ProviderPublic, error) {
@@ -477,7 +498,7 @@ func (s *Service) RemoveModel(ctx context.Context, providerID, modelID string) (
 		return ProviderPublic{}, err
 	}
 	s.reloadLocked(doc)
-	return toPublic(sp), nil
+	return toPublic(sp, s.providers), nil
 }
 
 type stubModelImporter struct{}
@@ -616,7 +637,7 @@ func (s *Service) reloadLocked(doc entity.SettingsFile) {
 	s.reloader.Reload(config.ApplySettingsFile(s.envCfg, doc))
 }
 
-func publicLLM(rt config.Config, doc entity.SettingsFile) LLMPublic {
+func publicLLM(rt config.Config, doc entity.SettingsFile, registry service.ProviderRegistry) LLMPublic {
 	out := LLMPublic{
 		Strategy:       rt.LLMStrategy,
 		ActiveProvider: rt.LLMActiveProvider,
@@ -625,36 +646,42 @@ func publicLLM(rt config.Config, doc entity.SettingsFile) LLMPublic {
 	}
 	if len(doc.LLM.Providers) > 0 {
 		for _, sp := range doc.LLM.Providers {
-			out.Providers = append(out.Providers, toPublic(sp))
+			out.Providers = append(out.Providers, toPublic(sp, registry))
 		}
 		return out
 	}
 	// Env-sourced: synthesize public view from runtime map.
 	for _, sp := range config.RuntimeProvidersToFile(rt.LLMProviders) {
-		out.Providers = append(out.Providers, toPublic(sp))
+		out.Providers = append(out.Providers, toPublic(sp, registry))
 	}
 	return out
 }
 
-func toPublic(sp entity.SettingsProvider) ProviderPublic {
+func toPublic(sp entity.SettingsProvider, registry service.ProviderRegistry) ProviderPublic {
 	set, masked := config.MaskAPIKey(sp.APIKey)
 	models := sp.Models
 	if models == nil {
 		models = []entity.SettingsModel{}
 	}
+	kind := strings.ToLower(strings.TrimSpace(sp.Type))
+	if kind == "" && registry != nil {
+		kind = registry.Infer(sp)
+	}
 	return ProviderPublic{
-		ID:           sp.ID,
-		Name:         sp.Name,
-		Prefix:       sp.Prefix,
-		API:          sp.API,
-		BaseURL:      sp.BaseURL,
-		APIKeySet:    set,
-		APIKeyMasked: masked,
-		Enabled:      sp.Enabled,
-		Models:       models,
-		TimeoutSec:   sp.TimeoutSec,
-		MaxAttempts:  sp.MaxAttempts,
-		Weight:       sp.Weight,
+		Type:           kind,
+		ID:             sp.ID,
+		Name:           sp.Name,
+		Prefix:         sp.Prefix,
+		API:            sp.API,
+		BaseURL:        sp.BaseURL,
+		APIKeySet:      set,
+		APIKeyMasked:   masked,
+		APIKeyOptional: sp.APIKeyOptional,
+		Enabled:        sp.Enabled,
+		Models:         models,
+		TimeoutSec:     sp.TimeoutSec,
+		MaxAttempts:    sp.MaxAttempts,
+		Weight:         sp.Weight,
 	}
 }
 

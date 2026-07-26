@@ -335,6 +335,11 @@ export function listLLMProvidersImpl(api) {
 }
 
 /** @param {import('../types.js').ApiContext} api */
+export function listLLMProviderCatalogImpl(api) {
+    return request(settingsBase(api) + '/llm/provider-catalog', { headers: { Accept: 'application/json' } }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
 export function getLLMProviderImpl(api, id) {
     return request(settingsBase(api) + '/llm/providers/' + encodeURIComponent(id), {
         headers: acceptHeaders(api),

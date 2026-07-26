@@ -798,6 +798,51 @@
 .wc-dialog__help { color: var(--bp-muted); }
 .wc-dialog__error { color: var(--bp-fail); font-weight: 550; }
 
+.wc-dialog__message {
+    margin: 0 0 0.9rem;
+    color: var(--bp-muted);
+    font-size: 0.82rem;
+    line-height: 1.55;
+}
+
+.wc-dialog__fields {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.wc-dialog__field--choice { gap: 0.45rem; }
+
+.wc-dialog__choices {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+}
+
+.wc-dialog__choice {
+    min-height: 2.35rem;
+    border: 1px solid var(--bp-border);
+    border-radius: 0.45rem;
+    background: var(--bp-surface);
+    color: var(--bp-muted);
+    font-family: var(--bp-mono);
+    font-size: 0.72rem;
+    cursor: pointer;
+}
+
+.wc-dialog__choice:hover,
+.wc-dialog__choice:focus-visible {
+    border-color: var(--bp-border-strong);
+    background: var(--bp-surface-2);
+    color: var(--bp-ink);
+    outline: none;
+}
+
+.wc-dialog__choice.is-selected {
+    border-color: var(--bp-accent);
+    background: var(--bp-accent-soft);
+    color: var(--bp-accent);
+}
+
 .wc-dialog.has-error .wc-dialog__field input {
     border-color: var(--bp-fail);
     background: var(--bp-fail-bg);

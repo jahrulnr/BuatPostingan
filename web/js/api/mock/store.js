@@ -90,7 +90,7 @@ export function createStore(fixtures) {
 
     function createThread(adminUserId) {
         if (!docsIndex.usable) {
-            throw ApiError(503, 'docs_index_not_ready', 'Docs index belum siap', {
+            throw ApiError(503, 'docs_index_not_ready', 'Docs index is not ready', {
                 docs_index: { ...docsIndex },
             });
         }
@@ -187,7 +187,7 @@ export function createStore(fixtures) {
 
     function assertCanSpeak(thread, adminUserId) {
         if (!docsIndex.usable) {
-            throw ApiError(503, 'docs_index_not_ready', 'Docs index belum siap', {
+            throw ApiError(503, 'docs_index_not_ready', 'Docs index is not ready', {
                 docs_index: { ...docsIndex },
             });
         }
@@ -266,8 +266,8 @@ export function createStore(fixtures) {
                 type: 'reasoning',
                 turn_id: turnId,
                 text: firstAtt
-                    ? 'Membaca lampiran yang diunggah user.\nMenyusun jawaban singkat.'
-                    : 'Mencari referensi relevan di knowledge base.\nMenyusun jawaban singkat.',
+                    ? 'Reading the uploaded attachment.\nPreparing a concise answer.'
+                    : 'Searching for relevant knowledge-base references.\nPreparing a concise answer.',
                 model: { provider: 'mock', id: 'reasoner-sim' },
             });
         });
@@ -361,18 +361,18 @@ export function createStore(fixtures) {
         schedule(turnId, 1600, function () {
             const reply = firstAtt
                 ? (
-                    'Saya membaca lampiran **' + firstAtt.filename + '**.\n\n' +
+                    'I read the attachment **' + firstAtt.filename + '**.\n\n' +
                     (firstAtt.kind === 'image'
-                        ? 'Ini gambar (' + (firstAtt.mime || 'image') + '). Vision belum aktif — hanya metadata yang tersedia.'
-                        : 'Cuplikan isi:\n\n> ' + String(firstAtt.content || '').slice(0, 160).replace(/\n/g, ' ') + '…')
+                        ? 'This is an image (' + (firstAtt.mime || 'image') + '). Vision is not enabled — only metadata is available.'
+                        : 'Content excerpt:\n\n> ' + String(firstAtt.content || '').slice(0, 160).replace(/\n/g, ' ') + '…')
                 )
                 : (
-                    'Berikut ringkasan mock untuk pertanyaan Anda:\n\n' +
+                    'Here is a mock summary for your question:\n\n' +
                     '> **' + String(userText || '').slice(0, 120) + '**\n\n' +
-                    '1. Tentukan sudut & audiens\n' +
-                    '2. Susun outline singkat\n' +
-                    '3. Tulis draft, lalu sunting\n\n' +
-                    '_Sumber: docs_search (mock)_'
+                    '1. Define the angle and audience\n' +
+                    '2. Create a concise outline\n' +
+                    '3. Write the draft, then edit it\n\n' +
+                    '_Source: docs_search (mock)_'
                 );
             const draftId = uid('itm');
             // Fake token stream before durable item.completed (parity with real BE).
