@@ -22,7 +22,7 @@ With default `BP_STORAGE_ROOT=storage/webchat`, that resolves to **`storage/conf
 
 Permissions: create parent dirs `0755`; write file `0600` (secrets). Atomic save: write `config.json.tmp` → `fsync` → `rename`.
 
-Committed template: `storage/config.example.json`. Runtime file is **gitignored**.
+Committed template: none. `storage/config.json` is **auto-generated** from struct defaults (`config.DefaultSeedFile`) on first boot via `appconfig.Store.EnsureSeeded()` when the file is missing. Runtime file is **gitignored**.
 
 ## Schema (v1)
 
@@ -118,9 +118,9 @@ Committed template: `storage/config.example.json`. Runtime file is **gitignored*
 3. If `config.json` is **missing** or **unreadable** → hardcoded defaults + env-only vars. Old files without the new sections keep working because every new field is a pointer / omitempty string.
 4. First successful Settings write creates the file (seeded with current runtime providers + sections).
 
-Env-only (never in JSON): `BP_HTTP_ADDR`, `BP_WEB_ROOT`, `BP_STORAGE_ROOT`, `BP_DOCS_ROOT`, `BP_PROMPTS_ROOT`, `BP_TOOLS_ROOT`, `BP_SKILLS_ROOT`, `BP_CONFIG_PATH`, `BP_LLM_RETRY_STATUSES`, `BP_LLM_STUB`. Paths/addr are process-level; retry statuses are a fixed operational policy; stub stays in env as the development toggle; write toggle is a local-dev safety switch. Every other historical `BP_*` knob is now configurable via `storage/config.json`.
+Env-only (never in JSON): `BP_HTTP_ADDR`, `BP_WEB_ROOT`, `BP_STORAGE_ROOT`, `BP_DOCS_ROOT`, `BP_PROMPTS_ROOT`, `BP_TOOLS_ROOT`, `BP_SKILLS_ROOT`, `BP_WORKSPACE_ROOT`, `BP_CONFIG_PATH`, `BP_LLM_RETRY_STATUSES`, `BP_LLM_STUB`. Paths/addr are process-level; retry statuses are a fixed operational policy; stub stays in env as the development toggle; write toggle is a local-dev safety switch. Every other historical `BP_*` knob is now configurable via `storage/config.json`.
 
-**MCP:** optional `mcp` object on the same file (`mcp.servers[]`, timeouts). Applied by `ApplySettingsFile` even when `llm.providers` is empty. Hardcoded default `MCPEnabled=true`, but with no `mcp.servers` the catalog is empty (`list_mcp_tools` returns a `hint`). First settings seed (no file yet) includes the sample echo server from `DefaultLocalDevMCP` / `config.example.json`; existing files without `mcp` are left alone — copy the block and **restart** `make be`. See [mcp-support.md](mcp-support.md). MCP timeouts can now also come from `mcp.connect_timeout_sec` / `mcp.call_timeout_sec` in the JSON; hardcoded defaults (15s / 30s) apply when JSON omits them.
+**MCP:** optional `mcp` object on the same file (`mcp.servers[]`, timeouts). Applied by `ApplySettingsFile` even when `llm.providers` is empty. Hardcoded default `MCPEnabled=true`, but with no `mcp.servers` the catalog is empty (`list_mcp_tools` returns a `hint`). The first-boot seed (`config.DefaultSeedFile` → `appconfig.Store.EnsureSeeded()`) already includes the sample echo server via `DefaultLocalDevMCP`; existing files without `mcp` are left alone — add the block and **restart** `make be`. See [mcp-support.md](mcp-support.md). MCP timeouts can also come from `mcp.connect_timeout_sec` / `mcp.call_timeout_sec` in the JSON; hardcoded defaults (15s / 30s) apply when JSON omits them.
 
 ```
 env (process-level) + hardcoded defaults ──► runtime Config

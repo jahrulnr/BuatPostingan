@@ -597,17 +597,8 @@ func (s *Service) loadOrSeedLocked(ctx context.Context) (entity.SettingsFile, st
 		}
 		return doc, src, nil
 	}
-	// In-memory seed from env (not written until first mutate).
-	doc := entity.SettingsFile{
-		Version: 1,
-		Users:   []entity.SettingsUser{{ID: "usr_owner", Name: "Owner", Role: "owner"}},
-		LLM: entity.SettingsLLM{
-			Strategy:       s.envCfg.LLMStrategy,
-			ActiveProvider: s.envCfg.LLMActiveProvider,
-			Providers:      config.RuntimeProvidersToFile(s.envCfg.LLMProviders),
-		},
-		MCP: config.DefaultLocalDevMCP(),
-	}
+	// In-memory seed from defaults (not written until first mutate).
+	doc := config.DefaultSeedFile(s.envCfg)
 	return doc, "env", nil
 }
 

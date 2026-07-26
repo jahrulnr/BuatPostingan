@@ -23,9 +23,25 @@ type Usecase interface {
 	UploadAttachment(ctx context.Context, in UploadAttachmentInput) (entity.AttachmentMeta, error)
 	ListAttachments(ctx context.Context, threadID valueobject.ThreadID) ([]entity.AttachmentMeta, error)
 	ListModels(ctx context.Context) (entity.ModelsCatalog, error)
+	// BrowseDir lists sub-directories for the workspace picker UI. Empty path
+	// resolves to the service default (BP_WORKSPACE_ROOT or process cwd).
+	BrowseDir(ctx context.Context, path string) (BrowseDirResult, error)
 	// SubscribeEvents blocks until ctx is done or the stream ends.
 	// emit must be called with FE/SSE event names (item.completed, turn.*, …).
 	SubscribeEvents(ctx context.Context, threadID valueobject.ThreadID, afterSeq uint64, emit EventEmitter) error
+}
+
+// BrowseDirResult is the directory listing returned to the workspace picker.
+type BrowseDirResult struct {
+	Path    string
+	Parent  string
+	Entries []BrowseDirEntry
+}
+
+// BrowseDirEntry is one sub-directory row.
+type BrowseDirEntry struct {
+	Name string
+	Path string
 }
 
 // EventEmitter writes one SSE application event. payload should be JSON-serializable.

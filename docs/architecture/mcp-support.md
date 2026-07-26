@@ -26,8 +26,8 @@ Namespaced names `mcp__{server}__{tool}` remain useful as **catalog ids** return
 
 ### Operator — configure servers
 
-1. Copy `storage/config.example.json` → `storage/config.json` (or edit the existing file).
-2. Ensure an `mcp` block with at least one server (the example ships a local echo sample):
+1. Edit `storage/config.json` (auto-generated on first boot).
+2. Ensure an `mcp` block with at least one server (the seed already ships a local echo sample):
 
 ```json
 {
@@ -60,7 +60,7 @@ Namespaced names `mcp__{server}__{tool}` remain useful as **catalog ids** return
 4. **Restart** `make be` (MCP manager is built at process start from `config.json`; Settings UI does not hot-reload MCP yet).
 5. Confirm tools appear: ask the agent to `list_mcp_tools`, or check startup logs for `mcp manager` / `mcp enabled with no servers`.
 
-**Empty catalog trap:** `BP_MCP_ENABLED` defaults to `true`, but servers only come from `storage/config.json` `mcp.servers`. If the file is missing or has no `mcp` block, `list_mcp_tools` returns `mcp_enabled=true`, `tools=[]`, `server_errors={}` plus a `hint` pointing at `config.example.json` — not a silent connect success.
+**Empty catalog trap:** `BP_MCP_ENABLED` defaults to `true`, but servers only come from `storage/config.json` `mcp.servers`. If the file has no `mcp` block (or the seed's echo server is disabled/missing its binary), `list_mcp_tools` returns `mcp_enabled=true`, `tools=[]`, `server_errors={}` plus a `hint` — not a silent connect success.
 
 **Env knobs (optional):**
 
@@ -153,7 +153,7 @@ MVP uses official **`github.com/modelcontextprotocol/go-sdk/mcp`** (`CommandTran
 ```bash
 make mcp-echo
 # ensure storage/config.json includes mcp.servers echo → ./bin/mcp-echo
-# (copy from storage/config.example.json if the file is missing)
+# (the auto-generated seed already includes it on first boot)
 make be   # restart required after editing mcp.servers
 ```
 

@@ -41,7 +41,6 @@ func injectPrompts(promptsRoot string, messages []map[string]any, vars promptVar
 	if home == "" {
 		home = cwd
 	}
-
 	availableTools := vars.AvailableTools
 	if availableTools == "" {
 		availableTools = "(none)"

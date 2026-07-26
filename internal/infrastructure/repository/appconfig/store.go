@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"buatpostingan/internal/config"
 	"buatpostingan/internal/domain/entity"
 	"buatpostingan/internal/domain/repository"
 )
@@ -33,6 +34,22 @@ func (s *Store) Exists() bool {
 	}
 	st, err := os.Stat(s.path)
 	return err == nil && !st.IsDir()
+}
+
+// EnsureSeeded writes a default config.json derived from base when the file is
+// missing. Returns (path, created, err). When the file already exists it is
+// left untouched. Atomic write via Save(); 0600 perms enforced there.
+func (s *Store) EnsureSeeded(ctx context.Context, base config.Config) (string, bool, error) {
+	if s.path == "" {
+		return "", false, fmt.Errorf("config path empty")
+	}
+	if s.Exists() {
+		return s.path, false, nil
+	}
+	if err := s.Save(ctx, config.DefaultSeedFile(base)); err != nil {
+		return s.path, false, err
+	}
+	return s.path, true, nil
 }
 
 func (s *Store) Load(_ context.Context) (entity.SettingsFile, error) {

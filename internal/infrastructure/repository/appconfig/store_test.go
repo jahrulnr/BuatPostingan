@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"buatpostingan/internal/config"
 	"buatpostingan/internal/domain/entity"
 )
 
@@ -79,6 +80,72 @@ func TestLoadMissing(t *testing.T) {
 	_, err := s.Load(nil)
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestEnsureSeededCreatesFileFromDefaults(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	s := NewStore(path)
+
+	if s.Exists() {
+		t.Fatal("expected missing before seed")
+	}
+	base := config.Config{
+		LLMStrategy:  "failover",
+		DocsAppID:    "buatpostingan",
+		MaxToolRounds: 8,
+	}
+	_, created, err := s.EnsureSeeded(nil, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !created {
+		t.Fatal("expected created=true on first seed")
+	}
+	if !s.Exists() {
+		t.Fatal("file should exist after seed")
+	}
+
+	doc, err := s.Load(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.Version != 1 || len(doc.Users) != 1 || doc.Users[0].Role != "owner" {
+		t.Fatalf("seed doc malformed: %+v", doc)
+	}
+	if doc.Limits.MaxToolRounds == nil || *doc.Limits.MaxToolRounds != 8 {
+		t.Fatalf("limits not seeded from base: %+v", doc.Limits)
+	}
+	if len(doc.MCP.Servers) != 1 || doc.MCP.Servers[0].ID != "echo" {
+		t.Fatalf("mcp echo sample missing: %+v", doc.MCP)
+	}
+	if len(doc.LLM.Providers) != 0 {
+		t.Fatalf("providers should be empty by default, got %+v", doc.LLM.Providers)
+	}
+}
+
+func TestEnsureSeededIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	s := NewStore(path)
+
+	base := config.Config{DocsAppID: "first"}
+	if _, _, err := s.EnsureSeeded(nil, base); err != nil {
+		t.Fatal(err)
+	}
+	// Second call with different base must NOT overwrite.
+	base2 := config.Config{DocsAppID: "changed"}
+	_, created, err := s.EnsureSeeded(nil, base2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created {
+		t.Fatal("expected created=false on second seed")
+	}
+	doc, _ := s.Load(nil)
+	if doc.Docs.AppID != "first" {
+		t.Fatalf("expected original seed preserved, got app_id=%q", doc.Docs.AppID)
 	}
 }
 

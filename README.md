@@ -42,7 +42,7 @@ make build && make test
 Without API keys the app starts in **LLM stub** mode (canned replies). For a real model, configure providers in `storage/config.json`:
 
 ```bash
-cp storage/config.example.json storage/config.json
+# storage/config.json is auto-generated from struct defaults on first boot.
 # Edit llm.providers[] → set api_key, base_url, models
 # Set BP_LLM_STUB=false in .env (or leave stub for ready-to-use local turns)
 ```

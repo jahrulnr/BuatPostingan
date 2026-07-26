@@ -1,4 +1,4 @@
-/* BuatPostingan IDE shell — charcoal/neutral, dark + light via data-theme */
+/* BuatPostingan IDE shell — quiet slate with a restrained blue-cyan signal */
 
 *,
 *::before,
@@ -19,19 +19,20 @@
 
 /* —— Light scheme —— */
 html[data-theme="light"] {
-    --bp-bg: oklch(94% 0.006 255);
-    --bp-surface: oklch(98.5% 0.003 255);
-    --bp-surface-2: oklch(96.5% 0.005 255);
+    color-scheme: light;
+    --bp-bg: oklch(95% 0.012 235);
+    --bp-surface: oklch(98.5% 0.005 230);
+    --bp-surface-2: oklch(96.5% 0.009 230);
     --bp-surface-3: oklch(100% 0 0);
-    --bp-ink: oklch(24% 0.02 255);
-    --bp-muted: oklch(48% 0.015 255);
-    --bp-faint: oklch(62% 0.012 255);
-    --bp-border: oklch(88% 0.01 255);
-    --bp-border-strong: oklch(80% 0.014 255);
-    --bp-accent: oklch(48% 0.1 230);
-    --bp-accent-soft: oklch(94% 0.03 230);
+    --bp-ink: oklch(24% 0.025 245);
+    --bp-muted: oklch(48% 0.018 240);
+    --bp-faint: oklch(62% 0.016 235);
+    --bp-border: oklch(88% 0.014 235);
+    --bp-border-strong: oklch(80% 0.02 230);
+    --bp-accent: oklch(51% 0.13 220);
+    --bp-accent-soft: oklch(94% 0.038 220);
     --bp-accent-ink: oklch(99% 0 0);
-    --bp-user: oklch(93% 0.03 230);
+    --bp-user: oklch(93% 0.04 220);
     --bp-ok: oklch(45% 0.11 155);
     --bp-fail: oklch(48% 0.16 25);
     --bp-fail-bg: oklch(96% 0.025 25);
@@ -42,9 +43,9 @@ html[data-theme="light"] {
     --bp-tool: oklch(40% 0.07 175);
     --bp-tool-bg: oklch(97% 0.015 175);
     --bp-tool-border: oklch(88% 0.025 175);
-    --bp-shadow: 0 0.5rem 1.25rem oklch(30% 0.02 255 / 0.08);
-    --bp-scrim: oklch(20% 0.02 255 / 0.45);
-    --bp-scroll-thumb: oklch(78% 0.02 255);
+    --bp-shadow: 0 0.5rem 1.25rem oklch(30% 0.025 240 / 0.1);
+    --bp-scrim: oklch(20% 0.025 240 / 0.45);
+    --bp-scroll-thumb: oklch(78% 0.025 235);
 
     /* Legacy aliases consumed by webchat.css */
     --wm-font: var(--bp-font);
@@ -74,21 +75,22 @@ html[data-theme="light"] {
     --wm-duration-base: 220ms;
 }
 
-/* —— Dark scheme (Cursor-like charcoal) —— */
+/* —— Dark scheme —— */
 html[data-theme="dark"] {
-    --bp-bg: oklch(16% 0.01 255);
-    --bp-surface: oklch(20% 0.012 255);
-    --bp-surface-2: oklch(23% 0.012 255);
-    --bp-surface-3: oklch(25% 0.012 255);
-    --bp-ink: oklch(92% 0.008 255);
-    --bp-muted: oklch(68% 0.012 255);
-    --bp-faint: oklch(52% 0.012 255);
-    --bp-border: oklch(32% 0.012 255);
-    --bp-border-strong: oklch(40% 0.014 255);
-    --bp-accent: oklch(72% 0.09 230);
-    --bp-accent-soft: oklch(28% 0.04 230);
-    --bp-accent-ink: oklch(16% 0.02 255);
-    --bp-user: oklch(30% 0.04 230);
+    color-scheme: dark;
+    --bp-bg: oklch(16% 0.018 245);
+    --bp-surface: oklch(20% 0.022 245);
+    --bp-surface-2: oklch(23% 0.022 240);
+    --bp-surface-3: oklch(25% 0.022 240);
+    --bp-ink: oklch(92% 0.012 235);
+    --bp-muted: oklch(68% 0.018 235);
+    --bp-faint: oklch(52% 0.018 235);
+    --bp-border: oklch(32% 0.022 240);
+    --bp-border-strong: oklch(40% 0.026 235);
+    --bp-accent: oklch(76% 0.11 215);
+    --bp-accent-soft: oklch(28% 0.05 220);
+    --bp-accent-ink: oklch(16% 0.025 245);
+    --bp-user: oklch(30% 0.05 220);
     --bp-ok: oklch(70% 0.12 155);
     --bp-fail: oklch(68% 0.15 25);
     --bp-fail-bg: oklch(28% 0.04 25);
@@ -99,9 +101,9 @@ html[data-theme="dark"] {
     --bp-tool: oklch(74% 0.07 175);
     --bp-tool-bg: oklch(24% 0.025 175);
     --bp-tool-border: oklch(36% 0.035 175);
-    --bp-shadow: 0 0.5rem 1.5rem oklch(8% 0.02 255 / 0.45);
-    --bp-scrim: oklch(8% 0.02 255 / 0.55);
-    --bp-scroll-thumb: oklch(40% 0.015 255);
+    --bp-shadow: 0 0.5rem 1.5rem oklch(8% 0.025 245 / 0.48);
+    --bp-scrim: oklch(8% 0.025 245 / 0.58);
+    --bp-scroll-thumb: oklch(40% 0.025 240);
 
     --wm-font: var(--bp-font);
     --wm-mono: var(--bp-mono);
@@ -161,7 +163,9 @@ body.page-webchat {
     max-height: 100dvh;
     min-height: 0;
     overflow: hidden;
-    background: var(--bp-bg);
+    background:
+        radial-gradient(circle at 8% -12%, color-mix(in oklab, var(--bp-accent) 7%, transparent), transparent 32rem),
+        var(--bp-bg);
 }
 
 .bp-chrome {
@@ -173,7 +177,7 @@ body.page-webchat {
     height: var(--bp-chrome-h);
     padding: 0 0.65rem;
     border-bottom: 1px solid var(--bp-border);
-    background: var(--bp-surface);
+    background: color-mix(in oklab, var(--bp-surface) 94%, var(--bp-accent) 6%);
     z-index: 50;
 }
 
@@ -215,11 +219,10 @@ body.page-webchat {
 }
 
 .bp-brand__mark {
-    width: 0.55rem;
-    height: 0.55rem;
-    border-radius: 0.12rem;
-    background: var(--bp-accent);
-    box-shadow: 0 0 0 0.18rem color-mix(in oklab, var(--bp-accent) 28%, transparent);
+    width: 1.35rem;
+    height: 1.35rem;
+    display: block;
+    object-fit: contain;
     flex-shrink: 0;
 }
 

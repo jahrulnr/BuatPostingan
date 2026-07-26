@@ -248,12 +248,16 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 			docCount = gate.DocumentCount
 		}
 	}
+	// Resolve effective workspace once: per-turn override wins, else process
+	// default (BP_WORKSPACE_ROOT). Applied both to the LLM-visible cwd prompt
+	// and to FS tools (list_dir/read_file/grep) so relative paths land here.
+	workspace := workspaceForPrompt(job.Workspace, w.cfg.WorkspaceRoot)
 	messages, err = injectPrompts(w.cfg.PromptsRoot, messages, promptVars{
 		AdminDisplayName:     displayName(job.AdminName),
 		AdminUserID:          job.AdminUserID,
 		AvailableTools:       strings.Join(toolNames, ", "),
 		IndexedDocumentCount: docCount,
-		Workspace:            job.Workspace,
+		Workspace:            workspace,
 		UIPath:               job.UIPath,
 	})
 	if err != nil {
@@ -430,7 +434,7 @@ func (w *Worker) runAgent(ctx context.Context, job service.TurnJob) error {
 					}); err != nil {
 						return false, err
 					}
-					envelope, execErr := w.tools.Execute(tools.WithWorkspace(tools.WithThreadID(roundCtx, job.ThreadID), job.Workspace), service.ToolCall{
+					envelope, execErr := w.tools.Execute(tools.WithWorkspace(tools.WithThreadID(roundCtx, job.ThreadID), workspace), service.ToolCall{
 						CallID:    callID,
 						Name:      tc.Name,
 						Arguments: tc.Arguments,
@@ -1009,3 +1013,14 @@ func errf(msg string) error { return &simpleErr{msg: msg} }
 type simpleErr struct{ msg string }
 
 func (e *simpleErr) Error() string { return e.msg }
+
+// workspaceForPrompt picks the working directory surfaced to the LLM.
+// Per-turn override wins; otherwise the process-level default from
+// BP_WORKSPACE_ROOT (resolved to absolute at boot); empty → prompt layer
+// falls back to os.Getwd().
+func workspaceForPrompt(turnWorkspace, defaultWorkspace string) string {
+	if v := strings.TrimSpace(turnWorkspace); v != "" {
+		return v
+	}
+	return strings.TrimSpace(defaultWorkspace)
+}

@@ -30,6 +30,11 @@ func main() {
 	cfgPath := envCfg.ConfigPath()
 	settingsStore := appconfig.NewStore(cfgPath)
 	cfg := envCfg
+	if _, created, err := settingsStore.EnsureSeeded(ctx, envCfg); err != nil {
+		logging.Warn(ctx, "config seed warning", "path", cfgPath, "err", err.Error())
+	} else if created {
+		logging.Info(ctx, "config seeded", "path", cfgPath, "note", "generated from struct defaults; edit to add providers/keys")
+	}
 	if settingsStore.Exists() {
 		if doc, err := settingsStore.Load(ctx); err != nil {
 			logging.Warn(ctx, "config.json load warning", "err", err.Error())
@@ -38,7 +43,7 @@ func main() {
 			logging.Info(ctx, "config merged", "path", cfgPath, "providers", len(cfg.LLMProviders), "source", "file")
 		}
 	} else {
-		logging.Info(ctx, "config bootstrap", "path", cfgPath, "note", "no config.json yet — stub mode")
+		logging.Info(ctx, "config bootstrap", "path", cfgPath, "note", "config.json unavailable — stub mode")
 	}
 
 	if err := os.MkdirAll(cfg.StorageRoot, 0o775); err != nil {
@@ -107,7 +112,7 @@ func main() {
 	)
 	if cfg.MCPEnabled && len(cfg.MCPServers) == 0 {
 		logging.Warn(ctx, "mcp enabled with no servers",
-			"hint", "add mcp.servers to storage/config.json (see storage/config.example.json); make mcp-echo; restart make be",
+			"hint", "add mcp.servers to storage/config.json; make mcp-echo; restart make be",
 			"path", cfgPath,
 		)
 	}
@@ -155,17 +160,18 @@ func main() {
 	)
 
 	uc := webchatusecase.NewService(webchatusecase.Deps{
-		Threads:     store,
-		Locks:       locks,
-		Interrupt:   intr,
-		Floor:       floor,
-		RateLimit:   rl,
-		Redactor:    red,
-		Docs:        docsIndex,
-		Events:      events,
-		Worker:      tw,
-		Attachments: attStore,
-		Models:      modelCatalog,
+		Threads:       store,
+		Locks:         locks,
+		Interrupt:     intr,
+		Floor:         floor,
+		RateLimit:     rl,
+		Redactor:      red,
+		Docs:          docsIndex,
+		Events:        events,
+		Worker:        tw,
+		Attachments:   attStore,
+		Models:        modelCatalog,
+		WorkspaceRoot: cfg.WorkspaceRoot,
 	})
 
 	srv := httpdelivery.NewServer(cfg, uc, settingsSvc)

@@ -11,7 +11,8 @@ Local ops for humans and agents. Product locks and layer rules: [`AGENTS.md`](..
 
 ```bash
 cp .env.example .env        # optional; Load also reads .env if present
-cp storage/config.example.json storage/config.json   # then edit providers/keys
+# storage/config.json is auto-generated from struct defaults on first boot.
+# Edit it to add providers/keys, or use the Settings UI.
 ```
 
 Most knobs (limits, llm globals, context, docs, web_search, skills_root, mcp, providers) live in `storage/config.json` — the JSON source of truth. Env (`BP_*`) is process-level only: paths/addr, `BP_LLM_RETRY_STATUSES`, `BP_LLM_STUB`. See [settings-config](../architecture/settings-config.md).
@@ -43,6 +44,8 @@ Useful env (defaults in parentheses). Most knobs now live in `storage/config.jso
 | `BP_DOCS_ROOT` | `resources/webchat/docs` |
 | `BP_PROMPTS_ROOT` | `resources/webchat/prompts` |
 | `BP_TOOLS_ROOT` | `resources/webchat/tools` |
+| `BP_SKILLS_ROOT` | `resources/webchat/skills` |
+| `BP_WORKSPACE_ROOT` | `.` (resolved to absolute process cwd at boot) — the agent's working dir: surfaced to the LLM as `{{cwd}}` in `developer.md`, AND used as the default base for relative `list_dir` / `read_file` / `grep` / `write_file` / `edit_file` paths when the turn doesn't override. Per-turn override (sent via StartTurn `workspace`) wins. |
 | `BP_LLM_STUB` | `true` if no provider API key |
 | `BP_LLM_RETRY_STATUSES` | `408,409,413,425,429,500–504` |
 
@@ -77,7 +80,7 @@ make be
 # send a message → agent_message "(stub) received: …" + turn.completed
 ```
 
-**Real:** edit `storage/config.json` (copy from `storage/config.example.json`):
+**Real:** edit `storage/config.json` (auto-generated on first boot):
 
 ```json
 {
@@ -101,7 +104,7 @@ Restart `make be`. Expect tool rounds (docs_search / list_dir / read_file / grep
 
 **Skills:** Ask the agent to use a skill (e.g. “pakai skill writing-post untuk outline postingan tentang X”). Expect `list_skills` and/or `read_skill` then `docs_search`. Details: [skills-tools.md](../architecture/skills-tools.md).
 
-**MCP:** Copy `mcp` from `storage/config.example.json` into `storage/config.json`, run `make mcp-echo`, restart `make be`. Ask to list/call MCP tools. If `list_mcp_tools` returns empty `tools` with a `hint`, servers are missing from the runtime config file. Details: [mcp-support.md](../architecture/mcp-support.md).
+**MCP:** Edit the `mcp` block in `storage/config.json`, run `make mcp-echo`, restart `make be`. Ask to list/call MCP tools. If `list_mcp_tools` returns empty `tools` with a `hint`, servers are missing from the runtime config file. Details: [mcp-support.md](../architecture/mcp-support.md).
 
 **Vision (image attach):** With `llm.vision=auto` (default) or `on` and a vision-capable model (e.g. `xiaomi/mimo-v2.5`), attach a PNG/JPEG and ask "apa isi gambar ini?". Worker injects `image_url` / `input_image` data-URL parts (cap 4 MiB / image). Text-only models under `auto` get metadata only. Details: [llm-vision.md](../architecture/llm-vision.md).
 

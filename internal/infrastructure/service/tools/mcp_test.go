@@ -78,8 +78,8 @@ func TestListMCPToolsNoServersHint(t *testing.T) {
 		t.Fatalf("%+v", data)
 	}
 	hint, _ := data["hint"].(string)
-	if hint == "" || !strings.Contains(hint, "config.example.json") {
-		t.Fatalf("expected config.example hint, got %q", hint)
+	if hint == "" || !strings.Contains(hint, "mcp.servers") {
+		t.Fatalf("expected mcp.servers hint, got %q", hint)
 	}
 }
 

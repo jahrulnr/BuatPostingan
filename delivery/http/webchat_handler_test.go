@@ -17,8 +17,10 @@ import (
 )
 
 type listFake struct {
-	out webchat.ListConversationsResult
-	err error
+	out        webchat.ListConversationsResult
+	err        error
+	browseOut  webchat.BrowseDirResult
+	browsePath string
 }
 
 func (f *listFake) ListConversations(context.Context) (webchat.ListConversationsResult, error) {
@@ -53,6 +55,10 @@ func (f *listFake) ListAttachments(context.Context, valueobject.ThreadID) ([]ent
 }
 func (f *listFake) ListModels(context.Context) (entity.ModelsCatalog, error) {
 	return entity.ModelsCatalog{}, apperr.NotImplemented("x")
+}
+func (f *listFake) BrowseDir(_ context.Context, path string) (webchat.BrowseDirResult, error) {
+	f.browsePath = path
+	return f.browseOut, f.err
 }
 func (f *listFake) SubscribeEvents(context.Context, valueobject.ThreadID, uint64, webchat.EventEmitter) error {
 	return apperr.NotImplemented("x")
@@ -190,5 +196,47 @@ func TestListModelsJSONShape(t *testing.T) {
 	effort, ok := body["effort"].(map[string]any)
 	if !ok || effort["current"] != "auto" {
 		t.Fatalf("effort: %v", body["effort"])
+	}
+}
+func TestBrowseDirDelegatesEmptyPathAndSerializesResult(t *testing.T) {
+	t.Parallel()
+	uc := &listFake{
+		browseOut: webchat.BrowseDirResult{
+			Path:   "/workspace",
+			Parent: "/",
+			Entries: []webchat.BrowseDirEntry{
+				{Name: "project-a", Path: "/workspace/project-a"},
+				{Name: "project-b", Path: "/workspace/project-b"},
+			},
+		},
+	}
+	srv := httpdelivery.NewServer(config.Config{WebRoot: "web"}, uc, nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/webchat/browse", nil)
+	rec := httptest.NewRecorder()
+	srv.Handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+	}
+	if uc.browsePath != "" {
+		t.Fatalf("BrowseDir path = %q, want empty", uc.browsePath)
+	}
+
+	var body struct {
+		Path    string `json:"path"`
+		Parent  string `json:"parent"`
+		Entries []struct {
+			Name string `json:"name"`
+			Path string `json:"path"`
+		} `json:"entries"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Path != "/workspace" || body.Parent != "/" {
+		t.Fatalf("path/parent = %q/%q", body.Path, body.Parent)
+	}
+	if len(body.Entries) != 2 || body.Entries[0].Name != "project-a" || body.Entries[0].Path != "/workspace/project-a" || body.Entries[1].Name != "project-b" || body.Entries[1].Path != "/workspace/project-b" {
+		t.Fatalf("entries = %#v", body.Entries)
 	}
 }

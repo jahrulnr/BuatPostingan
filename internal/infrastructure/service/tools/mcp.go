@@ -22,7 +22,7 @@ func (r *Registry) execListMCPTools(ctx context.Context, args map[string]any) se
 				"server_errors":      map[string]string{},
 				"mcp_enabled":        false,
 				"servers_configured": 0,
-				"hint":               "MCP is disabled (BP_MCP_ENABLED=false or mcp.enabled=false). Enable it and add mcp.servers in storage/config.json — see storage/config.example.json.",
+				"hint":               "MCP is disabled (BP_MCP_ENABLED=false or mcp.enabled=false). Enable it and add mcp.servers in storage/config.json.",
 			},
 			Meta: mcpMeta(false, 0, started, false),
 		}
@@ -64,7 +64,7 @@ func (r *Registry) execListMCPTools(ctx context.Context, args map[string]any) se
 	// config.json (BP_MCP_ENABLED defaults true). Surface that explicitly so
 	// the model/operator do not treat it as a silent connect success.
 	if len(configured) == 0 {
-		data["hint"] = "No MCP servers configured in storage/config.json (mcp.servers is empty/missing). Copy the mcp block from storage/config.example.json, run `make mcp-echo`, then restart `make be`."
+		data["hint"] = "No MCP servers configured in storage/config.json (mcp.servers is empty/missing). Run `make mcp-echo`, then restart `make be`."
 	} else if len(tools) == 0 && len(serverErrors) == 0 && serverID != "" {
 		data["hint"] = "Server filter matched a configured id but returned no tools."
 	} else if len(tools) == 0 && len(serverErrors) > 0 {

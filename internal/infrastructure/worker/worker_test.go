@@ -15,6 +15,7 @@ import (
 	"buatpostingan/internal/domain/enum"
 	"buatpostingan/internal/domain/service"
 	"buatpostingan/internal/domain/valueobject"
+	"buatpostingan/internal/infrastructure/service/tools"
 	"buatpostingan/internal/pkg/logging"
 )
 
@@ -165,7 +166,9 @@ type fakeTools struct {
 	schemas   []map[string]any
 	schemaErr error
 	exec      func(service.ToolCall) (service.ToolEnvelope, error)
-	calls     []service.ToolCall
+	// onCtx observes the ctx passed to Execute (test-only).
+	onCtx func(context.Context)
+	calls []service.ToolCall
 }
 
 func (t *fakeTools) Schemas(context.Context) ([]map[string]any, error) {
@@ -179,7 +182,10 @@ func (t *fakeTools) Schemas(context.Context) ([]map[string]any, error) {
 		{"type": "function", "function": map[string]any{"name": "docs_search"}},
 	}, nil
 }
-func (t *fakeTools) Execute(_ context.Context, call service.ToolCall) (service.ToolEnvelope, error) {
+func (t *fakeTools) Execute(ctx context.Context, call service.ToolCall) (service.ToolEnvelope, error) {
+	if t.onCtx != nil {
+		t.onCtx(ctx)
+	}
 	t.calls = append(t.calls, call)
 	if t.exec != nil {
 		return t.exec(call)
@@ -881,4 +887,95 @@ func containsType(types []enum.ItemType, want enum.ItemType) bool {
 		}
 	}
 	return false
+}
+
+func TestWorkspaceForPrompt(t *testing.T) {
+	cases := []struct {
+		name string
+		turn string
+		def  string
+		want string
+	}{
+		{"turn override wins", "/turn", "/default", "/turn"},
+		{"empty turn uses default", "  ", "/default", "/default"},
+		{"both empty → empty (prompt layer falls back to os.Getwd)", "", "", ""},
+		{"whitespace turn trimmed", "  /trim  ", "/def", "/trim"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := workspaceForPrompt(c.turn, c.def); got != c.want {
+				t.Fatalf("got %q want %q", got, c.want)
+			}
+		})
+	}
+}
+
+// TestWorkspaceDefaultInjectedToTools verifies that an empty per-turn Workspace
+// falls back to cfg.WorkspaceRoot and is passed to FS tools via ctx, so
+// BP_WORKSPACE_ROOT controls where relative paths resolve — not just the
+// LLM-visible cwd string.
+func TestWorkspaceDefaultInjectedToTools(t *testing.T) {
+	root := t.TempDir()
+	mustWritePrompt(t, root)
+	store := &fakeStore{}
+	llm := &scriptLLM{resps: []service.LLMResult{
+		{ToolCalls: []service.ToolCall{{Name: "list_dir", Arguments: map[string]any{"path": "."}}}, ProviderID: "P"},
+		{Text: "done", ProviderID: "P"},
+	}}
+	observedWS := ""
+	toolsList := &fakeTools{
+		onCtx: func(ctx context.Context) {
+			if ws, ok := tools.WorkspaceFromContext(ctx); ok {
+				observedWS = ws
+			}
+		},
+	}
+	w := New(Deps{
+		Config: config.Config{
+			LLMStub:       false,
+			PromptsRoot:   root,
+			MaxToolRounds: 4,
+			WorkspaceRoot: "/tmp/ws-cfg-test", // mirrors BP_WORKSPACE_ROOT resolution at boot
+		},
+		Store: store, Locks: &fakeLock{}, Interrupt: &fakeInterrupt{},
+		Tools: toolsList, LLM: llm,
+	})
+	job := sampleJob() // job.Workspace == ""
+	w.process(context.Background(), job)
+
+	if observedWS != "/tmp/ws-cfg-test" {
+		t.Fatalf("expected workspace ctx = %q, got %q", "/tmp/ws-cfg-test", observedWS)
+	}
+}
+
+// TestWorkspaceTurnOverrideWins verifies a per-turn Workspace override wins
+// over cfg.WorkspaceRoot in the ctx passed to tools.
+func TestWorkspaceTurnOverrideWins(t *testing.T) {
+	root := t.TempDir()
+	mustWritePrompt(t, root)
+	store := &fakeStore{}
+	llm := &scriptLLM{resps: []service.LLMResult{
+		{ToolCalls: []service.ToolCall{{Name: "list_dir", Arguments: map[string]any{"path": "."}}}, ProviderID: "P"},
+		{Text: "done", ProviderID: "P"},
+	}}
+	observedWS := ""
+	toolsList := &fakeTools{
+		onCtx: func(ctx context.Context) {
+			if ws, ok := tools.WorkspaceFromContext(ctx); ok {
+				observedWS = ws
+			}
+		},
+	}
+	w := New(Deps{
+		Config: config.Config{LLMStub: false, PromptsRoot: root, MaxToolRounds: 4},
+		Store:  store, Locks: &fakeLock{}, Interrupt: &fakeInterrupt{},
+		Tools: toolsList, LLM: llm,
+	})
+	job := sampleJob()
+	job.Workspace = "/tmp/turn-override"
+	w.process(context.Background(), job)
+
+	if observedWS != "/tmp/turn-override" {
+		t.Fatalf("expected workspace ctx = %q, got %q", "/tmp/turn-override", observedWS)
+	}
 }

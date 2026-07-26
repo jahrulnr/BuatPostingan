@@ -269,8 +269,8 @@ func applyMCPFromFile(base Config, doc entity.SettingsFile) Config {
 	return out
 }
 
-// DefaultLocalDevMCP returns the sample echo server block from config.example.json
-// for seeding new settings documents (not applied at process start unless written).
+// DefaultLocalDevMCP returns the sample echo server block used to seed new
+// settings documents (not applied at process start unless written).
 func DefaultLocalDevMCP() entity.SettingsMCP {
 	enabled := true
 	return entity.SettingsMCP{
@@ -289,6 +289,76 @@ func DefaultLocalDevMCP() entity.SettingsMCP {
 			DenyTools:      []string{},
 			AllowMutations: false,
 		}},
+	}
+}
+
+// DefaultSeedFile returns a fresh SettingsFile snapshot derived from Load()
+// defaults plus env providers (when present) and the local-dev MCP sample.
+//
+// Used both by appconfig.Store.EnsureSeeded() at boot (writes the file when
+// missing) and by the settings usecase for in-memory seeding. Omitting
+// providers keeps the file in stub mode until the operator adds one.
+func DefaultSeedFile(base Config) entity.SettingsFile {
+	maxToolRounds := base.MaxToolRounds
+	speakFloorTTL := base.SpeakFloorTTL
+	lockTTL := base.LockTTL
+	turnRate := base.TurnRateLimitPerMin
+	turnTimeout := base.TurnJobTimeoutSec
+	stream := base.LLMStream
+	totalAttempts := base.LLMTotalAttemptBudget
+	circuitFail := base.LLMCircuitFailureThreshold
+	circuitCool := base.LLMCircuitCooldownSec
+	retryBase := base.LLMRetryBaseDelayMS
+	retryMax := base.LLMRetryMaxDelayMS
+	retryJitter := base.LLMRetryJitter
+	compaction := base.ContextCompactionEnabled
+	maxInput := base.ContextMaxInputTokens
+	reserve := base.ContextReserveTokens
+	recentTurns := base.ContextRecentTurns
+	summaryMax := base.ContextSummaryMaxChars
+	topK := base.DocsTopK
+	minScore := base.DocsMinScore
+	fuzzy := base.DocsFuzzyEnabled
+
+	return entity.SettingsFile{
+		Version: 1,
+		Users:   []entity.SettingsUser{{ID: "usr_owner", Name: "Owner", Role: "owner"}},
+		Limits: entity.SettingsLimits{
+			MaxToolRounds:       &maxToolRounds,
+			SpeakFloorTTLSec:    &speakFloorTTL,
+			LockTTLSec:          &lockTTL,
+			TurnRateLimitPerMin: &turnRate,
+			TurnJobTimeoutSec:   &turnTimeout,
+		},
+		LLM: entity.SettingsLLM{
+			Strategy:                base.LLMStrategy,
+			ActiveProvider:          base.LLMActiveProvider,
+			Stream:                  &stream,
+			Vision:                  base.LLMVision,
+			Effort:                  base.LLMEffort,
+			TotalAttemptBudget:      &totalAttempts,
+			CircuitFailureThreshold: &circuitFail,
+			CircuitCooldownSec:      &circuitCool,
+			RetryBaseDelayMS:        &retryBase,
+			RetryMaxDelayMS:         &retryMax,
+			RetryJitter:             &retryJitter,
+			Providers:               RuntimeProvidersToFile(base.LLMProviders),
+		},
+		Context: entity.SettingsContext{
+			CompactionEnabled: &compaction,
+			MaxInputTokens:    &maxInput,
+			ReserveTokens:     &reserve,
+			RecentTurns:       &recentTurns,
+			SummaryMaxChars:   &summaryMax,
+		},
+		Docs: entity.SettingsDocs{
+			TopK:         &topK,
+			MinScore:     &minScore,
+			FuzzyEnabled: &fuzzy,
+			AppID:        base.DocsAppID,
+		},
+		WebSearch: entity.SettingsWebSearch{GitHubToken: base.GitHubToken},
+		MCP:       DefaultLocalDevMCP(),
 	}
 }
 

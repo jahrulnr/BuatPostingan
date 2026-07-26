@@ -3,6 +3,7 @@ package config
 import (
 	"bufio"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -18,6 +19,9 @@ type Config struct {
 	PromptsRoot string
 	ToolsRoot   string
 	SkillsRoot  string
+	// WorkspaceRoot is the agent's logical working directory (cwd surfaced to
+	// the LLM via developer.md). Empty → process cwd at Load() time.
+	WorkspaceRoot string
 
 	MaxToolRounds       int
 	SpeakFloorTTL       int
@@ -114,6 +118,9 @@ func Load() Config {
 		PromptsRoot: getenvFirst("BP_PROMPTS_ROOT", "resources/webchat/prompts"),
 		ToolsRoot:   getenvFirst("BP_TOOLS_ROOT", "resources/webchat/tools"),
 		SkillsRoot:  getenvFirst("BP_SKILLS_ROOT", "resources/webchat/skills"),
+		// Default to absolute process cwd so the LLM sees a stable path even
+		// if the binary is launched from elsewhere; explicit env wins.
+		WorkspaceRoot: resolveWorkspace(getenvFirst("BP_WORKSPACE_ROOT", ".")),
 
 		// Env-only toggles (not in config.json).
 		LLMStub:          stub,
@@ -234,6 +241,22 @@ func getenvFirst(keys ...string) string {
 		}
 	}
 	return fallback
+}
+
+// resolveWorkspace turns the env value into an absolute path. Empty or "."
+// → process cwd. Errors fall back to the raw input (never crash boot).
+func resolveWorkspace(raw string) string {
+	v := strings.TrimSpace(raw)
+	if v == "" || v == "." {
+		if cwd, err := os.Getwd(); err == nil {
+			return cwd
+		}
+		return v
+	}
+	if abs, err := filepath.Abs(v); err == nil {
+		return abs
+	}
+	return v
 }
 
 func getenvIntFirst(keys []string, fallback int) int {

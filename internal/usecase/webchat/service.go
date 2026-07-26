@@ -19,6 +19,9 @@ type Deps struct {
 	Worker      service.TurnWorker
 	Attachments repository.AttachmentStore
 	Models      service.ModelCatalog
+	// WorkspaceRoot is the default working directory surfaced to the workspace
+	// picker when the request omits a path. Mirrors BP_WORKSPACE_ROOT.
+	WorkspaceRoot string
 }
 
 // Service implements Usecase by orchestrating ports (mirrors AipediaWebchatController).

@@ -18,6 +18,7 @@ func clearLLMEnv(t *testing.T) {
 		"BP_PROMPTS_ROOT",
 		"BP_TOOLS_ROOT",
 		"BP_SKILLS_ROOT",
+		"BP_WORKSPACE_ROOT",
 		"BP_LLM_STUB",
 		"BP_LLM_RETRY_STATUSES",
 	}
@@ -147,5 +148,36 @@ func TestLoad_ChatAPIPreserved(t *testing.T) {
 	cfg := config.Load()
 	if cfg.LLMProviders != nil {
 		t.Fatal("providers should be nil from env")
+	}
+}
+
+func TestLoad_WorkspaceRootDefaultAbsolute(t *testing.T) {
+	clearLLMEnv(t)
+	cfg := config.Load()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WorkspaceRoot != cwd {
+		t.Fatalf("expected default to resolve to cwd %q, got %q", cwd, cfg.WorkspaceRoot)
+	}
+	if !filepath.IsAbs(cfg.WorkspaceRoot) {
+		t.Fatalf("expected absolute, got %q", cfg.WorkspaceRoot)
+	}
+}
+
+func TestLoad_WorkspaceRootOverride(t *testing.T) {
+	clearLLMEnv(t)
+	t.Setenv("BP_WORKSPACE_ROOT", "/tmp/ws-test")
+	cfg := config.Load()
+	if cfg.WorkspaceRoot != "/tmp/ws-test" {
+		t.Fatalf("override: got %q", cfg.WorkspaceRoot)
+	}
+
+	// Relative override resolves to absolute.
+	t.Setenv("BP_WORKSPACE_ROOT", "rel/ws")
+	cfg = config.Load()
+	if !filepath.IsAbs(cfg.WorkspaceRoot) || filepath.Base(cfg.WorkspaceRoot) != "ws" {
+		t.Fatalf("relative should resolve to absolute, got %q", cfg.WorkspaceRoot)
 	}
 }

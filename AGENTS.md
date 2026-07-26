@@ -78,13 +78,13 @@ Reuse over rewrite: treat kitchen + webchat delivery as a **copyable kit**, not 
 
 ## Ready-to-use LLM
 
-- Real LLM: configure `llm.providers[]` in `storage/config.json` (copy from `storage/config.example.json`) and set `BP_LLM_STUB=false`.
-- **Source of truth:** `storage/config.json` (gitignored) holds limits, `llm.*` globals (strategy/providers/stream/vision/effort/circuit/retry backoff), `context.*`, `docs.*`, `web_search.*`, and `mcp.*`. When a JSON key is omitted, the hardcoded default in `config.Load()` wins. Env-only: `BP_HTTP_ADDR`, `BP_WEB_ROOT`, `BP_STORAGE_ROOT`, `BP_DOCS_ROOT`, `BP_PROMPTS_ROOT`, `BP_TOOLS_ROOT`, `BP_SKILLS_ROOT`, `BP_CONFIG_PATH`, `BP_LLM_RETRY_STATUSES`, `BP_LLM_STUB`. See [`docs/architecture/settings-config.md`](docs/architecture/settings-config.md).
+- Real LLM: configure `llm.providers[]` in `storage/config.json` (auto-generated from struct defaults on first boot) and set `BP_LLM_STUB=false`.
+- **Source of truth:** `storage/config.json` (gitignored; auto-generated on first boot) holds limits, `llm.*` globals (strategy/providers/stream/vision/effort/circuit/retry backoff), `context.*`, `docs.*`, `web_search.*`, and `mcp.*`. When a JSON key is omitted, the hardcoded default in `config.Load()` wins. Env-only: `BP_HTTP_ADDR`, `BP_WEB_ROOT`, `BP_STORAGE_ROOT`, `BP_DOCS_ROOT`, `BP_PROMPTS_ROOT`, `BP_TOOLS_ROOT`, `BP_SKILLS_ROOT`, `BP_WORKSPACE_ROOT`, `BP_CONFIG_PATH`, `BP_LLM_RETRY_STATUSES`, `BP_LLM_STUB`. See [`docs/architecture/settings-config.md`](docs/architecture/settings-config.md).
 - `llm.providers[].api=responses` (preferred, AIPedia-aligned) or `chat`. Default `llm.stream=true`: client sends `stream=true` and parses proxy SSE (`text/event-stream`); JSON non-stream remains a path. Set `llm.stream=false` to force JSON. If streaming is rejected as unsupported, client retries once with `stream=false`.
 - `llm.vision=auto|on|off` (default `auto`): gate multimodal image parts — see [`docs/architecture/llm-vision.md`](docs/architecture/llm-vision.md).
 - `llm.effort=auto|none|minimal|low|medium|high|xhigh|max` (default `auto`): reasoning effort when the model supports it — see [`docs/architecture/llm-effort.md`](docs/architecture/llm-effort.md).
 - Model picker (composer): `GET /api/webchat/models` + optional StartTurn `model`/`effort` — see [`docs/architecture/llm-model-picker.md`](docs/architecture/llm-model-picker.md).
-- Settings UI + JSON config: `storage/config.json` (gitignored; see `storage/config.example.json`) is the source of truth — [`docs/architecture/settings-config.md`](docs/architecture/settings-config.md). API under `/api/settings`.
+- Settings UI + JSON config: `storage/config.json` (gitignored; auto-generated on first boot) is the source of truth — [`docs/architecture/settings-config.md`](docs/architecture/settings-config.md). API under `/api/settings`.
 
 ## Make targets
 

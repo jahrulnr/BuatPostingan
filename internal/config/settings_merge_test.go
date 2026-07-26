@@ -126,6 +126,40 @@ func TestDefaultLocalDevMCP(t *testing.T) {
 	}
 }
 
+func TestDefaultSeedFile(t *testing.T) {
+	base := Config{
+		LLMStrategy:           "failover",
+		LLMStream:             true,
+		LLMVision:             "auto",
+		LLMEffort:             "auto",
+		MaxToolRounds:         8,
+		ContextMaxInputTokens: 12000,
+		DocsAppID:             "buatpostingan",
+	}
+	doc := DefaultSeedFile(base)
+	if doc.Version != 1 || len(doc.Users) != 1 || doc.Users[0].ID != "usr_owner" {
+		t.Fatalf("version/users: %+v", doc)
+	}
+	if doc.LLM.Strategy != "failover" || doc.LLM.Stream == nil || !*doc.LLM.Stream {
+		t.Fatalf("llm globals not seeded: %+v", doc.LLM)
+	}
+	if doc.Limits.MaxToolRounds == nil || *doc.Limits.MaxToolRounds != 8 {
+		t.Fatalf("limits not seeded: %+v", doc.Limits)
+	}
+	if doc.Context.MaxInputTokens == nil || *doc.Context.MaxInputTokens != 12000 {
+		t.Fatalf("context not seeded: %+v", doc.Context)
+	}
+	if doc.Docs.AppID != "buatpostingan" {
+		t.Fatalf("docs.app_id not seeded: %q", doc.Docs.AppID)
+	}
+	if len(doc.MCP.Servers) != 1 || doc.MCP.Servers[0].ID != "echo" {
+		t.Fatalf("mcp seed missing: %+v", doc.MCP)
+	}
+	if len(doc.LLM.Providers) != 0 {
+		t.Fatalf("providers should default to empty, got %+v", doc.LLM.Providers)
+	}
+}
+
 func TestApplySettingsFileLimitsContextDocsGlobals(t *testing.T) {
 	base := Config{
 		MaxToolRounds:              8,

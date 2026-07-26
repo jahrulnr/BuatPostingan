@@ -29,6 +29,17 @@ func WithWorkspace(ctx context.Context, workspace string) context.Context {
 	return context.WithValue(ctx, workspaceCtxKey{}, workspace)
 }
 
+// WorkspaceFromContext exposes the workspace override stored via WithWorkspace.
+// Returns ("", true) when the key exists but is empty. Returns ("", false) when
+// no override was set. Useful for tests/debugging.
+func WorkspaceFromContext(ctx context.Context) (string, bool) {
+	if ctx == nil {
+		return "", false
+	}
+	ws, ok := ctx.Value(workspaceCtxKey{}).(string)
+	return ws, ok
+}
+
 func workspaceFrom(ctx context.Context) string {
 	if ctx == nil {
 		return ""

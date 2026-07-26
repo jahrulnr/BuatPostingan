@@ -3,6 +3,8 @@ package webchat_test
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"buatpostingan/internal/domain/entity"
@@ -14,16 +16,17 @@ import (
 )
 
 type memDeps struct {
-	threads   *memStore
-	locks     *memLock
-	interrupt *memInterrupt
-	floor     *memFloor
-	rate      *memRate
-	docs      *memDocs
-	worker    *memWorker
-	events    *memEvents
-	redactor  service.SecretRedactor
-	models    *memModels
+	threads       *memStore
+	locks         *memLock
+	interrupt     *memInterrupt
+	floor         *memFloor
+	rate          *memRate
+	docs          *memDocs
+	worker        *memWorker
+	events        *memEvents
+	redactor      service.SecretRedactor
+	models        *memModels
+	workspaceRoot string
 }
 
 func newMemDeps() memDeps {
@@ -43,17 +46,63 @@ func newMemDeps() memDeps {
 
 func (d memDeps) service() *webchat.Service {
 	return webchat.NewService(webchat.Deps{
-		Threads:   d.threads,
-		Locks:     d.locks,
-		Interrupt: d.interrupt,
-		Floor:     d.floor,
-		RateLimit: d.rate,
-		Redactor:  d.redactor,
-		Docs:      d.docs,
-		Events:    d.events,
-		Worker:    d.worker,
-		Models:    d.models,
+		Threads:       d.threads,
+		Locks:         d.locks,
+		Interrupt:     d.interrupt,
+		Floor:         d.floor,
+		RateLimit:     d.rate,
+		Redactor:      d.redactor,
+		Docs:          d.docs,
+		Events:        d.events,
+		Worker:        d.worker,
+		Models:        d.models,
+		WorkspaceRoot: d.workspaceRoot,
 	})
+}
+
+func TestBrowseDir_EmptyPathUsesWorkspaceRoot(t *testing.T) {
+	t.Parallel()
+	workspaceRoot := t.TempDir()
+	child := filepath.Join(workspaceRoot, "child")
+	if err := os.Mkdir(child, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	d := newMemDeps()
+	d.workspaceRoot = workspaceRoot
+	out, err := d.service().BrowseDir(context.Background(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Path != workspaceRoot {
+		t.Fatalf("path: got %q, want %q", out.Path, workspaceRoot)
+	}
+	if len(out.Entries) != 1 || out.Entries[0].Name != "child" || out.Entries[0].Path != child {
+		t.Fatalf("entries: %+v", out.Entries)
+	}
+}
+
+func TestBrowseDir_ExplicitPathOverridesWorkspaceRoot(t *testing.T) {
+	t.Parallel()
+	workspaceRoot := t.TempDir()
+	explicitPath := t.TempDir()
+	explicitChild := filepath.Join(explicitPath, "explicit-child")
+	if err := os.Mkdir(explicitChild, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	d := newMemDeps()
+	d.workspaceRoot = workspaceRoot
+	out, err := d.service().BrowseDir(context.Background(), explicitPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Path != explicitPath {
+		t.Fatalf("path: got %q, want %q", out.Path, explicitPath)
+	}
+	if len(out.Entries) != 1 || out.Entries[0].Name != "explicit-child" || out.Entries[0].Path != explicitChild {
+		t.Fatalf("entries: %+v", out.Entries)
+	}
 }
 
 func TestStartTurnOrder_HappyPath(t *testing.T) {

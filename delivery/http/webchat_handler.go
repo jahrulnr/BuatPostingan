@@ -3,10 +3,7 @@ package httpdelivery
 import (
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"buatpostingan/delivery/presenter"
@@ -371,53 +368,26 @@ func parseTurnID(raw string) (valueobject.TurnID, error) {
 }
 
 // BrowseDir lists directories at the given path for the workspace picker UI.
-// No restriction — any accessible path is listed (including root "/").
+// Delegates resolution to the usecase so BP_WORKSPACE_ROOT is honored when the
+// request omits a path. No client-side restriction; any accessible path is
+// listed (including root "/").
 func (h *WebchatHandler) BrowseDir(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Path string `json:"path"`
 	}
 	_ = decodeJSON(r, &body)
-	dir := strings.TrimSpace(body.Path)
-	if dir == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			cwd = "/"
-		}
-		dir = cwd
-	}
-	if _, err := os.Stat(dir); err != nil {
-		writeErr(w, r, "webchat.browse", apperr.New(http.StatusBadRequest, apperr.CodeValidation, "path not accessible"))
-		return
-	}
-	entries, err := os.ReadDir(dir)
+	res, err := h.UC.BrowseDir(r.Context(), body.Path)
 	if err != nil {
-		writeErr(w, r, "webchat.browse", apperr.New(http.StatusBadRequest, apperr.CodeValidation, "cannot read directory"))
+		writeErr(w, r, "webchat.browse", err)
 		return
 	}
-	type dirEntry struct {
-		Name string `json:"name"`
-		Path string `json:"path"`
-	}
-	var dirs []dirEntry
-	abs, _ := filepath.Abs(dir)
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		full := filepath.Join(abs, e.Name())
-		dirs = append(dirs, dirEntry{Name: e.Name(), Path: full})
+	entries := make([]map[string]string, 0, len(res.Entries))
+	for _, e := range res.Entries {
+		entries = append(entries, map[string]string{"name": e.Name, "path": e.Path})
 	}
 	presenter.WriteJSON(w, http.StatusOK, map[string]any{
-		"path":    abs,
-		"parent":  parentDir(abs),
-		"entries": dirs,
+		"path":    res.Path,
+		"parent":  res.Parent,
+		"entries": entries,
 	})
-}
-
-func parentDir(abs string) string {
-	p := filepath.Dir(abs)
-	if p == abs {
-		return ""
-	}
-	return p
 }
