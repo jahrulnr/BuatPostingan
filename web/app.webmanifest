@@ -1,0 +1,24 @@
+{
+  "name": "BuatPostingan",
+  "short_name": "BuatPostingan",
+  "description": "AI workspace for drafting, reviewing, and publishing content.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#071018",
+  "theme_color": "#102238",
+  "icons": [
+    {
+      "src": "./assets/buatpostingan-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./assets/buatpostingan-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

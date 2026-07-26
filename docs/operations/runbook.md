@@ -95,6 +95,22 @@ The root route serves only `storage/pages/.published/`, so an unpublished draft
 cannot be reached from the public site. Override the host port with
 `BP_PORT=1314 make docker-up`.
 
+### PWA
+
+The admin workspace is installable as a Progressive Web App. In Docker, open
+`/admin/`; local development uses the same files at the web root. The manifest
+and service worker follow that containing scope automatically.
+
+The service worker deliberately caches only same-origin static assets from
+`assets/`, `css/`, `js/`, and `vendor/`, plus the self-contained offline
+fallback page. It never caches normal navigation HTML, `/api/`,
+authentication/session data, or non-GET requests, so the workspace still
+requires a network connection for live data. Keep `sw.js` and
+`app.webmanifest` served with `Cache-Control: no-cache`; bump `CACHE_NAME` when
+a cache-policy change must discard previously stored assets. Verify with
+`node --test web/js/pwa.test.mjs` and the browser's Application/Service Workers
+panel.
+
 ### Admin authentication
 
 Chat JSONL remains under `storage/webchat/`. User accounts and hashed session

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#102238">
+    <title>You're offline · BuatPostingan</title>
+    <link rel="icon" href="./assets/buatpostingan-mark.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="./css/offline.css">
+</head>
+<body>
+    <main class="offline-shell" aria-labelledby="offlineTitle">
+        <a class="offline-brand" href="./" aria-label="BuatPostingan home">
+            <img src="./assets/buatpostingan-mark.svg" alt="" width="36" height="36">
+            <span>BuatPostingan</span>
+        </a>
+        <section class="offline-card">
+            <div class="offline-art" aria-hidden="true">
+                <img class="offline-art__robot" src="./assets/offline-robot.svg" alt="">
+                <img class="offline-art__mark" src="./assets/buatpostingan-mark.svg" alt="">
+            </div>
+            <p class="offline-kicker">CONNECTION PAUSED</p>
+            <h1 id="offlineTitle">Looks like you're offline.</h1>
+            <p class="offline-copy">Your workspace is waiting safely. Reconnect to load conversations, pages, and the latest changes.</p>
+            <button class="offline-retry" type="button" onclick="window.location.reload()">Try again <span aria-hidden="true">↗</span></button>
+        </section>
+        <p class="offline-footnote">BuatPostingan keeps live workspace data online-only.</p>
+    </main>
+</body>
+</html>
