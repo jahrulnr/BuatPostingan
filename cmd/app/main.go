@@ -7,6 +7,7 @@ import (
 
 	httpdelivery "buatpostingan/delivery/http"
 	"buatpostingan/internal/config"
+	"buatpostingan/internal/infrastructure/auth"
 	"buatpostingan/internal/infrastructure/repository/appconfig"
 	"buatpostingan/internal/infrastructure/repository/attachments"
 	"buatpostingan/internal/infrastructure/repository/jsonl"
@@ -48,6 +49,35 @@ func main() {
 	if err := os.MkdirAll(cfg.StorageRoot, 0o775); err != nil {
 		logging.Error(ctx, "storage.root", err)
 		os.Exit(1)
+	}
+	authDBPath := cfg.AuthDBPath
+	if !filepath.IsAbs(authDBPath) {
+		absAuthDBPath, err := filepath.Abs(authDBPath)
+		if err != nil {
+			logging.Error(ctx, "auth.path", err)
+			os.Exit(1)
+		}
+		authDBPath = absAuthDBPath
+	}
+	if err := os.MkdirAll(filepath.Dir(authDBPath), 0o775); err != nil {
+		logging.Error(ctx, "auth.root", err)
+		os.Exit(1)
+	}
+	authStore, err := auth.NewStore(authDBPath)
+	if err != nil {
+		logging.Error(ctx, "auth.store", err)
+		os.Exit(1)
+	}
+	defer authStore.Close()
+	if cfg.AuthUsername != "" || cfg.AuthPassword != "" {
+		created, bootstrapErr := authStore.Bootstrap(ctx, cfg.AuthUsername, cfg.AuthPassword)
+		if bootstrapErr != nil {
+			logging.Error(ctx, "auth.bootstrap", bootstrapErr)
+			os.Exit(1)
+		}
+		if created {
+			logging.Info(ctx, "auth bootstrap user created", "username", cfg.AuthUsername)
+		}
 	}
 	pagesRoot := filepath.Join(filepath.Dir(cfg.StorageRoot), "pages")
 	if err := os.MkdirAll(pagesRoot, 0o775); err != nil {
@@ -172,7 +202,7 @@ func main() {
 		WorkspaceRoot: cfg.WorkspaceRoot,
 	})
 
-	srv := httpdelivery.NewServer(cfg, uc, settingsSvc)
+	srv := httpdelivery.NewServer(cfg, uc, settingsSvc, authStore)
 	if err := httpdelivery.ListenAndServe(srv); err != nil {
 		logging.Error(ctx, "http.server", err)
 		os.Exit(1)

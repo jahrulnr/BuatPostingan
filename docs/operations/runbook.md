@@ -8,6 +8,7 @@ Local ops for humans and agents. Product locks and layer rules: [`AGENTS.md`](..
 - Node.js (`npx`) for `make fe` live-reload (no committed `node_modules`)
 - Optional: provider API key for real LLM turns
 - Optional: host `rg` for faster `grep` tool (Go RE2 fallback if missing)
+- Authentication bootstrap password for the first admin user
 
 ```bash
 cp .env.example .env        # optional; Load also reads .env if present
@@ -48,6 +49,11 @@ Useful env (defaults in parentheses). Most knobs now live in `storage/config.jso
 | `BP_WORKSPACE_ROOT` | `.` (resolved to absolute process cwd at boot) — the agent's working dir: surfaced to the LLM as `{{cwd}}` in `developer.md`, AND used as the default base for relative `list_dir` / `read_file` / `grep` / `write_file` / `edit_file` paths when the turn doesn't override. Per-turn override (sent via StartTurn `workspace`) wins. |
 | `BP_LLM_STUB` | `true` if no provider API key |
 | `BP_LLM_RETRY_STATUSES` | `408,409,413,425,429,500–504` |
+| `BP_AUTH_DB_PATH` | `{dirname(BP_STORAGE_ROOT)}/auth.sqlite3` |
+| `BP_AUTH_ADMIN_USERNAME` | empty; set together with password for first boot |
+| `BP_AUTH_ADMIN_PASSWORD` | empty; 8–128 chars, never commit it |
+| `BP_AUTH_SESSION_TTL_HOURS` | `24` |
+| `BP_CORS_ORIGIN` | `http://localhost:5173` |
 
 Everything else (provider slots, stream/vision/effort, retry backoff, context, docs, skills root, mcp) is configurable via `storage/config.json` — see [settings-config](../architecture/settings-config.md) and [LLM providers](../architecture/llm-providers.md).
 
@@ -88,6 +94,24 @@ container on `127.0.0.1:1313`; Nginx proxies `/api/` and `healthz` to it.
 The root route serves only `storage/pages/.published/`, so an unpublished draft
 cannot be reached from the public site. Override the host port with
 `BP_PORT=1314 make docker-up`.
+
+### Admin authentication
+
+Chat JSONL remains under `storage/webchat/`. User accounts and hashed session
+metadata are stored separately in SQLite at `storage/auth.sqlite3`. On an empty
+database, the app creates one admin user only when both bootstrap variables are
+provided:
+
+```bash
+BP_AUTH_ADMIN_USERNAME=owner \
+BP_AUTH_ADMIN_PASSWORD='use-a-local-password-of-8-chars-or-more' \
+make docker-up
+```
+
+Open `http://localhost:1212/admin/login.html`. The password is bcrypt-hashed;
+the browser receives only an HttpOnly, SameSite session cookie. If the database
+already contains a user, bootstrap variables do not overwrite it. Set
+`BP_CORS_ORIGIN` when using `make fe` from a non-default origin.
 
 ## Stub vs real LLM
 

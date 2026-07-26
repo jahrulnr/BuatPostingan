@@ -213,6 +213,10 @@ export const deletePage = mockMode
     ? mock.deletePageMock
     : real.deletePageImpl;
 
+export const authMe = real.authMeImpl;
+export const authLogin = real.authLoginImpl;
+export const authLogout = real.authLogoutImpl;
+
 /** @type {import('./types.js').ApiContext} */
 export const api = {
     baseUrl: baseUrl,

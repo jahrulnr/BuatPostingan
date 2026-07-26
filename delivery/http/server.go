@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"buatpostingan/internal/config"
+	"buatpostingan/internal/infrastructure/auth"
 	"buatpostingan/internal/usecase/settings"
 	"buatpostingan/internal/usecase/webchat"
 )
@@ -53,24 +54,36 @@ func MountStaticWeb(mux *http.ServeMux, webRoot string) {
 
 // NewServer wires product HTTP: API + healthz + static web/.
 // Other hosts should call MountWebchatAPI (and optionally MountHealthz) on their own mux.
-func NewServer(cfg config.Config, uc webchat.Usecase, settingsUC *settings.Service) *http.Server {
+func NewServer(cfg config.Config, uc webchat.Usecase, settingsUC *settings.Service, authStores ...*auth.Store) *http.Server {
 	mux := http.NewServeMux()
 	MountWebchatAPI(mux, uc)
 	MountSettingsAPI(mux, settingsUC)
 	MountHealthz(mux)
 	MountPagePreview(mux, filepath.Join(filepath.Dir(cfg.StorageRoot), "pages"))
 	MountStaticWeb(mux, cfg.WebRoot)
+	var authStore *auth.Store
+	if len(authStores) > 0 {
+		authStore = authStores[0]
+	}
+	if authStore != nil {
+		(&AuthHandler{Store: authStore, SessionTTL: time.Duration(cfg.AuthSessionTTLHours) * time.Hour}).Register(mux)
+	}
 
 	return &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           withCORS(TraceMiddleware(mux)),
+		Handler:           withCORS(cfg.CORSOrigin, TraceMiddleware(authGuard(authStore, mux))),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 }
 
-func withCORS(next http.Handler) http.Handler {
+func withCORS(allowedOrigin string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := r.Header.Get("Origin")
+		if origin != "" && (allowedOrigin == "*" || origin == allowedOrigin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+		}
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Admin-User-Id, X-Admin-Display-Name, X-CSRF-TOKEN, Last-Event-ID, X-Trace-Id, traceparent")
 		w.Header().Set("Access-Control-Expose-Headers", "X-Trace-Id, Retry-After")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")

@@ -1,4 +1,4 @@
-import { api, listPages, publishPage, unpublishPage, deletePage } from './api/index.js';
+import { api, authLogout, authMe, listPages, publishPage, unpublishPage, deletePage } from './api/index.js';
 import { bootChat } from './ui/chat.js';
 import { bootTheme } from './ui/theme.js';
 import { bootPreviewResize } from './ui/preview-resize.js';
@@ -99,8 +99,33 @@ function bootChrome() {
 }
 
 bootTheme();
-paintModeBadge();
-bootChrome();
-bootPreviewResize();
-bootSettings();
-bootChat();
+
+function bootAuthenticated(user) {
+    if (user && user.user) {
+        window.__BP_ADMIN_USER_ID__ = user.user.id;
+        window.__BP_ADMIN_DISPLAY_NAME__ = user.user.displayName;
+    }
+    const logoutButton = document.getElementById('btnLogout');
+    if (logoutButton && !api.mockMode) {
+        logoutButton.addEventListener('click', function () {
+            logoutButton.disabled = true;
+            authLogout(api).finally(function () {
+                window.location.replace('./login.html');
+            });
+        });
+    }
+    paintModeBadge();
+    bootChrome();
+    bootPreviewResize();
+    bootSettings();
+    bootChat();
+}
+
+if (api.mockMode) {
+    bootAuthenticated(null);
+} else {
+    authMe(api).then(bootAuthenticated).catch(function () {
+        const next = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.replace('./login.html?next=' + next);
+    });
+}

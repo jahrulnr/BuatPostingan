@@ -31,6 +31,9 @@ func decodeJSON(r *http.Request, dst any) error {
 
 // Demo auth stub — replace with real session/guard later.
 func adminUserID(r *http.Request) int64 {
+	if user, ok := userFromContext(r.Context()); ok {
+		return user.ID
+	}
 	if v := r.Header.Get("X-Admin-User-Id"); v != "" {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return n
@@ -40,6 +43,9 @@ func adminUserID(r *http.Request) int64 {
 }
 
 func adminDisplayName(r *http.Request) string {
+	if user, ok := userFromContext(r.Context()); ok {
+		return user.DisplayName
+	}
 	if v := r.Header.Get("X-Admin-Display-Name"); v != "" {
 		return v
 	}

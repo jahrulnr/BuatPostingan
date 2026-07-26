@@ -21,7 +21,12 @@ type Config struct {
 	SkillsRoot  string
 	// WorkspaceRoot is the agent's logical working directory (cwd surfaced to
 	// the LLM via developer.md). Empty → process cwd at Load() time.
-	WorkspaceRoot string
+	WorkspaceRoot       string
+	AuthDBPath          string
+	AuthUsername        string
+	AuthPassword        string
+	AuthSessionTTLHours int
+	CORSOrigin          string
 
 	MaxToolRounds     int
 	SpeakFloorTTL     int
@@ -117,7 +122,12 @@ func Load() Config {
 		SkillsRoot:  getenvFirst("BP_SKILLS_ROOT", "resources/webchat/skills"),
 		// Default to absolute process cwd so the LLM sees a stable path even
 		// if the binary is launched from elsewhere; explicit env wins.
-		WorkspaceRoot: resolveWorkspace(getenvFirst("BP_WORKSPACE_ROOT", ".")),
+		WorkspaceRoot:       resolveWorkspace(getenvFirst("BP_WORKSPACE_ROOT", ".")),
+		AuthDBPath:          getenvFirst("BP_AUTH_DB_PATH", "storage/auth.sqlite3"),
+		AuthUsername:        getenvFirst("BP_AUTH_ADMIN_USERNAME", ""),
+		AuthPassword:        getenvFirst("BP_AUTH_ADMIN_PASSWORD", ""),
+		AuthSessionTTLHours: getenvIntFirst([]string{"BP_AUTH_SESSION_TTL_HOURS"}, 24),
+		CORSOrigin:          getenvFirst("BP_CORS_ORIGIN", "http://localhost:5173"),
 
 		// Env-only toggles (not in config.json).
 		LLMStub:          stub,

@@ -1,0 +1,39 @@
+/* Login surface for the administrative workspace. */
+
+:root {
+    color-scheme: dark;
+    --auth-bg: oklch(16% 0.018 245);
+    --auth-surface: oklch(20% 0.022 245);
+    --auth-ink: oklch(92% 0.012 235);
+    --auth-muted: oklch(68% 0.018 235);
+    --auth-border: oklch(32% 0.022 240);
+    --auth-accent: oklch(76% 0.11 215);
+    --auth-accent-ink: oklch(16% 0.025 245);
+    --auth-danger: oklch(70% 0.15 25);
+}
+
+* { box-sizing: border-box; }
+body {
+    min-height: 100vh;
+    margin: 0;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+    color: var(--auth-ink);
+    font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    background:
+        radial-gradient(circle at 15% 0%, oklch(38% 0.07 220 / .28), transparent 27rem),
+        radial-gradient(circle at 90% 100%, oklch(30% 0.045 190 / .16), transparent 30rem),
+        var(--auth-bg);
+}
+.auth-card { width: min(100%, 26rem); padding: 2rem; border: 1px solid var(--auth-border); border-radius: .75rem; background: color-mix(in oklab, var(--auth-surface) 94%, var(--auth-accent) 6%); }
+.auth-brand { display: flex; align-items: center; gap: .7rem; margin-bottom: 2rem; font-size: 1.1rem; font-weight: 700; }
+.auth-brand img { width: 2.25rem; height: 2.25rem; }
+h1 { margin: 0; font-size: 1.55rem; letter-spacing: -.03em; }
+.auth-intro { margin: .55rem 0 1.5rem; color: var(--auth-muted); line-height: 1.55; }
+label { display: grid; gap: .45rem; margin-top: 1rem; color: var(--auth-muted); font-size: .83rem; }
+input { width: 100%; padding: .78rem .85rem; border: 1px solid var(--auth-border); border-radius: .4rem; color: var(--auth-ink); background: var(--auth-bg); font: inherit; }
+input:focus { border-color: var(--auth-accent); outline: 2px solid color-mix(in oklab, var(--auth-accent) 35%, transparent); outline-offset: 1px; }
+button { width: 100%; margin-top: 1.35rem; padding: .8rem 1rem; border: 0; border-radius: .4rem; color: var(--auth-accent-ink); background: var(--auth-accent); font: inherit; font-weight: 700; cursor: pointer; }
+button:disabled { cursor: wait; opacity: .65; }
+.auth-error { min-height: 1.25rem; margin: .8rem 0 0; color: var(--auth-danger); font-size: .83rem; }

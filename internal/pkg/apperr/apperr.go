@@ -16,6 +16,7 @@ const (
 	CodeFloorLocked       Code = "floor_locked"
 	CodeDocsIndexNotReady Code = "docs_index_not_ready"
 	CodeForbidden         Code = "forbidden"
+	CodeUnauthorized      Code = "unauthorized"
 	CodeNotInitiator      Code = "not_initiator"
 	CodeValidation        Code = "validation"
 	CodeEmpty             Code = "empty"

@@ -29,6 +29,10 @@ function acceptHeaders(api) {
     return Object.assign({ Accept: 'application/json' }, csrfHeader(api), traceHeader());
 }
 
+function request(input, init) {
+    return fetch(input, Object.assign({ credentials: 'include' }, init || {}));
+}
+
 /**
  * Return the draft-preview URL without issuing a request. The chat API base is
  * deliberately transformed here so `make fe` keeps targeting the Go backend.
@@ -48,14 +52,14 @@ export function pagePreviewURLImpl(api, req) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function listPagesImpl(api, _req) {
-    return fetch(api.baseUrl + '/pages', {
+    return request(api.baseUrl + '/pages', {
         headers: acceptHeaders(api),
     }).then(parseJson);
 }
 
 /** @param {import('../types.js').ApiContext} api */
 export function publishPageImpl(api, req) {
-    return fetch(api.baseUrl + '/pages/' + encodeURIComponent(req.pageId) + '/publish', {
+    return request(api.baseUrl + '/pages/' + encodeURIComponent(req.pageId) + '/publish', {
         method: 'POST',
         headers: acceptHeaders(api),
     }).then(parseJson);
@@ -63,7 +67,7 @@ export function publishPageImpl(api, req) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function unpublishPageImpl(api, req) {
-    return fetch(api.baseUrl + '/pages/' + encodeURIComponent(req.pageId) + '/publish', {
+    return request(api.baseUrl + '/pages/' + encodeURIComponent(req.pageId) + '/publish', {
         method: 'DELETE',
         headers: acceptHeaders(api),
     }).then(parseJson);
@@ -71,7 +75,7 @@ export function unpublishPageImpl(api, req) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function deletePageImpl(api, req) {
-    return fetch(api.baseUrl + '/pages/' + encodeURIComponent(req.pageId), {
+    return request(api.baseUrl + '/pages/' + encodeURIComponent(req.pageId), {
         method: 'DELETE',
         headers: acceptHeaders(api),
     }).then(parseJson);
@@ -97,14 +101,14 @@ async function parseJson(res) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function listConversationsImpl(api, _req) {
-    return fetch(api.baseUrl + '/conversations', {
+    return request(api.baseUrl + '/conversations', {
         headers: acceptHeaders(api),
     }).then(parseJson);
 }
 
 /** @param {import('../types.js').ApiContext} api */
 export function createThreadImpl(api, _req) {
-    return fetch(api.baseUrl + '/threads', {
+    return request(api.baseUrl + '/threads', {
         method: 'POST',
         headers: acceptHeaders(api),
     }).then(parseJson);
@@ -113,14 +117,14 @@ export function createThreadImpl(api, _req) {
 /** @param {import('../types.js').ApiContext} api */
 export function getThreadImpl(api, req) {
     const after = req.afterSeq || 0;
-    return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '?after_seq=' + after, {
+    return request(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '?after_seq=' + after, {
         headers: acceptHeaders(api),
     }).then(parseJson);
 }
 
 /** @param {import('../types.js').ApiContext} api */
 export function renameThreadImpl(api, req) {
-    return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId), {
+    return request(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId), {
         method: 'PATCH',
         headers: jsonHeaders(api),
         body: JSON.stringify({ title: req.title }),
@@ -129,7 +133,7 @@ export function renameThreadImpl(api, req) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function deleteThreadImpl(api, req) {
-    return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId), {
+    return request(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId), {
         method: 'DELETE',
         headers: acceptHeaders(api),
     }).then(function (res) {
@@ -148,7 +152,7 @@ export function startTurnImpl(api, req) {
     if (req.model) body.model = req.model;
     if (req.effort) body.effort = req.effort;
     if (req.workspace) body.workspace = req.workspace;
-    return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/turns', {
+    return request(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/turns', {
         method: 'POST',
         headers: jsonHeaders(api),
         body: JSON.stringify(body),
@@ -157,7 +161,7 @@ export function startTurnImpl(api, req) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function listModelsImpl(api, _req) {
-    return fetch(api.baseUrl + '/models', {
+    return request(api.baseUrl + '/models', {
         headers: acceptHeaders(api),
     }).then(parseJson);
 }
@@ -166,7 +170,7 @@ export function listModelsImpl(api, _req) {
 export function uploadAttachmentImpl(api, req) {
     const form = new FormData();
     form.append('file', req.file, req.file && req.file.name);
-    return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/attachments', {
+    return request(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/attachments', {
         method: 'POST',
         headers: acceptHeaders(api),
         body: form,
@@ -175,7 +179,7 @@ export function uploadAttachmentImpl(api, req) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function listAttachmentsImpl(api, req) {
-    return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/attachments', {
+    return request(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/attachments', {
         headers: acceptHeaders(api),
     }).then(parseJson);
 }
@@ -189,7 +193,7 @@ export function retryTurnImpl(api, req) {
     if (req.model) body.model = req.model;
     if (req.effort) body.effort = req.effort;
     if (req.workspace) body.workspace = req.workspace;
-    return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/retry', {
+    return request(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/retry', {
         method: 'POST',
         headers: jsonHeaders(api),
         body: JSON.stringify(body),
@@ -198,7 +202,7 @@ export function retryTurnImpl(api, req) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function interruptTurnImpl(api, req) {
-    return fetch(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/interrupt', {
+    return request(api.baseUrl + '/threads/' + encodeURIComponent(req.threadId) + '/interrupt', {
         method: 'POST',
         headers: jsonHeaders(api),
         body: JSON.stringify({ turn_id: req.turnId }),
@@ -262,19 +266,43 @@ function settingsBase(api) {
     return (base || '') + '/api/settings';
 }
 
+function authBase(api) {
+    const base = String((api && api.baseUrl) || '').replace(/\/api\/webchat\/?$/, '');
+    return (base || '') + '/api/auth';
+}
+
+export function authMeImpl(api) {
+    return request(authBase(api) + '/me', { headers: { Accept: 'application/json' } }).then(parseJson);
+}
+
+export function authLoginImpl(api, credentials) {
+    return request(authBase(api) + '/login', {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials || {}),
+    }).then(parseJson);
+}
+
+export function authLogoutImpl(api) {
+    return request(authBase(api) + '/logout', {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+    }).then(parseJson);
+}
+
 /** @param {import('../types.js').ApiContext} api */
 export function getSettingsSnapshotImpl(api) {
-    return fetch(settingsBase(api), { headers: { Accept: 'application/json' } }).then(parseJson);
+    return request(settingsBase(api), { headers: { Accept: 'application/json' } }).then(parseJson);
 }
 
 /** @param {import('../types.js').ApiContext} api */
 export function listSettingsUsersImpl(api) {
-    return fetch(settingsBase(api) + '/users', { headers: { Accept: 'application/json' } }).then(parseJson);
+    return request(settingsBase(api) + '/users', { headers: { Accept: 'application/json' } }).then(parseJson);
 }
 
 /** @param {import('../types.js').ApiContext} api */
 export function createSettingsUserImpl(api, body) {
-    return fetch(settingsBase(api) + '/users', {
+    return request(settingsBase(api) + '/users', {
         method: 'POST',
         headers: jsonHeaders(api),
         body: JSON.stringify(body || {}),
@@ -283,7 +311,7 @@ export function createSettingsUserImpl(api, body) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function updateSettingsUserImpl(api, id, body) {
-    return fetch(settingsBase(api) + '/users/' + encodeURIComponent(id), {
+    return request(settingsBase(api) + '/users/' + encodeURIComponent(id), {
         method: 'PATCH',
         headers: jsonHeaders(api),
         body: JSON.stringify(body || {}),
@@ -292,7 +320,7 @@ export function updateSettingsUserImpl(api, id, body) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function deleteSettingsUserImpl(api, id) {
-    return fetch(settingsBase(api) + '/users/' + encodeURIComponent(id), {
+    return request(settingsBase(api) + '/users/' + encodeURIComponent(id), {
         method: 'DELETE',
         headers: acceptHeaders(api),
     }).then(function (res) {
@@ -303,19 +331,19 @@ export function deleteSettingsUserImpl(api, id) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function listLLMProvidersImpl(api) {
-    return fetch(settingsBase(api) + '/llm/providers', { headers: { Accept: 'application/json' } }).then(parseJson);
+    return request(settingsBase(api) + '/llm/providers', { headers: { Accept: 'application/json' } }).then(parseJson);
 }
 
 /** @param {import('../types.js').ApiContext} api */
 export function getLLMProviderImpl(api, id) {
-    return fetch(settingsBase(api) + '/llm/providers/' + encodeURIComponent(id), {
+    return request(settingsBase(api) + '/llm/providers/' + encodeURIComponent(id), {
         headers: acceptHeaders(api),
     }).then(parseJson);
 }
 
 /** @param {import('../types.js').ApiContext} api */
 export function createLLMProviderImpl(api, body) {
-    return fetch(settingsBase(api) + '/llm/providers', {
+    return request(settingsBase(api) + '/llm/providers', {
         method: 'POST',
         headers: jsonHeaders(api),
         body: JSON.stringify(body || {}),
@@ -324,7 +352,7 @@ export function createLLMProviderImpl(api, body) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function updateLLMProviderImpl(api, id, body) {
-    return fetch(settingsBase(api) + '/llm/providers/' + encodeURIComponent(id), {
+    return request(settingsBase(api) + '/llm/providers/' + encodeURIComponent(id), {
         method: 'PATCH',
         headers: jsonHeaders(api),
         body: JSON.stringify(body || {}),
@@ -333,7 +361,7 @@ export function updateLLMProviderImpl(api, id, body) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function deleteLLMProviderImpl(api, id) {
-    return fetch(settingsBase(api) + '/llm/providers/' + encodeURIComponent(id), {
+    return request(settingsBase(api) + '/llm/providers/' + encodeURIComponent(id), {
         method: 'DELETE',
         headers: acceptHeaders(api),
     }).then(function (res) {
@@ -344,7 +372,7 @@ export function deleteLLMProviderImpl(api, id) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function addLLMModelImpl(api, id, model) {
-    return fetch(settingsBase(api) + '/llm/providers/' + encodeURIComponent(id) + '/models', {
+    return request(settingsBase(api) + '/llm/providers/' + encodeURIComponent(id) + '/models', {
         method: 'POST',
         headers: jsonHeaders(api),
         body: JSON.stringify(model || {}),
@@ -353,7 +381,7 @@ export function addLLMModelImpl(api, id, model) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function removeLLMModelImpl(api, id, modelId) {
-    return fetch(
+    return request(
         settingsBase(api) +
             '/llm/providers/' +
             encodeURIComponent(id) +
@@ -368,7 +396,7 @@ export function removeLLMModelImpl(api, id, modelId) {
 
 /** @param {import('../types.js').ApiContext} api */
 export function importLLMModelsImpl(api, id) {
-    return fetch(settingsBase(api) + '/llm/providers/' + encodeURIComponent(id) + '/import-models', {
+    return request(settingsBase(api) + '/llm/providers/' + encodeURIComponent(id) + '/import-models', {
         method: 'POST',
         headers: jsonHeaders(api),
         body: '{}',
@@ -379,7 +407,7 @@ export function importLLMModelsImpl(api, id) {
 export function browseDirImpl(api, req) {
     const body = {};
     if (req && req.path) body.path = req.path;
-    return fetch(api.baseUrl + '/browse', {
+    return request(api.baseUrl + '/browse', {
         method: 'POST',
         headers: jsonHeaders(api),
         body: JSON.stringify(body),

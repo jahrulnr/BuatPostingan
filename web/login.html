@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Login · BuatPostingan</title>
+    <link rel="icon" href="./assets/buatpostingan-mark.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./css/auth.css">
+</head>
+<body>
+    <main class="auth-card">
+        <div class="auth-brand"><img src="./assets/buatpostingan-mark.svg" alt=""><span>BuatPostingan</span></div>
+        <h1>Admin workspace</h1>
+        <p class="auth-intro">Masuk untuk mengelola percakapan, draft page, dan publikasi konten.</p>
+        <form id="loginForm">
+            <label>Username <input name="username" autocomplete="username" required autofocus></label>
+            <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+            <p class="auth-error" id="loginError" role="alert"></p>
+            <button type="submit" id="loginSubmit">Masuk</button>
+        </form>
+    </main>
+    <script type="module">
+        import { api, authLogin } from './js/api/index.js';
+
+        const form = document.getElementById('loginForm');
+        const error = document.getElementById('loginError');
+        const submit = document.getElementById('loginSubmit');
+        const params = new URLSearchParams(window.location.search);
+        const next = params.get('next') || './index.html';
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+            error.textContent = '';
+            submit.disabled = true;
+            const data = new FormData(form);
+            authLogin(api, { username: data.get('username'), password: data.get('password') })
+                .then(function () { window.location.replace(next.startsWith('/') ? next : './' + next.replace(/^\.\//, '')); })
+                .catch(function () { error.textContent = 'Username atau password tidak valid.'; submit.disabled = false; });
+        });
+    </script>
+</body>
+</html>
