@@ -1,10 +1,10 @@
 # Settings Page
 
-Configuration panel with three sections: General, Users, and Models (LLM providers).
+Configuration panel with three sections: General, Users, and Models (LLM providers). Product knobs persist in `storage/config.json`; API keys and the GitHub token are masked on read.
 
 ## Overview
 
-The Settings page is a full-page view that replaces the chat workspace when active. It is activated via URL hash routes: `#/settings/general`, `#/settings/users`, `#/settings/models`. The page has a left navigation bar and a right content panel. A back button at the top of the nav returns to chat.
+The Settings page is a full-page view that replaces the chat workspace when active. It is activated via URL hash routes: `#/settings/general`, `#/settings/users`, `#/settings/models`, and `#/settings/models/<providerId>`. The page has a left navigation bar and a right content panel that scrolls normally (no sticky floating bars). A back button at the top of the nav returns to chat.
 
 ## What information will show to user
 
@@ -14,145 +14,133 @@ The Settings page is a full-page view that replaces the chat workspace when acti
     - General (sliders icon) → `#/settings/general`
     - Users (people icon) → `#/settings/users`
     - Models (CPU icon) → `#/settings/models`
-    - Active section link is highlighted.
+    - Active section link is highlighted with a teal accent bar.
   - **Bottom area**: Logout button (box-arrow-right icon, full-width grey button).
 - **Content panel** (right side): Renders different content based on the active section. Shows "Loading…" text while fetching data.
 - **Settings toast** (bottom of content panel): Hidden by default. Shows transient success/error messages for ~3 seconds.
 
-### General section content
+### General section content (`#/settings/general`)
 
-- Header: "General" heading with lede "Theme and local preferences. Server env globals stay in `BP_*`."
-- Card: Muted text "Use the theme control in the top chrome. Logout (left nav) clears local prefs only."
+Compact editor for product knobs from `storage/config.json`.
+
+- **Header**: "General" heading with lede about `storage/config.json`. Optional meta line: config source (`file` / `env` / `mock`), config path, and a `stub` badge when no usable providers are configured.
+- **Section jump links** (under the header, scroll with the page): `limits`, `llm`, `context`, `docs`, `search`, `mcp`. Clicking scrolls to that section.
+- **Limits** card: numeric fields — Max tool rounds, Speak floor TTL (sec), Lock TTL (sec), Turn timeout (sec).
+- **LLM globals** card:
+  - Strategy segmented buttons: Failover / Round robin / Switch.
+  - Active provider segmented buttons: Auto plus each configured provider ID.
+  - Stream responses toggle.
+  - Vision segmented buttons: Auto / On / Off.
+  - Effort segmented buttons: Auto / None / Min / Low / Med / High / XHigh / Max.
+  - Numeric fields: Attempt budget, Retry base (ms), Retry max (ms), Jitter (0–1).
+- **Context** card: Compaction toggle; Max input (tok), Reserve (tok), Recent turns, Summary max (chars).
+- **Docs** card: Top K, Min score, App ID, Fuzzy match toggle.
+- **Web search** card: GitHub token password field. Placeholder is `ghp_…` when unset, or "Leave blank to keep ••••…XXXX" when a token is already stored. Leave blank to keep the existing secret.
+- **MCP** card:
+  - MCP enabled toggle; Connect timeout (sec); Call timeout (sec).
+  - "Add server" button (top-right of MCP header).
+  - Server rows: enabled switch, server ID, transport/command meta, "Edit" and "Remove" buttons.
+  - Expanded Edit body: ID, Transport (stdio / SSE / HTTP), Command, Args (comma), URL, Env (`KEY=value` per line), Allow tools / Deny tools (comma lists), Trusted toggle, Allow mutations toggle.
+- **Footer actions** (end of form, in document flow): "Unsaved changes" hint when dirty, "Reset" (reloads snapshot), "Save config" (primary).
 
 ### Users section content
 
-- Header: "Users" On the right is an "Add user" button (blue, plus icon).
-- Table: Columns — ID (code style), Name, Role, and action buttons. Each row has Edit (grey ghost button) and Delete (red danger button) on the right. Empty state shows "No users" in a muted row.
+- Header: "Users" with lede "Local JSON users — no auth yet." On the right is an "Add user" button (primary, plus icon).
+- Table: Columns — ID (code style), Name, Role, and action buttons. Each row has Edit (ghost) and Delete (danger). Empty state shows "No users".
 
-### Models section content
+### Models section content (`#/settings/models`)
 
-- Header: "Models" heading with lede "OpenAI-compatible LLM providers." On the right is an "Add OpenAI Compatible" button (blue, plus icon). Below the header, optional meta line showing config source and path.
-- **Provider grid**: Each provider is a card containing:
-  - **Top row**: Provider name (heading) and ID/api type text on the left; enabled toggle switch on the right. Disabled providers show a "disabled" badge.
-  - **Base URL**: Code text showing the provider's base URL.
-  - **API key**: "Key sk-…XXXX" (masked) or "No API key" (muted).
-  - **Models count**: "Models: N" with a count badge.
-  - **Actions row**: "Details" button (grey ghost) and "Delete" button (red danger) at the bottom of the card.
-  - Empty state: "No providers yet — add one or rely on `BP_LLM_*` env until first save."
+Provider catalog grid — one card per known provider family, overlaid with the configured connection when present.
+
+- **Header**: "Providers" heading with lede "Manage direct APIs and local AI gateways. Credentials stay masked." Optional meta line with config source and path. On the right: "Custom provider" button (primary, plus icon).
+- **Provider grid**: Catalog cards for families such as OpenRouter, OmniRoute, 9Router, OpenAI, OpenAI Compatible, Claude API. Each card shows:
+  - **Top row**: Accent icon + family name + auth type · API dialect; enabled toggle when configured.
+  - **Description**: Short family blurb (or base URL for legacy custom cards).
+  - **Connection row**: Status — Not configured / Configured / Needs API key / Disabled — plus instance ID and chat-model count when configured.
+  - **Actions**: "Configure" when not set up; "Details" + "Delete" when configured.
+  - Extra legacy cards appear for configured providers that are not in the catalog.
+- Empty catalog fallback copy mentions env until first save (normally the catalog always renders).
 
 ### Provider detail view (`#/settings/models/<id>`)
 
-- Header: Back link "← Models" (top-left), provider name (heading), and provider ID + api type lede below.
-- **Info card**: Definition list showing Base URL (code), API key (masked or —), and Enabled (yes/no). Action buttons: "Edit" (grey ghost) and "Import models" (grey ghost) below the list.
-- **Models card**: Sub-header "Available models" (heading) with "Add" button (blue, small, plus icon) on the right. Below is a list of models. Each model row shows:
-  - Model ID (code style) and optional label (muted).
-  - "Remove" button (grey ghost, small) on the right.
-  - Metadata badges below: context window (e.g. "128K ctx"), max output (e.g. "16K out"), input modes (e.g. "text", "image"), effort levels (e.g. "low", "high"), and "tools" badge if tool-supporting.
-  - Optional description text below badges.
-  - Empty state: "No models" (muted).
+- Header: Back link "← Models", provider name, and lede with provider ID · API dialect.
+- **Info card**: Base URL (code), API key (masked or —), Enabled (yes/no). Actions: "Edit", "Import models".
+- **Models card**: "Available models" with "Add" button. Each model row shows ID (code), optional label, "Remove", capability badges (context window, max output, input modes, effort levels, tools), optional description. Empty state: "No models".
 
 ## What we can do at this page
 
-- View theme info and clear local preferences (Logout).
-- Add, edit, and delete local users.
-- Add, edit, delete, enable/disable LLM providers.
-- Add and remove individual models from a provider.
-- Import models from a provider's API.
-- Navigate back to chat.
+- Edit and save product knobs (limits, LLM globals, context, docs, web search token, MCP servers) from General.
+- Add, edit, and delete local users (app dialogs — not browser prompts).
+- Configure catalog providers, add custom OpenAI-compatible providers, enable/disable, edit, delete.
+- Add, remove, and import models on a provider detail page.
+- Clear local prefs via Logout and return to chat.
 
 ## How to operate or use the features of this page
 
 ### Open Settings
 
 1. Click the gear icon button (bottom-right of the conversations rail profile section).
-2. The Settings page opens. The Models section is shown by default (URL `#/settings/models`).
+2. The Settings page opens on Models by default (URL `#/settings/models`).
 
 ### Navigate between sections
 
-1. Click any link in the left nav list: General (sliders icon), Users (people icon), or Models (CPU icon).
-2. The content panel on the right updates. The active link is highlighted.
+1. Click General, Users, or Models in the left nav.
+2. The content panel updates; the active link is highlighted.
+
+### Edit General config
+
+1. Open General (`#/settings/general`).
+2. Change fields in any section (Limits, LLM globals, Context, Docs, Web search, MCP). Segmented buttons and toggles mark the form dirty ("Unsaved changes").
+3. Optional: click a jump link (`limits`, `llm`, …) to scroll to that section.
+4. Click "Save config" at the bottom. A toast confirms "Config saved" and the form reloads from the server.
+5. Click "Reset" to discard unsaved edits and reload the current snapshot.
+6. For GitHub token: type a new value to replace; leave blank to keep the stored secret.
+7. For MCP: click "Add server", fill fields via "Edit", or "Remove" a row. Save writes the full servers list.
 
 ### Add a user
 
-1. Go to the Users section (click "Users" in left nav, people icon).
-2. Click the "Add user" button (blue, top-right of users header, plus icon).
-3. A browser prompt appears asking for "Name". Enter a name and click OK.
-4. A second prompt asks for "Role (owner|admin|member)" with default "member". Enter a role and click OK.
-5. The user appears in the table. A toast confirms "User created".
+1. Go to Users.
+2. Click "Add user".
+3. An app dialog asks for Name and Role (Owner / Admin / Member choice buttons). Confirm.
+4. Toast: "User created".
 
-### Edit a user
+### Edit or delete a user
 
-1. In the Users table, click the "Edit" button (grey ghost button, right side of the row).
-2. A browser prompt appears with the current name. Enter a new name (leave blank to keep current) and click OK.
-3. A second prompt asks for role. Enter a new role (leave blank to keep current) and click OK.
-4. Changes are saved. A toast confirms "User updated".
+1. Click Edit or Delete on a table row.
+2. Edit opens an app dialog; Delete opens an app confirm dialog (danger tone).
+3. Toast confirms the result. The last owner cannot be deleted or demoted.
 
-### Delete a user
+### Configure a catalog provider
 
-1. In the Users table, click the "Delete" button (red danger, right side of the row, next to Edit).
-2. A browser confirmation dialog appears: "Delete user ID?". Click OK to confirm.
-3. The user is removed. A toast confirms "User deleted".
+1. Go to Models.
+2. On a "Not configured" card, click "Configure".
+3. The provider dialog opens with family defaults (type, name, prefix, API, base URL). Fill API key and optional model id; adjust fields as needed.
+4. Click Save. The card status becomes Configured (or Needs API key if required and missing).
 
-### Add an LLM provider
+### Add a custom provider
 
-1. Go to the Models section (click "Models" in left nav, CPU icon).
-2. Click the "Add OpenAI Compatible" button (blue, top-right of models header, plus icon).
-3. A provider dialog appears centered with a dark backdrop. Dialog header shows a plug icon, "LLM" label, "Add Provider" title, and a close (X) button in the top-right corner.
-4. Fill in the form fields:
-   - **Name** (full-width input, placeholder "OpenRouter") — required.
-   - **ID / prefix** (full-width input, placeholder "OPENROUTER") — required.
-   - **Prefix (optional)** (half-width input, placeholder "openrouter").
-   - **API type** (half-width dropdown: "responses" or "chat").
-   - **Base URL** (full-width input, placeholder "https://openrouter.ai/api/v1") — required.
-   - **API key** (full-width password input, placeholder "sk-…").
-   - **Model id** (full-width input, placeholder "openai/gpt-4o-mini").
-   - **Enabled** (checkbox, checked by default).
-5. Click "Save" (blue button, right side of dialog bottom) to create. Click "Cancel" (grey ghost, left side) or the backdrop to dismiss.
+1. On Models, click "Custom provider".
+2. Fill the dialog (OpenAI Compatible defaults). Save creates the connection.
 
-### Edit a provider
+### Edit a provider / manage models
 
-1. Click the "Details" button (grey ghost, bottom-left of a provider card).
-2. The provider detail view opens. URL changes to `#/settings/models/<id>`.
-3. Click the "Edit" button (grey ghost, below the info card, left side).
-4. The same provider dialog appears, pre-filled with the provider's current values. The ID field is read-only (greyed out).
-5. The API key field shows placeholder "Leave blank to keep sk-…XXXX" — leave empty to keep the existing key.
-6. Change fields as needed. Click "Save" to update.
-
-### Delete a provider
-
-1. Click the "Delete" button (red danger, bottom-right of a provider card, next to Details).
-2. A browser confirmation dialog appears: "Delete provider ID?". Click OK to confirm.
-3. The provider card is removed. A toast confirms "Provider deleted".
+1. Click "Details" on a configured card → `#/settings/models/<id>`.
+2. Click "Edit" to update fields; leave API key blank to keep the existing secret.
+3. Click "Add" under Available models — app dialog for model id and optional label.
+4. Click "Remove" on a model row to drop it.
+5. Click "Import models" to pull from the provider `/models` endpoint (toast shows imported/updated counts).
 
 ### Enable/disable a provider
 
-1. Locate the enabled toggle switch in the top-right of a provider card.
-2. Click the toggle to flip it. The change is saved immediately.
-3. A toast shows "Enabled" or "Disabled". If the API call fails, the toggle reverts.
+1. Use the enabled toggle on a configured Models card.
+2. Toast shows "Enabled" or "Disabled". On failure the toggle reverts.
 
-### Add a model to a provider
+### Delete a provider
 
-1. Open a provider's detail view (click "Details" on a provider card).
-2. In the "Available models" section, click the "Add" button (blue, small, top-right of the models sub-header, plus icon).
-3. A browser prompt asks for "Model id". Enter the model ID and click OK.
-4. A second prompt asks for "Label (optional)". Enter a label or leave blank, click OK.
-5. The model appears in the list. A toast confirms "Model added".
-
-### Remove a model
-
-1. In the provider detail view, locate the model in the "Available models" list.
-2. Click the "Remove" button (grey ghost, small, right side of the model row).
-3. The model is removed immediately. A toast confirms "Model removed".
-
-### Import models from API
-
-1. Open a provider's detail view (click "Details" on a provider card).
-2. Click the "Import models" button (grey ghost, below the info card, right side of "Edit").
-3. The system fetches available models from the provider's API. A toast shows the result message.
-4. Imported models appear in the "Available models" list.
+1. Click "Delete" on a configured card.
+2. Confirm in the app dialog. Toast: "Provider deleted".
 
 ### Navigate back to chat
 
-1. Click the back arrow button (left-arrow icon, top-left of the settings nav).
-2. Or click "Logout" (box-arrow-right icon, bottom of settings nav) to clear local preferences and return to chat.
-3. The chat workspace reappears. URL changes to `#/`.
+1. Click the back arrow at the top of the settings nav, or click Logout (clears local prefs: theme, model, effort, mock mode, preview width) and return to chat.
+2. URL changes to `#/`.

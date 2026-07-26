@@ -1,10 +1,10 @@
 # Halaman Settings
 
-Panel konfigurasi dengan tiga section: General, Users, dan Models (provider LLM).
+Panel konfigurasi dengan tiga section: General, Users, dan Models (provider LLM). Product knobs tersimpan di `storage/config.json`; API key dan GitHub token di-mask saat dibaca.
 
 ## Overview
 
-Halaman Settings adalah tampilan full-page yang menggantikan workspace chat saat aktif. Diaktifkan via URL hash route: `#/settings/general`, `#/settings/users`, `#/settings/models`. Halaman punya navigation bar kiri dan panel konten kanan. Tombol back di atas nav kembali ke chat.
+Halaman Settings adalah tampilan full-page yang menggantikan workspace chat saat aktif. Diaktifkan via URL hash route: `#/settings/general`, `#/settings/users`, `#/settings/models`, dan `#/settings/models/<providerId>`. Halaman punya navigation bar kiri dan panel konten kanan yang di-scroll biasa (tanpa floating sticky bar). Tombol back di atas nav kembali ke chat.
 
 ## Informasi yang ditampilkan ke pengguna
 
@@ -14,145 +14,133 @@ Halaman Settings adalah tampilan full-page yang menggantikan workspace chat saat
     - General (ikon sliders) → `#/settings/general`
     - Users (ikon people) → `#/settings/users`
     - Models (ikon CPU) → `#/settings/models`
-    - Link section aktif disorot.
+    - Link section aktif disorot dengan aksen teal di tepi kiri.
   - **Area bawah**: Tombol Logout (ikon box-arrow-right, tombol abu-abu full-width).
 - **Panel konten** (sisi kanan): Merender konten berbeda berdasarkan section aktif. Menampilkan "Loading…" saat mengambil data.
 - **Settings toast** (bawah panel konten): Tersembunyi default. Menampilkan pesan sukses/error singkat selama ~3 detik.
 
-### Konten section General
+### Konten section General (`#/settings/general`)
 
-- Header: Heading "General" dengan lede "Theme and local preferences. Server env globals stay in `BP_*`."
-- Kartu: Teks muted "Use the theme control in the top chrome. Logout (left nav) clears local prefs only."
+Editor compact untuk product knobs dari `storage/config.json`.
+
+- **Header**: Heading "General" dengan lede tentang `storage/config.json`. Baris meta opsional: sumber config (`file` / `env` / `mock`), path config, dan badge `stub` jika belum ada provider yang usable.
+- **Jump link section** (di bawah header, ikut scroll halaman): `limits`, `llm`, `context`, `docs`, `search`, `mcp`. Klik untuk scroll ke section tersebut.
+- **Kartu Limits**: field numerik — Max tool rounds, Speak floor TTL (sec), Lock TTL (sec), Turn timeout (sec).
+- **Kartu LLM globals**:
+  - Strategy (tombol segmen): Failover / Round robin / Switch.
+  - Active provider (tombol segmen): Auto plus setiap ID provider yang terkonfigurasi.
+  - Toggle Stream responses.
+  - Vision (tombol segmen): Auto / On / Off.
+  - Effort (tombol segmen): Auto / None / Min / Low / Med / High / XHigh / Max.
+  - Field numerik: Attempt budget, Retry base (ms), Retry max (ms), Jitter (0–1).
+- **Kartu Context**: Toggle Compaction; Max input (tok), Reserve (tok), Recent turns, Summary max (chars).
+- **Kartu Docs**: Top K, Min score, App ID, toggle Fuzzy match.
+- **Kartu Web search**: Field password GitHub token. Placeholder `ghp_…` jika belum diset, atau "Leave blank to keep ••••…XXXX" jika sudah ada. Kosongkan untuk mempertahankan secret yang tersimpan.
+- **Kartu MCP**:
+  - Toggle MCP enabled; Connect timeout (sec); Call timeout (sec).
+  - Tombol "Add server" (kanan-atas header MCP).
+  - Baris server: switch enabled, ID server, meta transport/command, tombol "Edit" dan "Remove".
+  - Body Edit yang terbuka: ID, Transport (stdio / SSE / HTTP), Command, Args (koma), URL, Env (`KEY=value` per baris), Allow tools / Deny tools (daftar koma), toggle Trusted, toggle Allow mutations.
+- **Aksi footer** (akhir form, dalam alur dokumen): hint "Unsaved changes" saat dirty, "Reset" (muat ulang snapshot), "Save config" (primer).
 
 ### Konten section Users
 
-- Header: Heading "Users" Di kanan ada tombol "Add user" (biru, ikon plus).
-- Tabel: Kolom — ID (code style), Name, Role, dan tombol aksi. Setiap baris punya Edit (tombol ghost abu-abu) dan Delete (tombol merah danger) di kanan. Empty state menampilkan "No users" di baris muted.
+- Header: "Users" dengan lede "Local JSON users — no auth yet." Di kanan ada tombol "Add user" (primer, ikon plus).
+- Tabel: Kolom — ID (code style), Name, Role, dan tombol aksi. Setiap baris punya Edit (ghost) dan Delete (danger). Empty state: "No users".
 
-### Konten section Models
+### Konten section Models (`#/settings/models`)
 
-- Header: Heading "Models" dengan lede "OpenAI-compatible LLM providers." Di kanan ada tombol "Add OpenAI Compatible" (biru, ikon plus). Di bawah header, baris meta opsional menampilkan sumber config dan path.
-- **Grid provider**: Setiap provider adalah kartu berisi:
-  - **Baris atas**: Nama provider (heading) dan teks ID/api type di kiri; toggle switch enabled di kanan. Provider disabled menampilkan badge "disabled".
-  - **Base URL**: Teks code menampilkan base URL provider.
-  - **API key**: "Key sk-…XXXX" (masked) atau "No API key" (muted).
-  - **Jumlah model**: "Models: N" dengan badge jumlah.
-  - **Baris aksi**: Tombol "Details" (ghost abu-abu) dan "Delete" (merah danger) di bawah kartu.
-  - Empty state: "No providers yet — add one or rely on `BP_LLM_*` env until first save."
+Grid katalog provider — satu kartu per keluarga provider yang dikenal, ditimpa state koneksi yang sudah dikonfigurasi bila ada.
+
+- **Header**: Heading "Providers" dengan lede "Manage direct APIs and local AI gateways. Credentials stay masked." Meta opsional sumber/path config. Di kanan: tombol "Custom provider" (primer, ikon plus).
+- **Grid provider**: Kartu katalog untuk keluarga seperti OpenRouter, OmniRoute, 9Router, OpenAI, OpenAI Compatible, Claude API. Setiap kartu menampilkan:
+  - **Baris atas**: Ikon aksen + nama keluarga + auth type · dialek API; toggle enabled jika sudah dikonfigurasi.
+  - **Deskripsi**: Blurb singkat keluarga (atau base URL untuk kartu legacy custom).
+  - **Baris koneksi**: Status — Not configured / Configured / Needs API key / Disabled — plus ID instance dan jumlah model chat jika sudah dikonfigurasi.
+  - **Aksi**: "Configure" jika belum disetup; "Details" + "Delete" jika sudah dikonfigurasi.
+  - Kartu legacy ekstra muncul untuk provider terkonfigurasi yang tidak ada di katalog.
+- Fallback empty copy menyebut env sampai first save (biasanya katalog selalu dirender).
 
 ### Detail provider (`#/settings/models/<id>`)
 
-- Header: Link back "← Models" (kiri-atas), nama provider (heading), dan lede ID + api type di bawah.
-- **Kartu info**: Definition list menampilkan Base URL (code), API key (masked atau —), dan Enabled (yes/no). Tombol aksi: "Edit" (ghost abu-abu) dan "Import models" (ghost abu-abu) di bawah list.
-- **Kartu models**: Sub-header "Available models" (heading) dengan tombol "Add" (biru, kecil, ikon plus) di kanan. Di bawah adalah daftar model. Setiap baris model menampilkan:
-  - Model ID (code style) dan label opsional (muted).
-  - Tombol "Remove" (ghost abu-abu, kecil, kanan baris).
-  - Badge metadata di bawah: context window (mis. "128K ctx"), max output (mis. "16K out"), input modes (mis. "text", "image"), effort levels (mis. "low", "high"), dan badge "tools" jika mendukung tool.
-  - Deskripsi opsional di bawah badge.
-  - Empty state: "No models" (muted).
+- Header: Link back "← Models", nama provider, dan lede ID · dialek API.
+- **Kartu info**: Base URL (code), API key (masked atau —), Enabled (yes/no). Aksi: "Edit", "Import models".
+- **Kartu models**: "Available models" dengan tombol "Add". Setiap baris model menampilkan ID (code), label opsional, "Remove", badge kapabilitas (context window, max output, input modes, effort levels, tools), deskripsi opsional. Empty state: "No models".
 
 ## Apa yang bisa dilakukan di halaman ini
 
-- Melihat info tema dan menghapus preferensi lokal (Logout).
-- Menambah, mengedit, dan menghapus user lokal.
-- Menambah, mengedit, menghapus, enable/disable provider LLM.
-- Menambah dan menghapus model individual dari provider.
-- Import model dari API provider.
-- Kembali ke halaman chat.
+- Mengedit dan menyimpan product knobs (limits, LLM globals, context, docs, token web search, server MCP) dari General.
+- Menambah, mengedit, dan menghapus user lokal (dialog aplikasi — bukan prompt browser).
+- Mengonfigurasi provider katalog, menambah provider OpenAI-compatible custom, enable/disable, edit, hapus.
+- Menambah, menghapus, dan mengimpor model di halaman detail provider.
+- Menghapus preferensi lokal via Logout dan kembali ke chat.
 
 ## Cara menggunakan fitur-fitur halaman ini
 
 ### Membuka Settings
 
 1. Klik tombol ikon gear (pojok kanan bawah section profil rail percakapan).
-2. Halaman Settings terbuka. Section Models ditampilkan secara default (URL `#/settings/models`).
+2. Halaman Settings terbuka ke Models secara default (URL `#/settings/models`).
 
 ### Berpindah antar section
 
-1. Klik link mana pun di nav list kiri: General (ikon sliders), Users (ikon people), atau Models (ikon CPU).
-2. Panel konten di kanan diperbarui. Link aktif disorot.
+1. Klik General, Users, atau Models di nav kiri.
+2. Panel konten diperbarui; link aktif disorot.
+
+### Mengedit config General
+
+1. Buka General (`#/settings/general`).
+2. Ubah field di section mana pun (Limits, LLM globals, Context, Docs, Web search, MCP). Tombol segmen dan toggle menandai form dirty ("Unsaved changes").
+3. Opsional: klik jump link (`limits`, `llm`, …) untuk scroll ke section itu.
+4. Klik "Save config" di bawah. Toast mengonfirmasi "Config saved" dan form dimuat ulang dari server.
+5. Klik "Reset" untuk membuang edit belum tersimpan dan memuat ulang snapshot saat ini.
+6. Untuk GitHub token: ketik nilai baru untuk mengganti; kosongkan untuk mempertahankan secret tersimpan.
+7. Untuk MCP: klik "Add server", isi field lewat "Edit", atau "Remove" baris. Save menulis daftar servers penuh.
 
 ### Menambah user
 
-1. Buka section Users (klik "Users" di nav kiri, ikon people).
-2. Klik tombol "Add user" (biru, kanan-atas header users, ikon plus).
-3. Browser prompt muncul menanyakan "Name". Masukkan nama dan klik OK.
-4. Prompt kedua menanyakan "Role (owner|admin|member)" dengan default "member". Masukkan role dan klik OK.
-5. User muncul di tabel. Toast mengonfirmasi "User created".
+1. Buka Users.
+2. Klik "Add user".
+3. Dialog aplikasi meminta Name dan Role (tombol pilihan Owner / Admin / Member). Konfirmasi.
+4. Toast: "User created".
 
-### Mengedit user
+### Mengedit atau menghapus user
 
-1. Di tabel Users, klik tombol "Edit" (tombol ghost abu-abu, kanan baris).
-2. Browser prompt muncul dengan nama saat ini. Masukkan nama baru (kosongkan untuk tetap) dan klik OK.
-3. Prompt kedua menanyakan role. Masukkan role baru (kosongkan untuk tetap) dan klik OK.
-4. Perubahan disimpan. Toast mengonfirmasi "User updated".
+1. Klik Edit atau Delete pada baris tabel.
+2. Edit membuka dialog aplikasi; Delete membuka dialog konfirmasi aplikasi (tone danger).
+3. Toast mengonfirmasi hasil. Owner terakhir tidak bisa dihapus atau diturunkan.
 
-### Menghapus user
+### Mengonfigurasi provider katalog
 
-1. Di tabel Users, klik tombol "Delete" (merah danger, kanan baris, di sebelah Edit).
-2. Browser confirmation dialog muncul: "Delete user ID?". Klik OK untuk konfirmasi.
-3. User dihapus. Toast mengonfirmasi "User deleted".
+1. Buka Models.
+2. Pada kartu "Not configured", klik "Configure".
+3. Dialog provider terbuka dengan default keluarga (type, name, prefix, API, base URL). Isi API key dan model id opsional; sesuaikan field bila perlu.
+4. Klik Save. Status kartu menjadi Configured (atau Needs API key jika key wajib dan belum diisi).
 
-### Menambah provider LLM
+### Menambah provider custom
 
-1. Buka section Models (klik "Models" di nav kiri, ikon CPU).
-2. Klik tombol "Add OpenAI Compatible" (biru, kanan-atas header models, ikon plus).
-3. Dialog provider muncul di tengah dengan backdrop gelap. Header dialog menampilkan ikon plug, label "LLM", judul "Add Provider", dan tombol close (X) di pojok kanan atas.
-4. Isi field form:
-   - **Name** (input full-width, placeholder "OpenRouter") — required.
-   - **ID / prefix** (input full-width, placeholder "OPENROUTER") — required.
-   - **Prefix (optional)** (input half-width, placeholder "openrouter").
-   - **API type** (dropdown half-width: "responses" atau "chat").
-   - **Base URL** (input full-width, placeholder "https://openrouter.ai/api/v1") — required.
-   - **API key** (input password full-width, placeholder "sk-…").
-   - **Model id** (input full-width, placeholder "openai/gpt-4o-mini").
-   - **Enabled** (checkbox, tercentang default).
-5. Klik "Save" (tombol biru, kanan bawah dialog) untuk membuat. Klik "Cancel" (ghost abu-abu, kiri) atau backdrop untuk membatalkan.
+1. Di Models, klik "Custom provider".
+2. Isi dialog (default OpenAI Compatible). Save membuat koneksi.
 
-### Mengedit provider
+### Mengedit provider / mengelola model
 
-1. Klik tombol "Details" (ghost abu-abu, bawah-kiri kartu provider).
-2. Detail view provider terbuka. URL berubah ke `#/settings/models/<id>`.
-3. Klik tombol "Edit" (ghost abu-abu, di bawah kartu info, sisi kiri).
-4. Dialog provider yang sama muncul, sudah terisi nilai provider saat ini. Field ID read-only (abu-abu).
-5. Field API key menampilkan placeholder "Leave blank to keep sk-…XXXX" — kosongkan untuk mempertahankan key yang ada.
-6. Ubah field yang diperlukan. Klik "Save" untuk update.
-
-### Menghapus provider
-
-1. Klik tombol "Delete" (merah danger, bawah-kanan kartu provider, di sebelah Details).
-2. Browser confirmation dialog muncul: "Delete provider ID?". Klik OK untuk konfirmasi.
-3. Kartu provider dihapus. Toast mengonfirmasi "Provider deleted".
+1. Klik "Details" pada kartu yang sudah dikonfigurasi → `#/settings/models/<id>`.
+2. Klik "Edit" untuk update field; kosongkan API key untuk mempertahankan secret yang ada.
+3. Klik "Add" di Available models — dialog aplikasi untuk model id dan label opsional.
+4. Klik "Remove" pada baris model untuk menghapusnya.
+5. Klik "Import models" untuk menarik dari endpoint `/models` provider (toast menampilkan jumlah imported/updated).
 
 ### Enable/disable provider
 
-1. Temukan toggle switch enabled di pojok kanan-atas kartu provider.
-2. Klik toggle untuk membalik. Perubahan langsung disimpan.
-3. Toast menampilkan "Enabled" atau "Disabled". Jika API call gagal, toggle kembali.
+1. Gunakan toggle enabled pada kartu Models yang sudah dikonfigurasi.
+2. Toast menampilkan "Enabled" atau "Disabled". Jika gagal, toggle kembali.
 
-### Menambah model ke provider
+### Menghapus provider
 
-1. Buka detail view provider (klik "Details" pada kartu provider).
-2. Di section "Available models", klik tombol "Add" (biru, kecil, kanan-atas sub-header models, ikon plus).
-3. Browser prompt menanyakan "Model id". Masukkan model ID dan klik OK.
-4. Prompt kedua menanyakan "Label (optional)". Masukkan label atau kosongkan, klik OK.
-5. Model muncul di daftar. Toast mengonfirmasi "Model added".
-
-### Menghapus model
-
-1. Di detail view provider, temukan model di daftar "Available models".
-2. Klik tombol "Remove" (ghost abu-abu, kecil, kanan baris model).
-3. Model langsung dihapus. Toast mengonfirmasi "Model removed".
-
-### Import model dari API
-
-1. Buka detail view provider (klik "Details" pada kartu provider).
-2. Klik tombol "Import models" (ghost abu-abu, di bawah kartu info, kanan "Edit").
-3. Sistem mengambil model tersedia dari API provider. Toast menampilkan pesan hasil.
-4. Model yang diimpor muncul di daftar "Available models".
+1. Klik "Delete" pada kartu yang sudah dikonfigurasi.
+2. Konfirmasi di dialog aplikasi. Toast: "Provider deleted".
 
 ### Kembali ke chat
 
-1. Klik tombol panah back (ikon panah kiri, kiri-atas nav settings).
-2. Atau klik "Logout" (ikon box-arrow-right, bawah nav settings) untuk menghapus preferensi lokal dan kembali ke chat.
-3. Workspace chat muncul kembali. URL berubah ke `#/`.
+1. Klik panah back di atas nav settings, atau klik Logout (menghapus preferensi lokal: theme, model, effort, mock mode, preview width) lalu kembali ke chat.
+2. URL berubah ke `#/`.
