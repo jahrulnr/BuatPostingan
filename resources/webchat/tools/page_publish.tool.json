@@ -1,0 +1,18 @@
+{
+  "type": "function",
+  "name": "page_publish",
+  "description": "Publish an existing static-page draft after explicit user approval. This creates only storage/pages/.published/<page_id> as a symlink to ../<page_id>; it never copies source files. Safe to repeat when that exact marker already exists.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "page_id": {
+        "type": "string",
+        "pattern": "^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$",
+        "description": "Existing page's lowercase slug."
+      }
+    },
+    "required": ["page_id"],
+    "additionalProperties": false
+  },
+  "strict": true
+}

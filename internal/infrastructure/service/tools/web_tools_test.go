@@ -281,7 +281,7 @@ func TestSchemasIncludeWebTools(t *testing.T) {
 		name, _ := fn["name"].(string)
 		names[name] = true
 	}
-	for _, want := range []string{"web_search", "web_fetch"} {
+	for _, want := range []string{"web_search", "web_fetch", "page_list", "page_search", "page_create", "page_edit", "page_read", "page_publish", "page_unpublish"} {
 		if !names[want] {
 			t.Fatalf("missing schema %s in %#v", want, names)
 		}

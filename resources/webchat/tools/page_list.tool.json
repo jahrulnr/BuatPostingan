@@ -1,0 +1,11 @@
+{
+  "type": "function",
+  "name": "page_list",
+  "description": "List static-page workspaces and their draft/published status. A page's source lives in storage/pages/<page_id>; published means only that .published/<page_id> is a symlink to it. Call before creating a page with a potentially conflicting id or when checking status.",
+  "parameters": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+  },
+  "strict": true
+}

@@ -187,6 +187,10 @@ export const browseDir = mockMode
     ? mock.browseDirMock
     : real.browseDirImpl;
 
+export const pagePreviewURL = mockMode
+    ? mock.pagePreviewURLMock
+    : real.pagePreviewURLImpl;
+
 /** @type {import('./types.js').ApiContext} */
 export const api = {
     baseUrl: baseUrl,

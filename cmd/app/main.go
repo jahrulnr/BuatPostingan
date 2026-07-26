@@ -45,6 +45,11 @@ func main() {
 		logging.Error(ctx, "storage.root", err)
 		os.Exit(1)
 	}
+	pagesRoot := filepath.Join(filepath.Dir(cfg.StorageRoot), "pages")
+	if err := os.MkdirAll(pagesRoot, 0o775); err != nil {
+		logging.Error(ctx, "pages.root", err)
+		os.Exit(1)
+	}
 	for _, sub := range []string{"threads", "interrupt", "rl", "llm", "attachments"} {
 		_ = os.MkdirAll(filepath.Join(cfg.StorageRoot, sub), 0o775)
 	}
@@ -112,6 +117,7 @@ func main() {
 		Attachments: attStore,
 		Vision:      visionPolicy,
 		SkillsRoot:  cfg.SkillsRoot,
+		PagesRoot:   pagesRoot,
 		GitHubToken: cfg.GitHubToken,
 		MCP:         mcpMgr,
 		// FSRoot empty: list_dir/read_file/grep have full host FS access (local-dev).

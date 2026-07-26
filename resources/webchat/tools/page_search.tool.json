@@ -1,0 +1,30 @@
+{
+  "type": "function",
+  "name": "page_search",
+  "description": "Search text in static-page draft source files (.html, .js, .css and related text files) and report matching page, path, line, and published status. Use this to find or review existing page content; it does not search binary assets.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "query": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Case-insensitive text to find."
+      },
+      "page_id": {
+        "type": "string",
+        "pattern": "^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$",
+        "description": "Optional lowercase page slug to limit the search."
+      },
+      "max_results": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100,
+        "default": 30,
+        "description": "Maximum matching lines to return."
+      }
+    },
+    "required": ["query"],
+    "additionalProperties": false
+  },
+  "strict": true
+}

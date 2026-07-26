@@ -12,6 +12,7 @@ import {
     interruptTurn,
     subscribeEvents,
     browseDir,
+    pagePreviewURL,
 } from '../api/index.js';
 import {
     escapeHtml,
@@ -30,6 +31,7 @@ import {
     isNearBottom,
     reconnectDelay,
 } from './stream-reliability.js';
+import { bootPagePreview } from './page-preview.js';
 
 /**
  * Mount webchat UI. Pass { root } to scope lookups inside a widget host
@@ -61,6 +63,7 @@ export function bootChat(options) {
     const conversationSearchEl = byId('conversationSearch');
     const roomTitleEl = byId('roomTitle');
     const roomMetaEl = byId('roomMeta');
+    const previewPanelEl = byId('panelPreview');
     const renameBtn = byId('btnRename');
     const renameDialog = byId('renameDialog');
     const renamePanel = renameDialog ? renameDialog.querySelector('.wc-dialog__panel') : null;
@@ -92,6 +95,11 @@ export function bootChat(options) {
     if (!messagesEl || !inputEl || !sendBtn || !statusEl) {
         return null;
     }
+
+    const pagePreview = bootPagePreview({
+        panelEl: previewPanelEl,
+        previewURL: function (req) { return pagePreviewURL(api, req); },
+    });
 
     const productName = opts.productName
         || (typeof window !== 'undefined' && window.__WC_PRODUCT_NAME__)
@@ -451,6 +459,7 @@ export function bootChat(options) {
         liveDrafts = {};
         turnsWithToolCalls = {};
         assistantPlaceholders = {};
+        pagePreview.reset();
         if (deltaFlushRaf) {
             cancelAnimationFrame(deltaFlushRaf);
             deltaFlushRaf = 0;
@@ -665,6 +674,7 @@ export function bootChat(options) {
     }
 
     function applyToolCall(item) {
+        pagePreview.observeToolCall(item);
         turnsWithToolCalls[item.turn_id || ''] = true;
         removeAssistantPlaceholder(item.turn_id);
         discardLiveDraft(item.turn_id);
@@ -696,6 +706,7 @@ export function bootChat(options) {
     }
 
     function applyToolResult(item) {
+        pagePreview.observeToolResult(item);
         removeAssistantPlaceholder(item.turn_id);
         const stream = getTurnStream(item.turn_id);
         const callId = item.call_id || '';

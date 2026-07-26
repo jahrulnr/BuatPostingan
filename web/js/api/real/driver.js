@@ -29,6 +29,23 @@ function acceptHeaders(api) {
     return Object.assign({ Accept: 'application/json' }, csrfHeader(api), traceHeader());
 }
 
+/**
+ * Return the draft-preview URL without issuing a request. The chat API base is
+ * deliberately transformed here so `make fe` keeps targeting the Go backend.
+ */
+export function pagePreviewURLImpl(api, req) {
+    const pageID = String(req && req.pageID || '');
+    const version = Number(req && req.version || 0);
+    if (!/^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/.test(pageID) || !Number.isFinite(version) || version <= 0) {
+        return null;
+    }
+    const chatBase = String(api && api.baseUrl || '').replace(/\/+$/, '');
+    const pagesBase = chatBase.endsWith('/api/webchat')
+        ? chatBase.slice(0, -'/webchat'.length) + '/pages'
+        : '/api/pages';
+    return pagesBase + '/' + encodeURIComponent(pageID) + '/?v=' + encodeURIComponent(String(version));
+}
+
 async function parseJson(res) {
     const body = await res.json().catch(function () { return {}; });
     const traceId = res.headers.get('X-Trace-Id') || res.headers.get('x-trace-id') || '';

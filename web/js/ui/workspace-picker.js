@@ -1,8 +1,12 @@
 /**
  * Workspace picker — folder browser dialog for selecting a working directory.
  * Persistence: per-thread via bp.workspace.<threadId> in localStorage.
- * When no workspace is set, empty string is returned (use config default).
+ * When no workspace is set, empty string is returned (use backend current dir).
  */
+
+export function workspaceLabel(workspace, defaultPath) {
+    return String(workspace || defaultPath || 'Workspace');
+}
 
 /**
  * @param {{
@@ -37,10 +41,12 @@ export function bootWorkspacePicker(opts) {
     var clearBtn = byId('workspaceClearBtn');
     var errorEl = byId('workspaceDialogError');
 
-    var currentPath = '/';
+    var currentPath = '';
+    var defaultPath = '';
     var parentPath = '';
     var selectedPath = '';
     var workspace = '';
+    var browseGeneration = 0;
     var threadIdFn = opts.threadId || function () { return ''; };
 
     function lsKey() {
@@ -67,22 +73,12 @@ export function bootWorkspacePicker(opts) {
         } catch (e) { /* ignore */ }
     }
 
-    function shortLabel(path) {
-        if (!path) return 'Workspace';
-        var parts = path.replace(/\/+$/, '').split('/');
-        var last = parts[parts.length - 1];
-        if (last) return last;
-        return path;
-    }
-
     function updatePill() {
-        if (workspace) {
-            labelEl.textContent = shortLabel(workspace);
-            pill.setAttribute('data-wc-tooltip', workspace);
-        } else {
-            labelEl.textContent = 'Workspace';
-            pill.setAttribute('data-wc-tooltip', 'Workspace folder (default)');
-        }
+        var label = workspaceLabel(workspace, defaultPath);
+        labelEl.textContent = label;
+        pill.setAttribute('data-wc-tooltip', workspace
+            ? workspace
+            : (defaultPath ? defaultPath + ' (default)' : 'Workspace folder (default)'));
     }
 
     function showError(msg) {
@@ -113,15 +109,20 @@ export function bootWorkspacePicker(opts) {
     }
 
     function navigate(path) {
+        var generation = ++browseGeneration;
         showError('');
-        opts.browseDir(opts.api, { path: path }).then(function (res) {
-            currentPath = res.path || '/';
+        opts.browseDir(opts.api, { path: path || '' }).then(function (res) {
+            if (generation !== browseGeneration) return;
+            currentPath = res.path || defaultPath || '/';
+            if (!path && res.path) defaultPath = res.path;
             parentPath = res.parent || '';
             cwdEl.textContent = currentPath;
             upBtn.disabled = !parentPath;
             selectedPath = currentPath;
             renderList(res.entries || []);
+            updatePill();
         }).catch(function (err) {
+            if (generation !== browseGeneration) return;
             showError('Cannot browse: ' + (err && err.message ? err.message : String(err)));
         });
     }
@@ -134,7 +135,8 @@ export function bootWorkspacePicker(opts) {
         loadWorkspace();
         requestAnimationFrame(function () {
             dialog.classList.add('is-open');
-            navigate(workspace || currentPath);
+            // Empty path asks the backend for its actual current directory.
+            navigate(workspace || '');
             setTimeout(function () {
                 if (upBtn) upBtn.focus();
             }, 80);
@@ -174,6 +176,8 @@ export function bootWorkspacePicker(opts) {
         updatePill();
         closeDialog();
         if (opts.onChange) opts.onChange('');
+        // Restore the explicit current directory label after a cleared selection.
+        navigate('');
     });
 
     document.addEventListener('keydown', function (e) {
@@ -185,6 +189,9 @@ export function bootWorkspacePicker(opts) {
 
     loadWorkspace();
     updatePill();
+    // Populate the full-path label before the dialog is first opened. This is
+    // intentionally an empty path: the backend resolves it to os.Getwd().
+    navigate('');
 
     return {
         getWorkspace: function () { return workspace; },

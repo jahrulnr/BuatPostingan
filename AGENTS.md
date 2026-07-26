@@ -7,6 +7,7 @@ Instructions for coding agents in this repo.
 - **Frontend:** vanilla JS ES modules under `web/` (dual-driver mock|real)
 - **Backend:** Go 1.22+ Clean Architecture (light — no Wire/logmanager yet)
 - **Persistence:** JSONL under `storage/webchat/` (`BP_STORAGE_ROOT`)
+- **Static pages:** draft source under `storage/pages/<page-id>/`; publication is only `.published/<page-id> -> ../<page-id>`
 - **Knowledge:** Markdown under `resources/webchat/docs/` + lexical index in storage
 - **Prompts / tools / skills:** `resources/webchat/prompts/`, `resources/webchat/tools/`, `resources/webchat/skills/`
 
@@ -73,6 +74,7 @@ Reuse over rewrite: treat kitchen + webchat delivery as a **copyable kit**, not 
 - Uploads under `storage/webchat/attachments/{threadId}/` — attachment tools keyed by `attachment_id` for the active thread
 - **Skills:** `resources/webchat/skills/<name>/SKILL.md` (`BP_SKILLS_ROOT`); discover via `list_skills`, load via `read_skill` — jailed to skills root (unlike local-dev FS tools). See [`docs/architecture/skills-tools.md`](docs/architecture/skills-tools.md).
 - **MCP:** `mcp.servers` in `storage/config.json`; discover via `list_mcp_tools`, invoke via `call_mcp_tool` — mutations default-denied. See [`docs/architecture/mcp-support.md`](docs/architecture/mcp-support.md).
+- **Static pages:** tools `page_list`, `page_search`, `page_create`, `page_edit`, `page_read`, `page_publish`, and `page_unpublish` own page authoring and lifecycle. `GET /api/pages/<page-id>/…` serves the jailed no-cache draft for the FE preview iframe. Publish/unpublish must use their dedicated tools, so draft versus published differs only by `.published/<page-id>` symlink. `page_snapshot` remains a documented future requirement until a local renderer is installed. See [`docs/architecture/static-pages.md`](docs/architecture/static-pages.md).
 
 ## Ready-to-use LLM
 

@@ -19,6 +19,7 @@ Human + agent documentation grounded in **current code**. Start here, then dive 
 | [Portable AI kit](architecture/portable-ai-kit.md) | What to copy vs leave when reusing the webchat stack |
 | [Codex gap analysis](architecture/codex-gap-analysis.md) | Codex vs BP prioritized gaps (compaction, title, retry/circuit, N/A coding features) |
 | [Skills tools](architecture/skills-tools.md) | Progressive skill discovery (`list_skills` / `read_skill`) |
+| [Static pages](architecture/static-pages.md) | Draft workspace and symlink-only publication tools |
 | [MCP support](architecture/mcp-support.md) | MCP client (meta-tools), `mcp.servers` config, mutation deny |
 | [Runbook](operations/runbook.md) | `make be` / `make fe`, stub vs real LLM, `?mock=1` |
 | [API service notes](api-service/README.md) | Pointer to `/api/webchat` surface |

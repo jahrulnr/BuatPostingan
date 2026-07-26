@@ -19,6 +19,12 @@ function adminName(api) {
     return String((api && api.adminDisplayName) || window.__BP_ADMIN_DISPLAY_NAME__ || 'Admin User');
 }
 
+// Mock has no page-workspace filesystem. Keep the API shape while avoiding a
+// misleading iframe that points at the real backend.
+export function pagePreviewURLMock(_api, _req) {
+    return null;
+}
+
 /** @param {import('../types.js').ApiContext} api */
 export function listConversationsMock(api, _req) {
     return Promise.resolve(store.listConversations());
@@ -242,7 +248,7 @@ export function importLLMModelsMock(_api, id) {
 }
 
 export function browseDirMock(_api, req) {
-    var path = (req && req.path) || '/';
+    var path = (req && req.path) || '/mock/current-directory';
     return Promise.resolve({
         path: path,
         parent: path !== '/' ? path.replace(/\/[^/]+\/?$/, '') || '/' : '',

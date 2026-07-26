@@ -50,6 +50,9 @@ type Options struct {
 	// SkillsRoot is the jail root for list_skills / read_skill (default BP_SKILLS_ROOT).
 	// Missing/empty → soft empty catalog / skills_unavailable (not a process crash).
 	SkillsRoot string
+	// PagesRoot is the strict jail for static-page lifecycle tools.
+	// Empty keeps those tools unavailable rather than falling back to the host filesystem.
+	PagesRoot string
 	// GitHubToken is the optional web_search rate-limit token (env: BP_GITHUB_TOKEN
 	// / GITHUB_TOKEN; also configurable via config.json → web_search.github_token).
 	GitHubToken string
@@ -71,6 +74,7 @@ type Registry struct {
 	index       DocsIndex
 	fs          *workspaceFS
 	skills      *skillsFS
+	pages       *pagesFS
 	attachments repository.AttachmentStore
 	webSearch   WebSearcher
 	fetchClient *http.Client
@@ -96,6 +100,10 @@ func NewRegistry(toolsRoot string, index DocsIndex, opts Options) (*Registry, er
 	if err != nil {
 		return nil, err
 	}
+	pages, err := newPagesFS(opts.PagesRoot)
+	if err != nil {
+		return nil, err
+	}
 	topK := opts.TopK
 	if topK <= 0 {
 		topK = DefaultTopK
@@ -105,6 +113,7 @@ func NewRegistry(toolsRoot string, index DocsIndex, opts Options) (*Registry, er
 		index:       index,
 		fs:          fs,
 		skills:      skills,
+		pages:       pages,
 		attachments: opts.Attachments,
 		webSearch:   opts.WebSearch,
 		fetchClient: opts.FetchClient,
@@ -216,6 +225,13 @@ func (r *Registry) Execute(ctx context.Context, call service.ToolCall) (service.
 			return r.fail("invalid_path", err.Error(), name, started), nil
 		}
 		env.Tool = name
+		if env.Meta == nil {
+			env.Meta = map[string]any{}
+		}
+		env.Meta["took_ms"] = int(time.Since(started).Milliseconds())
+		return env, nil
+	case "page_list", "page_search", "page_create", "page_edit", "page_read", "page_publish", "page_unpublish":
+		env := r.execPages(name, args)
 		if env.Meta == nil {
 			env.Meta = map[string]any{}
 		}

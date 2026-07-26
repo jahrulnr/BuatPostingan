@@ -1,0 +1,17 @@
+{
+  "type": "function",
+  "name": "page_read",
+  "description": "Read one regular text file from a static-page workspace. The path is relative and jailed to the selected page; file and directory symlinks are rejected.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "page_id": {"type": "string", "pattern": "^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$"},
+      "path": {"type": "string", "description": "Relative text-file path inside the page."},
+      "offset": {"type": "integer", "minimum": 0, "default": 0},
+      "max_chars": {"type": "integer", "minimum": 1, "maximum": 20000, "default": 12000}
+    },
+    "required": ["page_id", "path"],
+    "additionalProperties": false
+  },
+  "strict": true
+}

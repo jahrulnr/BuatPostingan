@@ -5,6 +5,8 @@ web/.cache/
 bin/
 storage/webchat/**
 !storage/webchat/.gitkeep
+storage/pages/**
+!storage/pages/.gitkeep
 storage/config.json
 storage/config.json.tmp
 *.exe

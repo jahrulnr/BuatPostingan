@@ -1,0 +1,18 @@
+{
+  "type": "function",
+  "name": "page_unpublish",
+  "description": "Remove an existing page's publish marker after explicit user approval. This removes only storage/pages/.published/<page_id>; it keeps the draft source untouched. Safe to repeat when no marker exists.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "page_id": {
+        "type": "string",
+        "pattern": "^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$",
+        "description": "Existing page's lowercase slug."
+      }
+    },
+    "required": ["page_id"],
+    "additionalProperties": false
+  },
+  "strict": true
+}

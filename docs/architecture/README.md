@@ -47,6 +47,7 @@ internal/                        resep dapur (private)
 web/                             vanilla FE (dual-driver mock|real)
 resources/webchat/               prompts + *.tool.json
 storage/webchat/                 runtime JSONL + docs_index + interrupt/rl/llm
+storage/pages/                   static-page drafts + .published symlink markers
 resources/webchat/docs/             knowledge MD corpus
 ```
 
@@ -84,7 +85,7 @@ Handlers call `webchat.Usecase` only. Concrete service: `webchat.NewService(Deps
 ## Runtime wiring (`cmd/app`)
 
 1. Ensure storage dirs; `docs.NewIndex` (+ Reindex) + Gate log  
-2. `tools.NewRegistry` (allowlist: docs_search, list_dir, read_file, grep, read_attachment, read_image, web_search, web_fetch, list_skills, read_skill, list_mcp_tools, call_mcp_tool; plus write_file / edit_file / delete_file when `write_enabled=true`) + optional `mcp.NewManager`  
+2. Ensure `storage/pages`; `tools.NewRegistry` (reader/meta tools, host FS tools, and static-page lifecycle tools) + optional `mcp.NewManager`; mount the read-only `/api/pages/<slug>/…` draft preview route
 3. `llm.NewClient` + `llm.NewRouter` (failover / circuit)  
 4. `worker.New` + `sse.NewStreamer`  
 5. `webchat.NewService(Deps{…})` → HTTP server  
@@ -109,6 +110,13 @@ Allowlist (hardcoded in `tools.Allowlist`; schemas from disk):
 | `read_skill` | Full `SKILL.md` body for one skill by kebab-case name (skills-root jail) |
 | `list_mcp_tools` | Catalog tools from configured MCP servers (progressive; see [mcp-support.md](mcp-support.md)) |
 | `call_mcp_tool` | Invoke one MCP tool; mutations default-denied |
+| `page_list` | List page workspaces and draft/published status |
+| `page_search` | Search textual page source with page/status context |
+| `page_create` | Create a draft workspace with deterministic HTML/CSS/JS starters |
+| `page_edit` | Change a text file inside one strictly jailed page workspace |
+| `page_read` | Read a text file inside one strictly jailed page workspace |
+| `page_publish` | Create the constrained publish symlink for one existing page |
+| `page_unpublish` | Remove only that constrained publish symlink |
 
 - Schemas: `resources/webchat/tools/{name}.tool.json` (`BP_TOOLS_ROOT`)  
 - Skills: `resources/webchat/skills/<name>/SKILL.md` (`BP_SKILLS_ROOT`) — see [skills-tools.md](skills-tools.md)  
@@ -118,7 +126,8 @@ Allowlist (hardcoded in `tools.Allowlist`; schemas from disk):
 - Attachments = `{BP_STORAGE_ROOT}/attachments/{threadId}/` — tools require worker thread context + `attachment_id`  
 - `web_fetch` blocks localhost/private/link-local/metadata IPs; max body 2 MiB; text/html(+text) only  
 - Optional `BP_GITHUB_TOKEN` (or `GITHUB_TOKEN`) raises GitHub search rate limits for `web_search` — not required for default path  
-- No mutation / admin-route tools  
+- **Static pages:** drafts are real directories at `storage/pages/<page-id>/`; published state is exclusively `.published/<page-id> -> ../<page-id>`. The page tools accept only lowercase slugs and never arbitrary paths. See [static-pages.md](static-pages.md).
+- Other than the existing local-development host FS tools and the narrowly scoped page lifecycle tools, no mutation / admin-route tools are exposed.
 - Multi `tool_calls` in one LLM response: **sequential** Execute; all results feed the next round
 
 ## Persistence (JSONL)

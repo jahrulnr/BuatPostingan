@@ -58,6 +58,7 @@ func NewServer(cfg config.Config, uc webchat.Usecase, settingsUC *settings.Servi
 	MountWebchatAPI(mux, uc)
 	MountSettingsAPI(mux, settingsUC)
 	MountHealthz(mux)
+	MountPagePreview(mux, filepath.Join(filepath.Dir(cfg.StorageRoot), "pages"))
 	MountStaticWeb(mux, cfg.WebRoot)
 
 	return &http.Server{

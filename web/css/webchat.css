@@ -634,7 +634,6 @@ input:focus-visible {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    max-width: min(100%, 18rem);
     height: 1.85rem;
     padding: 0 0.55rem 0 0.45rem;
     border: 1px solid var(--wm-border-strong);
