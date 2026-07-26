@@ -2,6 +2,18 @@
 
 Instructions for coding agents in this repo.
 
+## Style guidelines
+
+Canonical contribution / coding style for humans and agents. Checking the PR
+template item *“My code follows the style guidelines of this project”* means
+you followed this file — especially:
+
+- [Before coding (required)](#before-coding-required) — layer ownership before scaffolding
+- [Language](#language)
+- [Foldering](#foldering) + [Dependency rule](#dependency-rule)
+- [FE dual-driver](#fe-dual-driver) + [UI → knowledge docs](#ui--knowledge-docs-required)
+- [Versioning](#versioning) when the change should ship
+
 ## Before coding (required)
 
 Always apply **best practice for this repo** before writing or moving code — do not invent a convenient layout and fix it later.
