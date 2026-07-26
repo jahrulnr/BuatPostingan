@@ -70,8 +70,14 @@ func main() {
 		}
 		authDBPath = absAuthDBPath
 	}
-	if err := os.MkdirAll(filepath.Dir(authDBPath), 0o700); err != nil {
+	authDir := filepath.Dir(authDBPath)
+	if err := os.MkdirAll(authDir, 0o700); err != nil {
 		logging.Error(ctx, "auth.root", err)
+		os.Exit(1)
+	}
+	// MkdirAll does not tighten an existing directory — enforce 0700 explicitly.
+	if err := os.Chmod(authDir, 0o700); err != nil {
+		logging.Error(ctx, "auth.root.chmod", err)
 		os.Exit(1)
 	}
 	authStore, err := auth.NewStore(authDBPath)

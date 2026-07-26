@@ -114,9 +114,12 @@ panel.
 ### Admin authentication
 
 Chat JSONL remains under `storage/webchat/`. User accounts and hashed session
-metadata are stored separately in SQLite at `storage/users.sqlite` (`chmod 0600`,
-parent dir `0700`). On an empty database the process **refuses to start** unless
-both bootstrap variables are set — bootstrap is env-only (no public signup):
+metadata are stored separately in SQLite at `storage/users.sqlite` (file
+`chmod 0600`). The auth DB parent directory is created and then explicitly
+`chmod 0700` (MkdirAll alone does not tighten an existing dir — with the default
+layout that parent is often `storage/`, shared with webchat data). On an empty
+database the process **refuses to start** unless both bootstrap variables are
+set — bootstrap is env-only (no public signup):
 
 ```bash
 BP_AUTH_ADMIN_USERNAME=owner \

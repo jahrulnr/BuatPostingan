@@ -49,3 +49,20 @@ func TestClientIPPrefersXForwardedFor(t *testing.T) {
 		t.Fatalf("ClientIP=%q", got)
 	}
 }
+
+func TestAllowDoesNotRetainEmptyIPEntries(t *testing.T) {
+	lim := NewLoginLimiterWith(LoginLimits{IPMax: 20, UserMax: 5, Window: time.Minute})
+	lim.now = func() time.Time { return time.Date(2026, 7, 27, 0, 0, 0, 0, time.UTC) }
+
+	ok, _ := lim.Allow("198.51.100.1", "owner")
+	if !ok {
+		t.Fatal("expected allow")
+	}
+	lim.mu.Lock()
+	_, ipKept := lim.ipHits["198.51.100.1"]
+	_, userKept := lim.userHits["owner"]
+	lim.mu.Unlock()
+	if ipKept || userKept {
+		t.Fatalf("Allow must not retain empty map entries (ip=%v user=%v)", ipKept, userKept)
+	}
+}

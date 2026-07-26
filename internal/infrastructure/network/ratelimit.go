@@ -74,16 +74,29 @@ func (l *LoginLimiter) Allow(ip, username string) (ok bool, retryAfter time.Dura
 	ip = NormalizeIP(ip)
 	username = strings.ToLower(strings.TrimSpace(username))
 
-	l.ipHits[ip] = pruneHits(l.ipHits[ip], cutoff)
+	ipHits := pruneHits(l.ipHits[ip], cutoff)
+	if len(ipHits) == 0 {
+		delete(l.ipHits, ip)
+	} else {
+		l.ipHits[ip] = ipHits
+	}
 	if username != "" {
-		l.userHits[username] = pruneHits(l.userHits[username], cutoff)
+		userHits := pruneHits(l.userHits[username], cutoff)
+		if len(userHits) == 0 {
+			delete(l.userHits, username)
+		} else {
+			l.userHits[username] = userHits
+		}
 	}
 
-	if len(l.ipHits[ip]) >= l.ipMax {
-		return false, retryAfterFrom(l.ipHits[ip][0], l.window, now)
+	if len(ipHits) >= l.ipMax {
+		return false, retryAfterFrom(ipHits[0], l.window, now)
 	}
-	if username != "" && len(l.userHits[username]) >= l.userMax {
-		return false, retryAfterFrom(l.userHits[username][0], l.window, now)
+	if username != "" {
+		userHits := l.userHits[username]
+		if len(userHits) >= l.userMax {
+			return false, retryAfterFrom(userHits[0], l.window, now)
+		}
 	}
 	return true, 0
 }
