@@ -576,9 +576,9 @@
 }
 
 .wc-pages__state.is-published {
-    color: var(--bp-accent-ink);
-    border-color: color-mix(in oklab, var(--bp-accent) 46%, var(--bp-border));
-    background: var(--bp-accent-soft);
+	color: var(--bp-accent);
+	border-color: color-mix(in oklab, var(--bp-accent) 46%, var(--bp-border));
+	background: var(--bp-accent-soft);
 }
 
 .wc-pages__children { margin-left: 1rem; }
