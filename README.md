@@ -2,6 +2,8 @@
 
 **AI-first content publishing — the AI runs the site, you bring the ideas.**
 
+![Logo - BuatPostingan](web/assets/logo.png)
+
 Drupal, WordPress, and Joomla were built human-first: an AI has to fight through menus, forms, and modules just to publish a page. BuatPostingan flips that — the agent designs, writes, and ships pages directly from static-pages primitives. You supply the data and the intent; it drives the CMS.
 
 [Docs](docs/) · [Development](docs/DEVELOPMENT.md) · [Runbook](docs/operations/runbook.md) · [Agents](AGENTS.md)
@@ -146,3 +148,9 @@ Architecture deep dive: [docs/architecture/README.md](docs/architecture/README.m
 1. Read [DEVELOPMENT.md](docs/DEVELOPMENT.md) and [AGENTS.md](AGENTS.md).
 2. `make test` before opening a PR.
 3. Keep business rules in `internal/usecase`, not HTTP handlers.
+
+---
+
+## License
+
+[MIT](LICENSE)
