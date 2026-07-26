@@ -14,6 +14,7 @@ import {
     browseDir,
     pagePreviewURL,
 } from '../api/index.js';
+import { formatApiError } from '../api/error.js';
 import {
     escapeHtml,
     formatToolCall,
@@ -955,7 +956,7 @@ export function bootChat(options) {
                 deleteSubmit.disabled = false;
                 deleteSubmit.classList.remove('is-loading');
             }
-            showToast('Delete failed: ' + (e && e.message ? e.message : 'error'));
+            showToast('Delete failed: ' + formatApiError(e, 'error'));
             return;
         }
         if (deleteSubmit) {
@@ -1007,7 +1008,9 @@ export function bootChat(options) {
             const active = conversations.find(function (c) { return c.thread_id === threadId; });
             if (active) updateRoomHead(active);
         } catch (e) {
-            // ignore
+            if (hasRail) {
+                showToast(formatApiError(e, 'Could not load conversations'));
+            }
         }
     }
 
@@ -1309,7 +1312,7 @@ export function bootChat(options) {
             updateRoomHead(active || { title: null, title_source: 'pending' });
         } catch (e) {
             localStorage.removeItem(storageKey);
-            showToast('Thread unavailable');
+            showToast(formatApiError(e, 'Thread unavailable'));
         }
     }
 
@@ -1461,21 +1464,22 @@ export function bootChat(options) {
                         message: 'The docs index is building. AI is temporarily unavailable.',
                     });
                 }
-                showToast('503 AI locked · indexing');
+                showToast(formatApiError(err, '503 AI locked · indexing'));
                 setStatus('Indexing docs…');
             } else if (err.status === 423) {
                 applyFloorFromPayload(err.body || {});
                 floorRemainingSec = (err.body && err.body.remaining_sec) || floorRemainingSec;
                 floorHolderId = (err.body && err.body.holder_admin_user_id) || floorHolderId;
                 refreshFloorBanner();
-                showToast('423 floor locked');
+                showToast(formatApiError(err, '423 floor locked'));
                 setStatus('Floor locked');
             } else if (err.status === 409) {
-                showToast('409 thread busy');
+                showToast(formatApiError(err, '409 thread busy'));
                 setStatus('Busy');
             } else {
-                setStatus('Failed: ' + (err.message || 'request error'));
-                appendError(messagesEl, String(err.message || err), '', false, err.traceId);
+                const msg = formatApiError(err, 'request error');
+                setStatus('Failed: ' + msg);
+                appendError(messagesEl, msg, '', false, err.traceId);
             }
             busy = false;
             isInitiator = false;
@@ -1510,14 +1514,15 @@ export function bootChat(options) {
                 updateComposer();
                 if (err.status === 503) {
                     applyDocsIndexGate((err.body && err.body.docs_index) || { usable: false, status: 'building', message: 'Indexing…' });
-                    showToast('503 docs index');
+                    showToast(formatApiError(err, '503 docs index'));
                 } else if (err.status === 423) {
-                    showToast('423 floor locked');
+                    showToast(formatApiError(err, '423 floor locked'));
                 } else if (err.status === 409) {
-                    showToast(err.message || '409 not retryable / busy');
+                    showToast(formatApiError(err, '409 not retryable / busy'));
                 } else {
-                    showToast(err.message || 'Retry failed');
-                    appendError(messagesEl, String(err.message || err), tid, true, err.traceId);
+                    const msg = formatApiError(err, 'Retry failed');
+                    showToast(msg);
+                    appendError(messagesEl, msg, tid, true, err.traceId);
                 }
                 setStatus('Ready');
             });
@@ -1590,7 +1595,7 @@ export function bootChat(options) {
             // so a then() status write would overwrite "Interrupted".
             setStatus('Stopping…');
             interruptTurn(api, { threadId: threadId, turnId: turnId }).catch(function (e) {
-                showToast(e.message || 'Stop denied');
+                showToast(formatApiError(e, 'Stop denied'));
             });
         });
     }
@@ -1709,7 +1714,7 @@ export function bootChat(options) {
             }).catch(function (error) {
                 renameSubmit.disabled = false;
                 renameSubmit.classList.remove('is-loading');
-                setRenameError(error.message || 'Could not rename this conversation.');
+                setRenameError(formatApiError(error, 'Could not rename this conversation.'));
             });
         });
     }

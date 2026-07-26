@@ -78,17 +78,51 @@ export function summarizeToolResult(envelope) {
     return 'ok';
 }
 
-export function formatToolCall(name, args) {
-    const a = args && typeof args === 'object' ? args : {};
-    if (a.query != null && String(a.query) !== '') {
-        return String(name || 'tool') + '(' + JSON.stringify(String(a.query)) + ')';
+const TOOL_ARGS_MAX = 80;
+
+function formatArgValue(value) {
+    if (value == null) return 'null';
+    if (typeof value === 'string') return JSON.stringify(value);
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    try {
+        return JSON.stringify(value);
+    } catch (e) {
+        return '"…"';
     }
-    if (name === 'list_dir' || name === 'read_file' || name === 'grep' ||
-        name === 'write_file' || name === 'edit_file' || name === 'delete_file') {
-        const path = a.path != null ? String(a.path) : '';
-        return String(name || 'tool') + '(' + JSON.stringify(path) + ')';
+}
+
+function normalizeToolArgs(args) {
+    if (args == null) return {};
+    if (typeof args === 'string') {
+        const trimmed = args.trim();
+        if (!trimmed) return {};
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+        } catch (e) { /* keep raw string as single value */ }
+        return { _: trimmed };
     }
-    return String(name || 'tool') + '()';
+    if (typeof args === 'object' && !Array.isArray(args)) return args;
+    return {};
+}
+
+/** Compact tool signature for chat UI: name(k=v, …) with args capped at 80 chars. */
+export function formatToolCall(name, args, maxArgsLen) {
+    const tool = String(name || 'tool');
+    const limit = Number.isFinite(maxArgsLen) && maxArgsLen > 0 ? maxArgsLen : TOOL_ARGS_MAX;
+    const a = normalizeToolArgs(args);
+    const keys = Object.keys(a);
+    if (!keys.length) return tool + '()';
+
+    const parts = keys.map(function (key) {
+        if (key === '_') return formatArgValue(a[key]);
+        return key + '=' + formatArgValue(a[key]);
+    });
+    let inner = parts.join(', ');
+    if (inner.length > limit) {
+        inner = inner.slice(0, Math.max(0, limit - 1)) + '…';
+    }
+    return tool + '(' + inner + ')';
 }
 
 function modelLabel(model) {

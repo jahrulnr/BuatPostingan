@@ -19,6 +19,7 @@ import {
     removeLLMModel,
     importLLMModels,
 } from '../api/index.js';
+import { formatApiError } from '../api/error.js';
 import { bootAppSelects, confirmAppDialog, openAppDialog, setAppSelectValue } from './dialogs.js';
 import { chatModels } from './model-capabilities.js';
 import {
@@ -60,11 +61,7 @@ function navigate(hash) {
 }
 
 function errMsg(err) {
-    if (!err) return 'Unknown error';
-    if (err.body && (err.body.message || err.body.error)) {
-        return err.body.message || err.body.error;
-    }
-    return err.message || String(err);
+    return formatApiError(err, 'Unknown error');
 }
 
 function userFields(user) {
@@ -99,14 +96,17 @@ export function bootSettings() {
 
     let route = parseHash();
 
-    function toast(msg) {
+    function toast(msg, opts) {
         if (!toastEl) return;
+        const isError = !!(opts && opts.error);
         toastEl.textContent = msg;
+        toastEl.classList.toggle('is-error', isError);
         toastEl.hidden = false;
         clearTimeout(toastEl._t);
         toastEl._t = setTimeout(function () {
             toastEl.hidden = true;
-        }, 2800);
+            toastEl.classList.remove('is-error');
+        }, isError ? 5200 : 2800);
     }
 
     function applyView() {
@@ -229,7 +229,7 @@ export function bootSettings() {
                     toast('User created');
                     renderSettings();
                 } catch (err) {
-                    toast(errMsg(err));
+                    toast(errMsg(err), { error: true });
                 }
             });
         }
@@ -256,7 +256,7 @@ export function bootSettings() {
                     toast('User updated');
                     renderSettings();
                 } catch (err) {
-                    toast(errMsg(err));
+                    toast(errMsg(err), { error: true });
                 }
             });
         });
@@ -279,7 +279,7 @@ export function bootSettings() {
                     toast('User deleted');
                     renderSettings();
                 } catch (err) {
-                    toast(errMsg(err));
+                    toast(errMsg(err), { error: true });
                 }
             });
         });
@@ -465,7 +465,7 @@ export function bootSettings() {
                     toast('Provider deleted');
                     renderSettings();
                 } catch (err) {
-                    toast(errMsg(err));
+                    toast(errMsg(err), { error: true });
                 }
             });
         });
@@ -477,7 +477,7 @@ export function bootSettings() {
                     toast(input.checked ? 'Enabled' : 'Disabled');
                 } catch (err) {
                     input.checked = !input.checked;
-                    toast(errMsg(err));
+                    toast(errMsg(err), { error: true });
                 }
             });
         });
@@ -556,7 +556,9 @@ export function bootSettings() {
             '<div class="bp-settings__row-actions" style="margin-top:1rem">' +
             '<button type="button" class="bp-settings__btn bp-settings__btn--ghost" data-edit-provider>Edit</button>' +
             '<button type="button" class="bp-settings__btn bp-settings__btn--ghost" data-import-models>Import models</button>' +
-            '</div></div>' +
+            '</div>' +
+            '<p class="bp-settings__flash bp-settings__flash--error" data-import-flash role="alert" hidden></p>' +
+            '</div>' +
             '<div class="bp-settings__card">' +
             '<div class="bp-settings__head bp-settings__head--sm">' +
             '<h3>Available models</h3>' +
@@ -576,15 +578,30 @@ export function bootSettings() {
             });
         }
         const imp = panel.querySelector('[data-import-models]');
+        const importFlash = panel.querySelector('[data-import-flash]');
         if (imp) {
             imp.addEventListener('click', async function () {
+                if (importFlash) {
+                    importFlash.hidden = true;
+                    importFlash.textContent = '';
+                }
+                const label = imp.textContent;
+                imp.disabled = true;
+                imp.textContent = 'Importing…';
                 try {
                     const out = await importLLMModels(api, p.id);
                     toast(out.message || 'Import complete');
                     document.dispatchEvent(new CustomEvent('bp:models-changed'));
                     renderSettings();
                 } catch (err) {
-                    toast(errMsg(err));
+                    const msg = errMsg(err);
+                    if (importFlash) {
+                        importFlash.textContent = msg;
+                        importFlash.hidden = false;
+                    }
+                    toast(msg, { error: true });
+                    imp.disabled = false;
+                    imp.textContent = label;
                 }
             });
         }
@@ -609,7 +626,7 @@ export function bootSettings() {
                     document.dispatchEvent(new CustomEvent('bp:models-changed'));
                     renderSettings();
                 } catch (err) {
-                    toast(errMsg(err));
+                    toast(errMsg(err), { error: true });
                 }
             });
         }
@@ -622,7 +639,7 @@ export function bootSettings() {
                     document.dispatchEvent(new CustomEvent('bp:models-changed'));
                     renderSettings();
                 } catch (err) {
-                    toast(errMsg(err));
+                    toast(errMsg(err), { error: true });
                 }
             });
         });
@@ -706,7 +723,7 @@ export function bootSettings() {
                 navigate('#/settings/models');
                 renderSettings();
             } catch (err) {
-                toast(errMsg(err));
+                toast(errMsg(err), { error: true });
             }
         });
     }

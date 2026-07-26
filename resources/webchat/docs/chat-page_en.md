@@ -102,4 +102,4 @@ The chat card contains, from top to bottom:
 ### Expand/collapse tool calls
 
 1. Tool calls appear as a collapsible section with a right-pointing chevron icon and "Tool Calls" label, showing a count (e.g. "2 tool calls").
-2. Click the section header to expand or collapse. When expanded, each tool row shows the tool call signature (e.g. `docs_search("query")`), the result summary, and a model badge if available.
+2. Click the section header to expand or collapse. Each tool row shows a compact signature `tool_name(arg=value, …)` (arguments truncated at 80 characters), a result summary, and an optional model badge.

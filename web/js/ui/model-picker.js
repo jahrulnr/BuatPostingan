@@ -4,6 +4,7 @@
  */
 
 import { chatModels } from './model-capabilities.js';
+import { formatApiError } from '../api/error.js';
 
 const LS_MODEL = 'bp.modelId';
 const LS_EFFORT = 'bp.effort';
@@ -353,7 +354,10 @@ export function bootModelPicker(opts) {
             }
             applyGoneModelFallback();
         } catch (err) {
-            menu.innerHTML = '<div class="composer-model-empty">Models unavailable</div>';
+            menu.innerHTML =
+                '<div class="composer-model-empty">' +
+                escapeHtml(formatApiError(err, 'Models unavailable')) +
+                '</div>';
             updatePill();
         }
     }

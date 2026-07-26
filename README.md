@@ -6,6 +6,8 @@ Drupal, WordPress, and Joomla were built human-first: an AI has to fight through
 
 [Docs](docs/) · [Development](docs/DEVELOPMENT.md) · [Runbook](docs/operations/runbook.md) · [Agents](AGENTS.md)
 
+![Chat workspace — the agent drafts a page and the live preview updates alongside it](docs/screenshot/chat-workspace.png)
+
 ---
 
 ## Quick start
@@ -68,6 +70,8 @@ The result: content ops that scale with prompts, not with the number of people w
 - **Pages tab** in the preview panel — tree view, Draft/Published badges, publish/unpublish/delete without leaving the chat.
 - Agent tools own the full lifecycle: `page_list`, `page_search`, `page_create`, `page_edit`, `page_read`, `page_publish`, `page_unpublish`.
 
+![Pages tab — draft/published tree next to the live preview and tool call trail](docs/screenshot/pages-tab.png)
+
 ### Knowledge the agent can actually use
 
 - Markdown corpus under `resources/webchat/docs/` — indexed and searchable via doc tools, so the agent writes with your house style and facts, not guesses.
@@ -79,6 +83,8 @@ The result: content ops that scale with prompts, not with the number of people w
 - Product knobs in `**storage/config.json**` — limits, LLM globals, context, docs, MCP, providers — editable from the Settings UI or the file directly.
 - **Users** and **Models** tabs for multi-provider, multi-operator setups; API keys masked on read, providers hot-reload without a restart.
 - Session-cookie auth (`bp_session`) so the publishing surface can sit behind a login, not just localhost.
+
+![Settings → Models — multi-provider registry with masked credentials and per-provider health](docs/screenshot/settings-models.png)
 
 ### Extensible without leaving the contract
 
@@ -109,7 +115,7 @@ UI knowledge-base docs (what the agent itself reads about the product): `[resour
 | Layer       | Choice                                                                       |
 | ----------- | ---------------------------------------------------------------------------- |
 | Frontend    | Vanilla JS ES modules, dual-driver mock | real                               |
-| Backend     | Go 1.22+, light Clean Architecture                                           |
+| Backend     | Go 1.26.5+, light Clean Architecture                                           |
 | Persistence | JSONL (`storage/webchat/`) for conversations, filesystem + symlink for pages |
 | Config      | `storage/config.json` + `BP_*` env for paths                                 |
 | LLM         | Provider registry — `chat` / `responses` / `messages`                        |

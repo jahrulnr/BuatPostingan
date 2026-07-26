@@ -27,6 +27,7 @@
     </main>
     <script type="module">
         import { api, authLogin } from './js/api/index.js';
+        import { formatApiError } from './js/api/error.js';
 
         const form = document.getElementById('loginForm');
         const error = document.getElementById('loginError');
@@ -40,7 +41,10 @@
             const data = new FormData(form);
             authLogin(api, { username: data.get('username'), password: data.get('password') })
                 .then(function () { window.location.replace(next.startsWith('/') ? next : './' + next.replace(/^\.\//, '')); })
-                .catch(function () { error.textContent = 'Username or password is invalid.'; submit.disabled = false; });
+                .catch(function (err) {
+                    error.textContent = formatApiError(err, 'Username or password is invalid.');
+                    submit.disabled = false;
+                });
         });
     </script>
 </body>

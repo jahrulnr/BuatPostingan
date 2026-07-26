@@ -85,10 +85,13 @@ async function parseJson(res) {
     const body = await res.json().catch(function () { return {}; });
     const traceId = res.headers.get('X-Trace-Id') || res.headers.get('x-trace-id') || '';
     if (!res.ok) {
-        const err = new Error(
-            (body && (body.code || body.error || (body.error && body.error.code))) ||
-            ('HTTP ' + res.status)
-        );
+        const message = body && typeof body.message === 'string' ? body.message.trim() : '';
+        const code = body && typeof body.code === 'string' ? body.code.trim()
+            : (body && typeof body.error === 'string' ? body.error.trim() : '');
+        const label = message && code && code !== message
+            ? code + ' · ' + message
+            : (message || code || ('HTTP ' + res.status));
+        const err = new Error(label);
         err.status = res.status;
         err.body = body;
         err.retryAfter = res.headers.get('Retry-After');

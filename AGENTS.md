@@ -10,7 +10,7 @@ Instructions for coding agents in this repo.
 ## Stack
 
 - **Frontend:** vanilla JS ES modules under `web/` (dual-driver mock|real)
-- **Backend:** Go 1.22+ Clean Architecture (light — no Wire/logmanager yet)
+- **Backend:** Go 1.26.5+ Clean Architecture (light — no Wire/logmanager yet)
 - **Persistence:** JSONL under `storage/webchat/` (`BP_STORAGE_ROOT`)
 - **Static pages:** draft source under `storage/pages/<page-id>/`; publication is only `.published/<page-id> -> ../<page-id>`
 - **Knowledge:** Markdown under `resources/webchat/docs/` + lexical index in storage

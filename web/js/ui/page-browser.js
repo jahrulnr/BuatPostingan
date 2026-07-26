@@ -1,3 +1,4 @@
+import { formatApiError } from '../api/error.js';
 import { confirmAppDialog } from './dialogs.js';
 
 function normalizePages(raw) {
@@ -124,10 +125,10 @@ export function bootPageBrowser(options) {
         return api.listPages().then(function (out) {
             pages = normalizePages(out);
             render();
-        }).catch(function () {
+        }).catch(function (err) {
             pages = [];
             render();
-            setHint('Unable to load pages.', 'error');
+            setHint(formatApiError(err, 'Unable to load pages.'), 'error');
         }).finally(function () {
             if (refreshBtn) refreshBtn.disabled = false;
         });
@@ -155,8 +156,8 @@ export function bootPageBrowser(options) {
             return;
         }
         setHint(action === 'delete' ? 'Deleting page…' : 'Updating page status…', 'loading');
-        Promise.resolve(fn({ pageId: id })).then(refresh).catch(function () {
-            setHint('Page action failed.', 'error');
+        Promise.resolve(fn({ pageId: id })).then(refresh).catch(function (err) {
+            setHint(formatApiError(err, 'Page action failed.'), 'error');
         });
     }
 

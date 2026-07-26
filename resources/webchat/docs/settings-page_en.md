@@ -65,7 +65,7 @@ Provider catalog grid — one card per known provider family, overlaid with the 
 ### Provider detail view (`#/settings/models/<id>`)
 
 - Header: Back link "← Models", provider name, and lede with provider ID · API dialect.
-- **Info card**: Base URL (code), API key (masked or —), Enabled (yes/no). Actions: "Edit", "Import models".
+- **Info card**: Base URL (code), API key (masked or —), Enabled (yes/no). Actions: "Edit", "Import models". Import failures show a red alert under those actions plus an error toast.
 - **Models card**: "Available models" with "Add" button. Each model row shows ID (code), optional label, "Remove", capability badges (context window, max output, input modes, effort levels, tools), optional description. Empty state: "No models".
 
 ## What we can do at this page
@@ -129,7 +129,7 @@ Provider catalog grid — one card per known provider family, overlaid with the 
 2. Click "Edit" to update fields; leave API key blank to keep the existing secret.
 3. Click "Add" under Available models — app dialog for model id and optional label.
 4. Click "Remove" on a model row to drop it.
-5. Click "Import models" to pull from the provider `/models` endpoint (toast shows imported/updated counts).
+5. Click "Import models" to pull from the provider `/models` endpoint. Success shows a toast with imported/updated counts. Failure shows a red inline alert under the actions (`code · message`, e.g. `upstream · fetch models`) plus a matching error toast — the button returns to "Import models" so you can retry.
 
 ### Enable/disable a provider
 

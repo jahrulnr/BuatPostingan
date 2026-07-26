@@ -65,7 +65,7 @@ Grid katalog provider — satu kartu per keluarga provider yang dikenal, ditimpa
 ### Detail provider (`#/settings/models/<id>`)
 
 - Header: Link back "← Models", nama provider, dan lede ID · dialek API.
-- **Kartu info**: Base URL (code), API key (masked atau —), Enabled (yes/no). Aksi: "Edit", "Import models".
+- **Kartu info**: Base URL (code), API key (masked atau —), Enabled (yes/no). Aksi: "Edit", "Import models". Kegagalan import menampilkan alert merah di bawah aksi plus toast error.
 - **Kartu models**: "Available models" dengan tombol "Add". Setiap baris model menampilkan ID (code), label opsional, "Remove", badge kapabilitas (context window, max output, input modes, effort levels, tools), deskripsi opsional. Empty state: "No models".
 
 ## Apa yang bisa dilakukan di halaman ini
@@ -129,7 +129,7 @@ Grid katalog provider — satu kartu per keluarga provider yang dikenal, ditimpa
 2. Klik "Edit" untuk update field; kosongkan API key untuk mempertahankan secret yang ada.
 3. Klik "Add" di Available models — dialog aplikasi untuk model id dan label opsional.
 4. Klik "Remove" pada baris model untuk menghapusnya.
-5. Klik "Import models" untuk menarik dari endpoint `/models` provider (toast menampilkan jumlah imported/updated).
+5. Klik "Import models" untuk menarik dari endpoint `/models` provider. Sukses menampilkan toast dengan jumlah imported/updated. Gagal menampilkan alert merah inline di bawah aksi (`code · message`, mis. `upstream · fetch models`) plus toast error yang sama — tombol kembali ke "Import models" agar bisa diulang.
 
 ### Enable/disable provider
 

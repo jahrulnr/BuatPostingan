@@ -102,4 +102,4 @@ Kartu chat berisi, dari atas ke bawah:
 ### Expand/collapse tool calls
 
 1. Tool call muncul sebagai section yang dapat diciutkan dengan ikon chevron ke kanan dan label "Tool Calls", menampilkan jumlah (mis. "2 tool calls").
-2. Klik header section untuk expand atau collapse. Saat expanded, setiap baris tool menampilkan signature panggilan tool (mis. `docs_search("query")`), ringkasan hasil, dan badge model jika tersedia.
+2. Klik header section untuk expand atau collapse. Setiap baris tool menampilkan signature ringkas `tool_name(arg=value, …)` (argumen dipotong di 80 karakter), ringkasan hasil, dan badge model opsional.

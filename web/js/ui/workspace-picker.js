@@ -4,6 +4,8 @@
  * When no workspace is set, empty string is returned (use backend current dir).
  */
 
+import { formatApiError } from '../api/error.js';
+
 export function workspaceLabel(workspace, defaultPath) {
     return String(workspace || defaultPath || 'Workspace');
 }
@@ -123,7 +125,7 @@ export function bootWorkspacePicker(opts) {
             updatePill();
         }).catch(function (err) {
             if (generation !== browseGeneration) return;
-            showError('Cannot browse: ' + (err && err.message ? err.message : String(err)));
+            showError(formatApiError(err, 'Cannot browse workspace'));
         });
     }
 

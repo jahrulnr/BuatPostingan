@@ -29,7 +29,7 @@ Hidden by default. Opens when the model picker pill is clicked. Contains:
 - **Model list** (below search): Each model row shows:
   - A model button with model name (left) and metadata tags (right, e.g. "vision · reasoning"). Selected model is highlighted.
   - If the model supports reasoning effort: a row of effort buttons below the model entry, showing options like "auto", "none", "minimal", "low", "medium", "high", "xhigh", "max". Selected effort is highlighted.
-- Empty state: "No models match "query"" or "Models unavailable" (on error).
+- Empty state: "No models match "query"" or the API error text (falls back to "Models unavailable").
 
 ### Workspace picker dialog
 

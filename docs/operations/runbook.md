@@ -4,7 +4,7 @@ Local ops for humans and agents. Product locks and layer rules: [`AGENTS.md`](..
 
 ## Prerequisites
 
-- Go **1.22+**
+- Go **1.26.5+**
 - Node.js (`npx`) for `make fe` live-reload (no committed `node_modules`)
 - Optional: provider API key for real LLM turns
 - Optional: host `rg` for faster `grep` tool (Go RE2 fallback if missing)

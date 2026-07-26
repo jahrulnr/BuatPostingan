@@ -3,6 +3,7 @@
  * Compact control-panel layout; app-owned choice controls (no native select).
  */
 import { api, getSettingsSnapshot, patchSettingsConfig } from '../api/index.js';
+import { formatApiError } from '../api/error.js';
 
 const STRATEGY_OPTS = [
     { value: 'failover', label: 'Failover' },
@@ -39,11 +40,7 @@ function escapeHtml(s) {
 }
 
 function errMsg(err) {
-    if (!err) return 'Unknown error';
-    if (err.body && (err.body.message || err.body.error)) {
-        return err.body.message || err.body.error;
-    }
-    return err.message || String(err);
+    return formatApiError(err, 'Unknown error');
 }
 
 function num(v, fallback) {
@@ -595,7 +592,7 @@ export function wireGeneral(panel, snap, helpers) {
             setDirty(false);
             await reload();
         } catch (err) {
-            toast(errMsg(err));
+            toast(errMsg(err), { error: true });
         } finally {
             if (saveBtn) saveBtn.disabled = false;
         }

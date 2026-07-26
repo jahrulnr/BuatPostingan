@@ -29,7 +29,7 @@ Tersembunyi default. Terbuka saat pill model picker diklik. Berisi:
 - **Daftar model** (di bawah search): Setiap baris model menampilkan:
   - Tombol model dengan nama model (kiri) dan tag metadata (kanan, mis. "vision · reasoning"). Model terpilih disorot.
   - Jika model mendukung reasoning effort: baris tombol effort di bawah entri model, menampilkan opsi seperti "auto", "none", "minimal", "low", "medium", "high", "xhigh", "max". Effort terpilih disorot.
-- Empty state: "No models match "query"" atau "Models unavailable" (saat error).
+- Empty state: "No models match "query"" atau teks error API (fallback "Models unavailable").
 
 ### Dialog workspace picker
 
