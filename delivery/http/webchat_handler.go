@@ -36,6 +36,10 @@ func (h *WebchatHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/webchat/threads/{threadID}/interrupt", h.InterruptTurn)
 	mux.HandleFunc("GET /api/webchat/threads/{threadID}/events", h.Events)
 	mux.HandleFunc("POST /api/webchat/browse", h.BrowseDir)
+	mux.HandleFunc("GET /api/webchat/pages", h.ListPages)
+	mux.HandleFunc("POST /api/webchat/pages/{pageID}/publish", h.PublishPage)
+	mux.HandleFunc("DELETE /api/webchat/pages/{pageID}/publish", h.UnpublishPage)
+	mux.HandleFunc("DELETE /api/webchat/pages/{pageID}", h.DeletePage)
 }
 
 func (h *WebchatHandler) ListConversations(w http.ResponseWriter, r *http.Request) {
@@ -45,6 +49,41 @@ func (h *WebchatHandler) ListConversations(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	presenter.WriteJSON(w, http.StatusOK, presenter.ListConversations(out))
+}
+
+func (h *WebchatHandler) ListPages(w http.ResponseWriter, r *http.Request) {
+	pages, err := h.UC.ListPages(r.Context())
+	if err != nil {
+		writeErr(w, r, "webchat.pages", err)
+		return
+	}
+	presenter.WriteJSON(w, http.StatusOK, map[string]any{"pages": pages})
+}
+
+func (h *WebchatHandler) PublishPage(w http.ResponseWriter, r *http.Request) {
+	page, err := h.UC.PublishPage(r.Context(), r.PathValue("pageID"))
+	if err != nil {
+		writeErr(w, r, "webchat.pages", err)
+		return
+	}
+	presenter.WriteJSON(w, http.StatusOK, map[string]any{"page": page})
+}
+
+func (h *WebchatHandler) UnpublishPage(w http.ResponseWriter, r *http.Request) {
+	page, err := h.UC.UnpublishPage(r.Context(), r.PathValue("pageID"))
+	if err != nil {
+		writeErr(w, r, "webchat.pages", err)
+		return
+	}
+	presenter.WriteJSON(w, http.StatusOK, map[string]any{"page": page})
+}
+
+func (h *WebchatHandler) DeletePage(w http.ResponseWriter, r *http.Request) {
+	if err := h.UC.DeletePage(r.Context(), r.PathValue("pageID")); err != nil {
+		writeErr(w, r, "webchat.pages", err)
+		return
+	}
+	presenter.WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (h *WebchatHandler) ListModels(w http.ResponseWriter, r *http.Request) {

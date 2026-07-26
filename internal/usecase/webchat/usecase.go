@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"buatpostingan/internal/domain/entity"
+	"buatpostingan/internal/domain/service"
 	"buatpostingan/internal/domain/valueobject"
 )
 
@@ -26,6 +27,10 @@ type Usecase interface {
 	// BrowseDir lists sub-directories for the workspace picker UI. Empty path
 	// resolves to the service default (BP_WORKSPACE_ROOT or process cwd).
 	BrowseDir(ctx context.Context, path string) (BrowseDirResult, error)
+	ListPages(ctx context.Context) ([]service.PageWorkspace, error)
+	PublishPage(ctx context.Context, pageID string) (service.PageWorkspace, error)
+	UnpublishPage(ctx context.Context, pageID string) (service.PageWorkspace, error)
+	DeletePage(ctx context.Context, pageID string) error
 	// SubscribeEvents blocks until ctx is done or the stream ends.
 	// emit must be called with FE/SSE event names (item.completed, turn.*, …).
 	SubscribeEvents(ctx context.Context, threadID valueobject.ThreadID, afterSeq uint64, emit EventEmitter) error

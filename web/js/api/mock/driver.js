@@ -5,6 +5,29 @@ import { createSettingsStore } from './settings-store.js';
 const store = createStore({ docsIndexReady: resolveInitialDocsIndex() });
 const settingsStore = createSettingsStore();
 let disconnectInjected = false;
+let mockPages = [
+    {
+        id: 'landing-demo',
+        published: true,
+        entries: [
+            { path: 'assets', type: 'directory' },
+            { path: 'assets/icon.svg', type: 'file' },
+            { path: 'index.html', type: 'file' },
+            { path: 'page.css', type: 'file' },
+            { path: 'page.js', type: 'file' },
+        ],
+    },
+    {
+        id: 'draft-notes',
+        published: false,
+        entries: [
+            { path: 'assets', type: 'directory' },
+            { path: 'index.html', type: 'file' },
+            { path: 'page.css', type: 'file' },
+            { path: 'page.js', type: 'file' },
+        ],
+    },
+];
 
 function shouldInjectDisconnect() {
     if (disconnectInjected) return false;
@@ -23,6 +46,33 @@ function adminName(api) {
 // misleading iframe that points at the real backend.
 export function pagePreviewURLMock(_api, _req) {
     return null;
+}
+
+export function listPagesMock(_api, _req) {
+    return Promise.resolve({ pages: mockPages.map(function (page) {
+        return Object.assign({}, page, { entries: page.entries.slice() });
+    }) });
+}
+
+export function publishPageMock(_api, req) {
+    const page = mockPages.find(function (item) { return item.id === req.pageId; });
+    if (!page) return Promise.reject(new Error('page not found'));
+    page.published = true;
+    return Promise.resolve({ page: Object.assign({}, page) });
+}
+
+export function unpublishPageMock(_api, req) {
+    const page = mockPages.find(function (item) { return item.id === req.pageId; });
+    if (!page) return Promise.reject(new Error('page not found'));
+    page.published = false;
+    return Promise.resolve({ page: Object.assign({}, page) });
+}
+
+export function deletePageMock(_api, req) {
+    const before = mockPages.length;
+    mockPages = mockPages.filter(function (item) { return item.id !== req.pageId; });
+    if (mockPages.length === before) return Promise.reject(new Error('page not found'));
+    return Promise.resolve({ ok: true, page_id: req.pageId });
 }
 
 /** @param {import('../types.js').ApiContext} api */

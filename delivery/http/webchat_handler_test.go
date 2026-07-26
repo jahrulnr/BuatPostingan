@@ -11,6 +11,7 @@ import (
 	"buatpostingan/internal/config"
 	"buatpostingan/internal/domain/entity"
 	"buatpostingan/internal/domain/enum"
+	"buatpostingan/internal/domain/service"
 	"buatpostingan/internal/domain/valueobject"
 	"buatpostingan/internal/pkg/apperr"
 	"buatpostingan/internal/usecase/webchat"
@@ -59,6 +60,18 @@ func (f *listFake) ListModels(context.Context) (entity.ModelsCatalog, error) {
 func (f *listFake) BrowseDir(_ context.Context, path string) (webchat.BrowseDirResult, error) {
 	f.browsePath = path
 	return f.browseOut, f.err
+}
+func (f *listFake) ListPages(context.Context) ([]service.PageWorkspace, error) {
+	return nil, apperr.NotImplemented("x")
+}
+func (f *listFake) PublishPage(context.Context, string) (service.PageWorkspace, error) {
+	return service.PageWorkspace{}, apperr.NotImplemented("x")
+}
+func (f *listFake) UnpublishPage(context.Context, string) (service.PageWorkspace, error) {
+	return service.PageWorkspace{}, apperr.NotImplemented("x")
+}
+func (f *listFake) DeletePage(context.Context, string) error {
+	return apperr.NotImplemented("x")
 }
 func (f *listFake) SubscribeEvents(context.Context, valueobject.ThreadID, uint64, webchat.EventEmitter) error {
 	return apperr.NotImplemented("x")

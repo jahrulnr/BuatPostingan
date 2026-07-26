@@ -46,6 +46,37 @@ export function pagePreviewURLImpl(api, req) {
     return pagesBase + '/' + encodeURIComponent(pageID) + '/?v=' + encodeURIComponent(String(version));
 }
 
+/** @param {import('../types.js').ApiContext} api */
+export function listPagesImpl(api, _req) {
+    return fetch(api.baseUrl + '/pages', {
+        headers: acceptHeaders(api),
+    }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function publishPageImpl(api, req) {
+    return fetch(api.baseUrl + '/pages/' + encodeURIComponent(req.pageId) + '/publish', {
+        method: 'POST',
+        headers: acceptHeaders(api),
+    }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function unpublishPageImpl(api, req) {
+    return fetch(api.baseUrl + '/pages/' + encodeURIComponent(req.pageId) + '/publish', {
+        method: 'DELETE',
+        headers: acceptHeaders(api),
+    }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
+export function deletePageImpl(api, req) {
+    return fetch(api.baseUrl + '/pages/' + encodeURIComponent(req.pageId), {
+        method: 'DELETE',
+        headers: acceptHeaders(api),
+    }).then(parseJson);
+}
+
 async function parseJson(res) {
     const body = await res.json().catch(function () { return {}; });
     const traceId = res.headers.get('X-Trace-Id') || res.headers.get('x-trace-id') || '';

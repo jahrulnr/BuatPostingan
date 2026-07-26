@@ -97,4 +97,17 @@
  * @property {() => void} close
  */
 
+/**
+ * @typedef {Object} PageEntry
+ * @property {string} path
+ * @property {'file'|'directory'} type
+ */
+
+/**
+ * @typedef {Object} PageWorkspace
+ * @property {string} id
+ * @property {boolean} published
+ * @property {PageEntry[]} entries
+ */
+
 export {};

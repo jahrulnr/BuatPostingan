@@ -2,6 +2,7 @@ package webchat
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -87,6 +88,34 @@ func (s *Service) RenameThread(ctx context.Context, threadID valueobject.ThreadI
 
 func (s *Service) DeleteThread(ctx context.Context, threadID valueobject.ThreadID) error {
 	return s.deps.Threads.SoftDeleteThread(ctx, threadID)
+}
+
+func (s *Service) ListPages(ctx context.Context) ([]service.PageWorkspace, error) {
+	if s.deps.Pages == nil {
+		return nil, errors.New("pages unavailable")
+	}
+	return s.deps.Pages.ListPageWorkspaces(ctx)
+}
+
+func (s *Service) PublishPage(ctx context.Context, pageID string) (service.PageWorkspace, error) {
+	if s.deps.Pages == nil {
+		return service.PageWorkspace{}, errors.New("pages unavailable")
+	}
+	return s.deps.Pages.PublishPageWorkspace(ctx, pageID)
+}
+
+func (s *Service) UnpublishPage(ctx context.Context, pageID string) (service.PageWorkspace, error) {
+	if s.deps.Pages == nil {
+		return service.PageWorkspace{}, errors.New("pages unavailable")
+	}
+	return s.deps.Pages.UnpublishPageWorkspace(ctx, pageID)
+}
+
+func (s *Service) DeletePage(ctx context.Context, pageID string) error {
+	if s.deps.Pages == nil {
+		return errors.New("pages unavailable")
+	}
+	return s.deps.Pages.DeletePageWorkspace(ctx, pageID)
 }
 
 func (s *Service) StartTurn(ctx context.Context, in StartTurnInput) (StartTurnResult, error) {

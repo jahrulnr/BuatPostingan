@@ -191,6 +191,22 @@ export const pagePreviewURL = mockMode
     ? mock.pagePreviewURLMock
     : real.pagePreviewURLImpl;
 
+export const listPages = mockMode
+    ? mock.listPagesMock
+    : real.listPagesImpl;
+
+export const publishPage = mockMode
+    ? mock.publishPageMock
+    : real.publishPageImpl;
+
+export const unpublishPage = mockMode
+    ? mock.unpublishPageMock
+    : real.unpublishPageImpl;
+
+export const deletePage = mockMode
+    ? mock.deletePageMock
+    : real.deletePageImpl;
+
 /** @type {import('./types.js').ApiContext} */
 export const api = {
     baseUrl: baseUrl,

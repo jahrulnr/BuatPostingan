@@ -7,6 +7,26 @@ import (
 	"buatpostingan/internal/domain/valueobject"
 )
 
+type PageEntry struct {
+	Path string `json:"path"`
+	Type string `json:"type"` // file | directory
+}
+
+type PageWorkspace struct {
+	ID        string      `json:"id"`
+	Published bool        `json:"published"`
+	Entries   []PageEntry `json:"entries"`
+}
+
+// PageWorkspaceManager is user-operated page lifecycle, intentionally
+// separate from ToolRegistry so the agent never receives delete authority.
+type PageWorkspaceManager interface {
+	ListPageWorkspaces(ctx context.Context) ([]PageWorkspace, error)
+	PublishPageWorkspace(ctx context.Context, pageID string) (PageWorkspace, error)
+	UnpublishPageWorkspace(ctx context.Context, pageID string) (PageWorkspace, error)
+	DeletePageWorkspace(ctx context.Context, pageID string) error
+}
+
 // SpeakFloor enforces the speak-floor lock (HTTP 423) — AIPedia WebchatSpeakFloor.
 type SpeakFloor interface {
 	Assert(ctx context.Context, threadID valueobject.ThreadID, adminUserID int64) error

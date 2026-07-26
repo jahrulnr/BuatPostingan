@@ -18,6 +18,7 @@ type Deps struct {
 	Worker      service.TurnWorker
 	Attachments repository.AttachmentStore
 	Models      service.ModelCatalog
+	Pages       service.PageWorkspaceManager
 	// WorkspaceRoot is the default working directory surfaced to the workspace
 	// picker when the request omits a path. Mirrors BP_WORKSPACE_ROOT.
 	WorkspaceRoot string

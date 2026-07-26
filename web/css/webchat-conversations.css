@@ -461,6 +461,190 @@
     line-height: 1.45;
 }
 
+/* —— Pages workspace tree —— */
+.wc-preview__panel.wc-pages {
+    position: relative;
+    padding: 0;
+    overflow: hidden;
+}
+
+.wc-pages__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 2.5rem;
+    padding: 0 0.65rem;
+    border-bottom: 1px solid var(--bp-border);
+}
+
+.wc-pages__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--bp-muted);
+    font-size: 0.7rem;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.wc-pages__label i { color: var(--bp-accent); }
+
+.wc-pages__refresh {
+    width: 1.8rem;
+    height: 1.8rem;
+    border: 1px solid transparent;
+    border-radius: 0.35rem;
+    color: var(--bp-muted);
+    background: transparent;
+    cursor: pointer;
+}
+
+.wc-pages__refresh:hover:not(:disabled),
+.wc-pages__refresh:focus-visible {
+    color: var(--bp-ink);
+    border-color: var(--bp-border);
+    background: var(--bp-surface-2);
+    outline: none;
+}
+
+.wc-pages__refresh:disabled { opacity: 0.45; cursor: wait; }
+
+.wc-pages__tree {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 0.4rem 0.35rem;
+    font-family: var(--bp-mono);
+    font-size: 0.72rem;
+}
+
+.wc-pages__node { min-width: 0; }
+
+.wc-pages__row,
+.wc-pages__file {
+    display: flex;
+    align-items: center;
+    gap: 0.42rem;
+    width: 100%;
+    min-height: 1.85rem;
+    padding: 0.2rem 0.4rem;
+    color: var(--bp-muted);
+    text-align: left;
+}
+
+.wc-pages__row {
+    border: 1px solid transparent;
+    border-radius: 0.3rem;
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+}
+
+.wc-pages__row:hover,
+.wc-pages__row:focus-visible {
+    color: var(--bp-ink);
+    background: var(--bp-surface-2);
+    outline: none;
+}
+
+.wc-pages__chevron {
+    width: 0.65rem;
+    color: var(--bp-faint);
+    font-size: 0.57rem;
+}
+
+.wc-pages__icon { color: color-mix(in oklab, var(--bp-accent) 78%, var(--bp-ink)); }
+
+.wc-pages__name {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--bp-ink);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wc-pages__state {
+    margin-left: auto;
+    padding: 0.08rem 0.3rem;
+    border: 1px solid var(--bp-border);
+    border-radius: 999px;
+    color: var(--bp-faint);
+    font-family: var(--bp-font);
+    font-size: 0.6rem;
+    font-weight: 600;
+}
+
+.wc-pages__state.is-published {
+    color: var(--bp-accent-ink);
+    border-color: color-mix(in oklab, var(--bp-accent) 46%, var(--bp-border));
+    background: var(--bp-accent-soft);
+}
+
+.wc-pages__children { margin-left: 1rem; }
+
+.wc-pages__file {
+    min-width: 0;
+    color: var(--bp-faint);
+}
+
+.wc-pages__file span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wc-pages__file-icon { width: 0.85rem; color: var(--bp-muted); }
+
+.wc-pages__hint {
+    flex: 0 0 auto;
+    min-height: 1.9rem;
+    margin: 0;
+    padding: 0.45rem 0.7rem;
+    border-top: 1px solid var(--bp-border);
+    color: var(--bp-faint);
+    font-size: 0.68rem;
+}
+
+.wc-pages__hint[data-state="error"] { color: var(--bp-danger); }
+
+.wc-pages__menu {
+    position: absolute;
+    z-index: 5;
+    min-width: 8.7rem;
+    padding: 0.25rem;
+    border: 1px solid var(--bp-border);
+    border-radius: 0.4rem;
+    background: var(--bp-surface);
+    box-shadow: var(--bp-shadow);
+}
+
+.wc-pages__menu button {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    width: 100%;
+    min-height: 1.9rem;
+    padding: 0.25rem 0.45rem;
+    border: 0;
+    border-radius: 0.24rem;
+    background: transparent;
+    color: var(--bp-ink);
+    font-family: var(--bp-font);
+    font-size: 0.72rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.wc-pages__menu button:hover,
+.wc-pages__menu button:focus-visible {
+    background: var(--bp-surface-2);
+    outline: none;
+}
+
+.wc-pages__menu button.is-danger { color: var(--bp-danger); }
+.wc-pages__menu button[hidden] { display: none; }
+
 /* —— Dialog (theme-aware) —— */
 .wc-dialog {
     position: fixed;

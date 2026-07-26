@@ -182,8 +182,8 @@
                     <button type="button" class="wc-preview__tab is-active" role="tab" id="tabPreview" aria-selected="true" aria-controls="panelPreview" data-preview-tab="preview">
                         Preview
                     </button>
-                    <button type="button" class="wc-preview__tab" role="tab" id="tabBrowser" aria-selected="false" aria-controls="panelBrowser" data-preview-tab="browser">
-                        Browser
+                    <button type="button" class="wc-preview__tab" role="tab" id="tabPages" aria-selected="false" aria-controls="panelPages" data-preview-tab="pages">
+                        Pages
                     </button>
                 </div>
                 <div class="wc-preview__body">
@@ -194,11 +194,19 @@
                             <p>Akan diisi nanti — wrapper preview kerja AI.</p>
                         </div>
                     </div>
-                    <div class="wc-preview__panel" role="tabpanel" id="panelBrowser" aria-labelledby="tabBrowser" data-preview-panel="browser" hidden>
-                        <div class="wc-preview__empty">
-                            <i class="bi bi-globe2" aria-hidden="true"></i>
-                            <strong>Kosong</strong>
-                            <p>Akan diisi nanti — tidak ada mock content.</p>
+                    <div class="wc-preview__panel wc-pages" role="tabpanel" id="panelPages" aria-labelledby="tabPages" data-preview-panel="pages" hidden>
+                        <div class="wc-pages__bar">
+                            <span class="wc-pages__label"><i class="bi bi-folder2-open" aria-hidden="true"></i> Pages</span>
+                            <button type="button" class="wc-pages__refresh" id="pagesRefresh" aria-label="Refresh pages" data-wc-tooltip="Refresh pages">
+                                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                        <div class="wc-pages__tree" id="pagesTree" role="tree" aria-label="Page workspaces"></div>
+                        <p class="wc-pages__hint" id="pagesHint" role="status">Memuat pages…</p>
+                        <div class="wc-pages__menu" id="pagesContextMenu" role="menu" aria-label="Page actions" hidden>
+                            <button type="button" role="menuitem" data-page-action="publish"><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i> Publish</button>
+                            <button type="button" role="menuitem" data-page-action="unpublish"><i class="bi bi-cloud-arrow-down" aria-hidden="true"></i> Unpublish</button>
+                            <button type="button" role="menuitem" class="is-danger" data-page-action="delete"><i class="bi bi-trash3" aria-hidden="true"></i> Delete</button>
                         </div>
                     </div>
                 </div>

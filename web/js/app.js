@@ -1,8 +1,9 @@
-import { api } from './api/index.js';
+import { api, listPages, publishPage, unpublishPage, deletePage } from './api/index.js';
 import { bootChat } from './ui/chat.js';
 import { bootTheme } from './ui/theme.js';
 import { bootPreviewResize } from './ui/preview-resize.js';
 import { bootSettings } from './ui/settings.js';
+import { bootPageBrowser } from './ui/page-browser.js';
 
 function paintModeBadge() {
     const badge = document.getElementById('bpModeBadge');
@@ -67,7 +68,17 @@ function bootChrome() {
         new MutationObserver(sync).observe(roomTitle, { characterData: true, childList: true, subtree: true });
     }
 
-    // Preview tabs — empty panels only
+    const pageBrowser = bootPageBrowser({
+        panelEl: document.getElementById('panelPages'),
+        api: {
+            listPages: function () { return listPages(api); },
+            publishPage: function (req) { return publishPage(api, req); },
+            unpublishPage: function (req) { return unpublishPage(api, req); },
+            deletePage: function (req) { return deletePage(api, req); },
+        },
+    });
+
+    // Preview and Pages tabs.
     const tabs = document.querySelectorAll('[data-preview-tab]');
     tabs.forEach(function (tab) {
         tab.addEventListener('click', function () {
@@ -82,6 +93,7 @@ function bootChrome() {
                 panel.classList.toggle('is-active', on);
                 panel.hidden = !on;
             });
+            if (name === 'pages') pageBrowser.refresh();
         });
     });
 }

@@ -1,6 +1,6 @@
 # Panel Preview
 
-Panel kanan dengan tab Preview dan Browser untuk output kerja AI.
+Panel kanan dengan tab Preview dan Pages untuk output kerja AI serta lifecycle page yang dioperasikan pengguna.
 
 ## Overview
 
@@ -10,14 +10,17 @@ Panel preview adalah sidebar yang dapat diciutkan di sisi kanan workspace chat. 
 
 - **Tab bar** (atas panel): Dua tombol tab berdampingan:
   - **Tab Preview**: Aktif secara default (disorot). Teks "Preview".
-  - **Tab Browser**: Tidak aktif default. Teks "Browser".
+  - **Tab Pages**: Tidak aktif default. Teks "Pages".
 - **Body panel Preview** (di bawah tab bar, aktif default): Empty state terpusat di panel — ikon desktop/window, label bold "Kosong", dan deskripsi "Akan diisi nanti — wrapper preview kerja AI."
-- **Body panel Browser** (di bawah tab bar, tersembunyi default): Empty state terpusat — ikon globe, label bold "Kosong", dan deskripsi "Akan diisi nanti — tidak ada mock content."
+- **Body panel Pages** (di bawah tab bar, tersembunyi default): Tree folder untuk setiap page workspace. Folder page dapat di-expand untuk melihat file dan folder relatif seperti `assets/`, `index.html`, `page.css`, dan `page.js`. Setiap folder page memiliki badge **Draft** atau **Published**.
+- **Menu konteks Pages**: Klik kanan folder page membuka aksi Publish, Unpublish, dan Delete. Publish/Unpublish mengubah marker publikasi page. Delete menghapus seluruh workspace page dan meminta konfirmasi browser terlebih dahulu.
 - **Handle resize** (bar vertikal antara area chat dan panel preview): Bar pemisah tipis dengan tooltip "Drag to resize · double-click to reset". Hanya terlihat di desktop (≥ 1101px).
 
 ## Apa yang bisa dilakukan di halaman ini
 
-- Berpindah antara tab Preview dan Browser.
+- Berpindah antara tab Preview dan Pages.
+- Melihat tree page workspace dan status Draft/Published.
+- Publish, unpublish, atau menghapus page secara manual melalui menu konteks.
 - Membuka/menutup seluruh panel preview.
 - Mengubah lebar panel dengan menarik splitter (desktop saja).
 - Mereset lebar panel dengan double-click splitter (desktop saja).
@@ -26,9 +29,19 @@ Panel preview adalah sidebar yang dapat diciutkan di sisi kanan workspace chat. 
 
 ### Berpindah tab
 
-1. Klik tab "Preview" (tab kiri di tab bar atas panel) atau tab "Browser" (tab kanan).
+1. Klik tab "Preview" (tab kiri di tab bar atas panel) atau tab "Pages" (tab kanan).
 2. Tab yang diklik menjadi disorot sebagai aktif. Tab lain dinonaktifkan.
 3. Panel body yang sesuai menjadi terlihat; yang lain disembunyikan.
+
+### Mengelola pages
+
+1. Buka tab "Pages". Tree dimuat ulang saat tab dibuka; gunakan tombol refresh bila perlu.
+2. Klik folder page untuk expand/collapse isi workspace.
+3. Klik kanan folder page untuk membuka menu konteks.
+4. Pilih **Publish** untuk membuat page live, atau **Unpublish** untuk menurunkannya tanpa mengubah draft.
+5. Pilih **Delete** untuk menghapus page beserta seluruh filenya. Konfirmasi browser harus disetujui sebelum penghapusan dilakukan.
+
+Agent dapat membuat, membaca, dan mengedit page melalui tool page authoring, tetapi tidak memiliki akses `page_delete`. Penghapusan hanya dilakukan pengguna dari tab Pages.
 
 ### Membuka/menutup panel
 

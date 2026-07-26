@@ -168,6 +168,7 @@ func main() {
 		Worker:        tw,
 		Attachments:   attStore,
 		Models:        modelCatalog,
+		Pages:         reg,
 		WorkspaceRoot: cfg.WorkspaceRoot,
 	})
 
