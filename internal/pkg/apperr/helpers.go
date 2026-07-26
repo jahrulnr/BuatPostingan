@@ -46,3 +46,10 @@ func FloorLocked(holderAdminID int64, remainingSec int) *Error {
 		},
 	)
 }
+
+func RateLimited(message string) *Error {
+	if message == "" {
+		message = "too many requests"
+	}
+	return New(http.StatusTooManyRequests, CodeRateLimited, message)
+}

@@ -2,6 +2,18 @@
 
 Instructions for coding agents in this repo.
 
+## Before coding (required)
+
+Always apply **best practice for this repo** before writing or moving code — do not invent a convenient layout and fix it later.
+
+1. **Read the owning layer first.** Ask which layer owns the concern (`delivery` vs `usecase` vs `domain` vs `infrastructure` vs `pkg`) using the Foldering + Dependency rule below — then place the file there.
+2. **Match existing patterns.** Prefer the nearest sibling package (`internal/infrastructure/auth`, `…/sse`, `…/network`, …) over a new top-level `internal/<ad-hoc>` folder.
+3. **Delivery stays thin.** HTTP handlers adapt request/response only; reusable edge tech (rate limit, client IP, stores, clients) lives under `internal/`, usually `internal/infrastructure/…` or `internal/pkg/…` for pure helpers.
+4. **Contract before patch.** Prefer one clear owner and one code path; do not paper over a wrong-layer placement with wrappers in `delivery/`.
+5. **Docs in the same change** when UI or operator-facing behavior changes (see UI → knowledge docs and Docs map).
+
+If unsure where something belongs, stop and decide against this file (and `docs/`) before scaffolding.
+
 ## Language
 
 - Write implementation, comments, documentation, user-facing copy, and agent instructions in English.
@@ -45,7 +57,7 @@ Do **not** import `delivery` or `infrastructure` from `domain`.
 Do **not** put business rules in HTTP handlers — handlers call `webchat.Usecase` interface only.
 Do **not** put resep dapur (`domain` / `usecase` / `infrastructure`) at repo root — those live under `internal/`. `delivery/` stays at root.
 Concrete usecase: `webchat.NewService(Deps{...})` in `internal/usecase/webchat` orchestrates ports (AIPedia controller order).
-Port adapters stay under `internal/infrastructure` (jsonl / docs / tools / llm / worker / sse).
+Port adapters stay under `internal/infrastructure` (jsonl / docs / tools / llm / worker / sse / network / auth).
 Handlers call `webchat.Usecase` interface only.
 
 ## FE dual-driver
@@ -92,7 +104,7 @@ Reuse over rewrite: treat kitchen + webchat delivery as a **copyable kit**, not 
 - **Skills:** `resources/webchat/skills/<name>/SKILL.md` (`BP_SKILLS_ROOT`); discover via `list_skills`, load via `read_skill` — jailed to skills root (unlike local-dev FS tools). See [`docs/architecture/skills-tools.md`](docs/architecture/skills-tools.md).
 - **MCP:** `mcp.servers` in `storage/config.json`; discover via `list_mcp_tools`, invoke via `call_mcp_tool` — mutations default-denied. See [`docs/architecture/mcp-support.md`](docs/architecture/mcp-support.md).
 - **Static pages:** tools `page_list`, `page_search`, `page_create`, `page_edit`, `page_read`, `page_publish`, and `page_unpublish` own page authoring and lifecycle. `GET /api/pages/<page-id>/…` serves the jailed no-cache draft for the FE preview iframe. Publish/unpublish must use their dedicated tools, so draft versus published differs only by `.published/<page-id>` symlink. `page_snapshot` remains a documented future requirement until a local renderer is installed. See [`docs/architecture/static-pages.md`](docs/architecture/static-pages.md).
-- **Authentication:** chat/settings/page APIs require a SQLite-backed `bp_session` cookie when the app is wired with auth. JSONL remains the source of truth for conversations. Bootstrap the first admin with `BP_AUTH_ADMIN_USERNAME` + `BP_AUTH_ADMIN_PASSWORD`; never commit the password. See [`docs/operations/runbook.md`](docs/operations/runbook.md).
+- **Authentication:** chat/settings/page APIs require a SQLite-backed `bp_session` cookie when the app is wired with auth. JSONL remains the source of truth for conversations. Bootstrap the first admin with `BP_AUTH_ADMIN_USERNAME` + `BP_AUTH_ADMIN_PASSWORD` (required when the auth DB is empty — process exits otherwise); never commit the password. Login is rate-limited; JSON bodies capped at 2 MiB; uploads at 10 MiB; auth DB file `0600`. See [`docs/operations/runbook.md`](docs/operations/runbook.md).
 
 ## Ready-to-use LLM
 

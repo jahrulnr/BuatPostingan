@@ -25,7 +25,7 @@ import (
 var _ repository.AttachmentStore = (*Store)(nil)
 
 const (
-	DefaultMaxBytes int64 = 8 << 20 // 8 MiB
+	DefaultMaxBytes int64 = 10 << 20 // 10 MiB — keep in sync with delivery/http upload handler
 	metaSuffix            = ".meta.json"
 	dataSuffix            = ".data"
 )

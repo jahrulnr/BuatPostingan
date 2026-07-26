@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -21,6 +22,9 @@ var (
 	ErrNoUsers            = errors.New("no users configured")
 )
 
+// MaxSessionsPerUser caps concurrent sessions; oldest rows are pruned on create.
+const MaxSessionsPerUser = 10
+
 type User struct {
 	ID          int64  `json:"id"`
 	Username    string `json:"username"`
@@ -29,7 +33,8 @@ type User struct {
 }
 
 type Store struct {
-	db *sql.DB
+	db   *sql.DB
+	path string
 }
 
 func NewStore(path string) (*Store, error) {
@@ -40,8 +45,12 @@ func NewStore(path string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open auth database: %w", err)
 	}
-	store := &Store{db: db}
+	store := &Store{db: db, path: path}
 	if err := store.init(context.Background()); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	if err := store.hardenFilePerms(); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -49,6 +58,16 @@ func NewStore(path string) (*Store, error) {
 }
 
 func (s *Store) Close() error { return s.db.Close() }
+
+func (s *Store) hardenFilePerms() error {
+	if s.path == "" || strings.Contains(s.path, ":memory:") || strings.HasPrefix(s.path, "file:") {
+		return nil
+	}
+	if err := os.Chmod(s.path, 0o600); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("chmod auth database: %w", err)
+	}
+	return nil
+}
 
 func (s *Store) init(ctx context.Context) error {
 	_, err := s.db.ExecContext(ctx, `
@@ -70,6 +89,7 @@ func (s *Store) init(ctx context.Context) error {
 			created_at TEXT NOT NULL
 		);
 		CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
+		CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id, created_at);
 	`)
 	if err != nil {
 		return fmt.Errorf("initialize auth database: %w", err)
@@ -119,6 +139,8 @@ func (s *Store) CreateSession(ctx context.Context, userID int64, ttl time.Durati
 	if userID <= 0 || ttl <= 0 {
 		return "", time.Time{}, errors.New("invalid session parameters")
 	}
+	_ = s.PurgeExpiredSessions(ctx)
+
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return "", time.Time{}, fmt.Errorf("generate session token: %w", err)
@@ -131,7 +153,40 @@ func (s *Store) CreateSession(ctx context.Context, userID int64, ttl time.Durati
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("create session: %w", err)
 	}
+	if err := s.trimUserSessions(ctx, userID); err != nil {
+		return "", time.Time{}, err
+	}
 	return token, expires, nil
+}
+
+func (s *Store) trimUserSessions(ctx context.Context, userID int64) error {
+	var count int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions WHERE user_id = ?`, userID).Scan(&count); err != nil {
+		return fmt.Errorf("count user sessions: %w", err)
+	}
+	if count <= MaxSessionsPerUser {
+		return nil
+	}
+	excess := count - MaxSessionsPerUser
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM sessions WHERE token_hash IN (
+			SELECT token_hash FROM sessions
+			WHERE user_id = ?
+			ORDER BY created_at ASC
+			LIMIT ?
+		)
+	`, userID, excess)
+	if err != nil {
+		return fmt.Errorf("trim user sessions: %w", err)
+	}
+	return nil
+}
+
+// PurgeExpiredSessions deletes sessions past expires_at.
+func (s *Store) PurgeExpiredSessions(ctx context.Context) error {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at <= ?`, now)
+	return err
 }
 
 func (s *Store) UserBySession(ctx context.Context, token string) (User, error) {

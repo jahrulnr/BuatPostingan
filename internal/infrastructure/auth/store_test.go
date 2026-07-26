@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -53,5 +55,53 @@ func TestBootstrapRejectsWeakPassword(t *testing.T) {
 	defer store.Close()
 	if _, err := store.Bootstrap(context.Background(), "owner", "short"); err == nil {
 		t.Fatal("expected weak password rejection")
+	}
+}
+
+func TestCreateSessionPurgesExpiredAndCapsPerUser(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "users.sqlite")
+	store, err := NewStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	st, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := st.Mode().Perm(); perm&0o077 != 0 {
+		t.Fatalf("expected 0600-ish auth db perms, got %v", perm)
+	}
+
+	if _, err := store.Bootstrap(context.Background(), "owner", "local-password"); err != nil {
+		t.Fatal(err)
+	}
+	user, err := store.Authenticate(context.Background(), "owner", "local-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expired, _, err := store.CreateSession(context.Background(), user.ID, time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(5 * time.Millisecond)
+	if _, err := store.UserBySession(context.Background(), expired); err != ErrSessionNotFound {
+		t.Fatalf("expired session error = %v", err)
+	}
+
+	for i := 0; i < MaxSessionsPerUser+3; i++ {
+		if _, _, err := store.CreateSession(context.Background(), user.ID, time.Hour); err != nil {
+			t.Fatalf("create session %d: %v", i, err)
+		}
+	}
+	var count int
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE user_id = ?`, user.ID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != MaxSessionsPerUser {
+		t.Fatalf("session cap: got %d want %d", count, MaxSessionsPerUser)
 	}
 }

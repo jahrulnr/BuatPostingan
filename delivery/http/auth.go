@@ -3,11 +3,13 @@ package httpdelivery
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"buatpostingan/delivery/presenter"
 	"buatpostingan/internal/infrastructure/auth"
+	"buatpostingan/internal/infrastructure/network"
 	"buatpostingan/internal/pkg/apperr"
 )
 
@@ -23,7 +25,17 @@ func userFromContext(ctx context.Context) (auth.User, bool) {
 type AuthHandler struct {
 	Store      *auth.Store
 	SessionTTL time.Duration
+	Limiter    *network.LoginLimiter
 }
+
+func (h *AuthHandler) limiter() *network.LoginLimiter {
+	if h.Limiter != nil {
+		return h.Limiter
+	}
+	return defaultLoginLimiter
+}
+
+var defaultLoginLimiter = network.NewLoginLimiter()
 
 func (h *AuthHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/login", h.Login)
@@ -36,15 +48,32 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	if err := decodeJSON(r, &input); err != nil || strings.TrimSpace(input.Username) == "" || len(input.Password) > 128 {
+	if err := decodeJSON(r, &input); err != nil {
+		writeErr(w, r, "auth.login", err)
+		return
+	}
+	username := strings.TrimSpace(input.Username)
+	if username == "" || len(input.Password) == 0 || len(input.Password) > 128 {
 		presenter.WriteAppError(w, apperr.New(http.StatusUnprocessableEntity, apperr.CodeValidation, "username and password are required"))
 		return
 	}
-	user, err := h.Store.Authenticate(r.Context(), input.Username, input.Password)
+
+	ip := network.ClientIP(r)
+	lim := h.limiter()
+	if ok, retryAfter := lim.Allow(ip, username); !ok {
+		w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter.Seconds())))
+		presenter.WriteAppError(w, apperr.RateLimited("too many login attempts — try again later"))
+		return
+	}
+
+	user, err := h.Store.Authenticate(r.Context(), username, input.Password)
 	if err != nil {
+		lim.RecordFailure(ip, username)
 		presenter.WriteAppError(w, apperr.New(http.StatusUnauthorized, apperr.CodeUnauthorized, "invalid username or password"))
 		return
 	}
+	lim.ClearUser(username)
+
 	token, expires, err := h.Store.CreateSession(r.Context(), user.ID, h.SessionTTL)
 	if err != nil {
 		writeErr(w, r, "auth.create_session", err)
