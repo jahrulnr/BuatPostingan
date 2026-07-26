@@ -11,6 +11,7 @@ import (
 
 	httpdelivery "buatpostingan/delivery/http"
 	"buatpostingan/internal/infrastructure/auth"
+	"buatpostingan/internal/infrastructure/network"
 )
 
 func TestAuthLoginMeAndLogout(t *testing.T) {
@@ -24,7 +25,7 @@ func TestAuthLoginMeAndLogout(t *testing.T) {
 	}
 
 	mux := http.NewServeMux()
-	h := &httpdelivery.AuthHandler{Store: store, SessionTTL: time.Hour}
+	h := &httpdelivery.AuthHandler{Store: store, SessionTTL: time.Hour, Limiter: network.NewLoginLimiter()}
 	h.Register(mux)
 	protected := httpdelivery.RequireAuth(store, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
@@ -82,5 +83,43 @@ func TestAuthLoginMeAndLogout(t *testing.T) {
 	mux.ServeHTTP(protectedAfterRec, protectedAfter)
 	if protectedAfterRec.Code != http.StatusUnauthorized {
 		t.Fatalf("revoked session status=%d", protectedAfterRec.Code)
+	}
+}
+
+func TestAuthLoginRateLimited(t *testing.T) {
+	store, err := auth.NewStore("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.Bootstrap(context.Background(), "owner", "local-password"); err != nil {
+		t.Fatal(err)
+	}
+
+	lim := network.NewLoginLimiter()
+	h := &httpdelivery.AuthHandler{Store: store, SessionTTL: time.Hour, Limiter: lim}
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	for i := 0; i < 5; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"username":"owner","password":"wrong-password"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "203.0.113.50:1234"
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("attempt %d status=%d body=%s", i+1, rec.Code, rec.Body.String())
+		}
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"username":"owner","password":"local-password"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.50:1234"
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("rate limit status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("Retry-After") == "" {
+		t.Fatal("expected Retry-After header")
 	}
 }

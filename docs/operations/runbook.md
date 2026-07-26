@@ -114,9 +114,12 @@ panel.
 ### Admin authentication
 
 Chat JSONL remains under `storage/webchat/`. User accounts and hashed session
-metadata are stored separately in SQLite at `storage/users.sqlite`. On an empty
-database, the app creates one admin user only when both bootstrap variables are
-provided:
+metadata are stored separately in SQLite at `storage/users.sqlite` (file
+`chmod 0600`). The auth DB parent directory is created and then explicitly
+`chmod 0700` (MkdirAll alone does not tighten an existing dir — with the default
+layout that parent is often `storage/`, shared with webchat data). On an empty
+database the process **refuses to start** unless both bootstrap variables are
+set — bootstrap is env-only (no public signup):
 
 ```bash
 BP_AUTH_ADMIN_USERNAME=owner \
@@ -125,9 +128,20 @@ make docker-up
 ```
 
 Open `http://localhost:1212/admin/login.html`. The password is bcrypt-hashed;
-the browser receives only an HttpOnly, SameSite session cookie. If the database
-already contains a user, bootstrap variables do not overwrite it. Set
-`BP_CORS_ORIGIN` when using `make fe` from a non-default origin.
+the browser receives only an HttpOnly, SameSite=`Lax` session cookie (`Secure`
+when the request is HTTPS / `X-Forwarded-Proto: https`). Sessions expire per
+`BP_AUTH_SESSION_TTL_HOURS` (default 24); expired rows are purged on create, and
+each user is capped at 10 concurrent sessions.
+
+`POST /api/auth/login` is rate-limited in-process: **5 failures / username /
+15m** and **20 attempts / IP / 15m**. Exceeding the limit returns `429` with
+`Retry-After`. Successful login clears the per-username failure window.
+
+JSON request bodies are capped at **2 MiB**. Attachment uploads are capped at
+**10 MiB** (handler and store aligned).
+
+If the database already contains a user, bootstrap variables do not overwrite
+it. Set `BP_CORS_ORIGIN` when using `make fe` from a non-default origin.
 
 ## Stub vs real LLM
 

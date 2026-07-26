@@ -21,6 +21,7 @@ const (
 	CodeValidation        Code = "validation"
 	CodeEmpty             Code = "empty"
 	CodeNotRetryable      Code = "not_retryable"
+	CodeRateLimited       Code = "rate_limited"
 	CodeInternal          Code = "internal"
 	CodeUpstream          Code = "upstream"
 )

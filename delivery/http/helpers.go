@@ -2,6 +2,7 @@ package httpdelivery
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -9,6 +10,9 @@ import (
 	"buatpostingan/internal/pkg/apperr"
 	"buatpostingan/internal/pkg/logging"
 )
+
+// maxJSONBodyBytes caps JSON request bodies at the HTTP boundary (2 MiB).
+const maxJSONBodyBytes = 2 << 20
 
 // writeErr logs 5xx/unknown errors at the HTTP boundary, then writes the JSON error body.
 func writeErr(w http.ResponseWriter, r *http.Request, op string, err error) {
@@ -22,8 +26,13 @@ func writeValidation(w http.ResponseWriter, r *http.Request, message string) {
 
 func decodeJSON(r *http.Request, dst any) error {
 	defer r.Body.Close()
-	dec := json.NewDecoder(r.Body)
+	limited := http.MaxBytesReader(nil, r.Body, maxJSONBodyBytes)
+	dec := json.NewDecoder(limited)
 	if err := dec.Decode(dst); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			return apperr.New(http.StatusRequestEntityTooLarge, apperr.CodeValidation, "request body too large (max 2 MiB)")
+		}
 		return apperr.New(http.StatusUnprocessableEntity, apperr.CodeValidation, "invalid json body")
 	}
 	return nil

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -69,8 +70,14 @@ func main() {
 		}
 		authDBPath = absAuthDBPath
 	}
-	if err := os.MkdirAll(filepath.Dir(authDBPath), 0o775); err != nil {
+	authDir := filepath.Dir(authDBPath)
+	if err := os.MkdirAll(authDir, 0o700); err != nil {
 		logging.Error(ctx, "auth.root", err)
+		os.Exit(1)
+	}
+	// MkdirAll does not tighten an existing directory — enforce 0700 explicitly.
+	if err := os.Chmod(authDir, 0o700); err != nil {
+		logging.Error(ctx, "auth.root.chmod", err)
 		os.Exit(1)
 	}
 	authStore, err := auth.NewStore(authDBPath)
@@ -79,7 +86,17 @@ func main() {
 		os.Exit(1)
 	}
 	defer authStore.Close()
-	if cfg.AuthUsername != "" || cfg.AuthPassword != "" {
+
+	userCount, countErr := authStore.UserCount(ctx)
+	if countErr != nil {
+		logging.Error(ctx, "auth.user_count", countErr)
+		os.Exit(1)
+	}
+	if userCount == 0 {
+		if cfg.AuthUsername == "" || cfg.AuthPassword == "" {
+			logging.Error(ctx, "auth.bootstrap", fmt.Errorf("no users in auth database — set BP_AUTH_ADMIN_USERNAME and BP_AUTH_ADMIN_PASSWORD on first boot"))
+			os.Exit(1)
+		}
 		created, bootstrapErr := authStore.Bootstrap(ctx, cfg.AuthUsername, cfg.AuthPassword)
 		if bootstrapErr != nil {
 			logging.Error(ctx, "auth.bootstrap", bootstrapErr)
@@ -88,6 +105,8 @@ func main() {
 		if created {
 			logging.Info(ctx, "auth bootstrap user created", "username", cfg.AuthUsername)
 		}
+	} else if cfg.AuthUsername != "" || cfg.AuthPassword != "" {
+		logging.Info(ctx, "auth bootstrap skipped", "reason", "users already exist")
 	}
 	pagesRoot := filepath.Join(filepath.Dir(cfg.StorageRoot), "pages")
 	if err := os.MkdirAll(pagesRoot, 0o775); err != nil {
