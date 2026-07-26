@@ -576,6 +576,9 @@ func (s *Service) ImportModels(ctx context.Context, providerID string) (map[stri
 }
 
 func metadataChanged(old, new entity.SettingsModel) bool {
+	if old.Task != new.Task {
+		return true
+	}
 	if old.ContextWindow != new.ContextWindow || old.MaxOutput != new.MaxOutput {
 		return true
 	}

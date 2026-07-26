@@ -97,6 +97,7 @@ type modelListItem struct {
 	ID          string `json:"id"`
 	Object      string `json:"object"`
 	Type        string `json:"type"`
+	Task        string `json:"task"`
 	Name        string `json:"name"`
 	DisplayName string `json:"display_name"`
 	Description string `json:"description"`
@@ -161,6 +162,7 @@ func (it modelListItem) ToEntity() entity.SettingsModel {
 	m := entity.SettingsModel{
 		ID:          strings.TrimSpace(it.ID),
 		Label:       strings.TrimSpace(it.Label()),
+		Task:        normalizeModelTask(it.Task, it.Type),
 		Description: strings.TrimSpace(it.Description),
 	}
 	if m.Label == "" {
@@ -216,6 +218,18 @@ func (it modelListItem) ToEntity() entity.SettingsModel {
 	}
 
 	return m
+}
+
+func normalizeModelTask(task, modelType string) string {
+	task = strings.ToLower(strings.TrimSpace(task))
+	if task != "" {
+		return task
+	}
+	modelType = strings.ToLower(strings.TrimSpace(modelType))
+	if modelType == "" || modelType == "model" {
+		return ""
+	}
+	return modelType
 }
 
 func normalizeModes(modes []string) []string {

@@ -69,7 +69,9 @@
  * @property {string} id
  * @property {string} label
  * @property {string} provider
+ * @property {string} [task]
  * @property {boolean} supports_vision
+ * @property {string[]} output_modes
  * @property {string[]} supported_efforts
  * @property {string} default_effort
  * @property {boolean} [disabled]

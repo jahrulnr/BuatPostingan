@@ -62,12 +62,14 @@ func ApplySettingsFile(base Config, doc entity.SettingsFile) Config {
 	}
 	out.LLMProviders = providers
 	lists := make(map[string][]string, len(doc.LLM.Providers))
+	modelsByProvider := make(map[string][]LLMModel, len(doc.LLM.Providers))
 	for _, sp := range doc.LLM.Providers {
 		id := strings.ToUpper(strings.TrimSpace(sp.ID))
 		if id == "" {
 			continue
 		}
 		var ids []string
+		var models []LLMModel
 		seen := make(map[string]struct{}, len(sp.Models))
 		for _, m := range sp.Models {
 			mid := strings.TrimSpace(m.ID)
@@ -79,10 +81,18 @@ func ApplySettingsFile(base Config, doc entity.SettingsFile) Config {
 			}
 			seen[mid] = struct{}{}
 			ids = append(ids, mid)
+			models = append(models, LLMModel{
+				ID:          mid,
+				Label:       strings.TrimSpace(m.Label),
+				Task:        strings.ToLower(strings.TrimSpace(m.Task)),
+				OutputModes: append([]string(nil), m.OutputModes...),
+			})
 		}
 		lists[id] = ids
+		modelsByProvider[id] = models
 	}
 	out.LLMModelLists = lists
+	out.LLMModels = modelsByProvider
 
 	if s := strings.ToLower(strings.TrimSpace(doc.LLM.Strategy)); s != "" {
 		switch s {

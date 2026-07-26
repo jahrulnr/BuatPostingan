@@ -20,6 +20,7 @@ import {
     importLLMModels,
 } from '../api/index.js';
 import { bootAppSelects, confirmAppDialog, openAppDialog, setAppSelectValue } from './dialogs.js';
+import { chatModels } from './model-capabilities.js';
 
 const PREF_KEYS = [
     'bp.theme',
@@ -309,7 +310,7 @@ export function bootSettings() {
                 const matches = byType[definition.type] || [];
                 const p = matches[0] || null;
                 if (p) seen[p.id] = true;
-                const modelCount = p ? (p.models || []).length : 0;
+                const modelCount = p ? chatModels(p.models).length : 0;
                 const ready = p && p.enabled && (p.api_key_set || p.api_key_optional);
                 const status = !p
                     ? '<span class="bp-provider-status">Not configured</span>'
@@ -457,7 +458,7 @@ export function bootSettings() {
     }
 
     function renderProviderDetail(p) {
-        const models = (p.models || [])
+        const models = chatModels(p.models)
             .map(function (m) {
                 return (
                     '<li data-model-id="' +

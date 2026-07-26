@@ -25,7 +25,7 @@ function toPublic(p) {
         api_key_optional: !!p.api_key_optional,
         enabled: !!p.enabled,
         models: (p.models || []).map(function (x) {
-            return { id: x.id, label: x.label || '' };
+            return Object.assign({}, x, { id: x.id, label: x.label || '' });
         }),
         timeout_sec: p.timeout_sec || 0,
         max_attempts: p.max_attempts || 0,

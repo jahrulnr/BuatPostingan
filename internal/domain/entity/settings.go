@@ -125,6 +125,7 @@ type SettingsProvider struct {
 type SettingsModel struct {
 	ID            string   `json:"id"`
 	Label         string   `json:"label,omitempty"`
+	Task          string   `json:"task,omitempty"`           // chat, embedding, speech-to-text, image-generation, ...
 	ContextWindow int      `json:"context_window,omitempty"` // max input tokens
 	MaxOutput     int      `json:"max_output,omitempty"`     // max output tokens
 	InputModes    []string `json:"input_modes,omitempty"`    // text, image, file, pdf

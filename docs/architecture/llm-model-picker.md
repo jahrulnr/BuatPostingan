@@ -44,7 +44,9 @@ Common chat UIs (Cursor Composer, ChatGPT model menu, Claude project model) use 
       "id": "openai/o3-mini",
       "label": "o3-mini · OPENROUTER",
       "provider": "OPENROUTER",
+      "task": "chat",
       "supports_vision": false,
+      "output_modes": ["text"],
       "supported_efforts": ["none", "low", "medium", "high"],
       "default_effort": "medium",
       "disabled": false
@@ -63,6 +65,8 @@ Common chat UIs (Cursor Composer, ChatGPT model menu, Claude project model) use 
 |---|---|
 | `models[].id` | Picker id (configured model in `config.json`, or stub id) |
 | `models[].provider` | Provider slot id (`OPENROUTER`, …) — never includes API keys |
+| `models[].task` | Optional normalized provider task such as `chat`, `embedding`, or `speech-to-text`. |
+| `models[].output_modes` | Imported output capabilities. Models containing `text` are selectable; empty metadata remains selectable for legacy compatibility. |
 | `supports_vision` | Catalog/heuristic (for chips); independent of `llm.vision` force mode |
 | `supported_efforts` | Empty → model does not expose effort selection |
 | `default_model_id` | Active provider’s model (`llm.active_provider`) |
@@ -74,6 +78,14 @@ Common chat UIs (Cursor Composer, ChatGPT model menu, Claude project model) use 
 1. Enabled entries in `llm.providers[]` (`config.json`) — allowlist.
 2. Enrichment via the same `/models` probe used by `EffortPolicy` / `VisionPolicy` when `BaseURL` is reachable.
 3. `BP_LLM_STUB=true` → canned stub models (`stub/default`, `stub/reasoning`, `stub/vision`).
+
+All imported models remain persisted under their provider. The composer picker
+and Settings model views expose only chat-selectable models. They hide models
+with explicit non-text output or a known non-chat task, including embeddings,
+TTS/STT and transcription, image/video generation, moderation, and reranking.
+For OpenAI-protocol providers (OpenAI, OpenAI-compatible, OpenRouter, OmniRoute,
+and 9Router), known non-chat model ID families are also filtered when `/models`
+does not include capability metadata. Unknown legacy IDs remain visible.
 
 ### `POST /api/webchat/threads/{id}/turns`
 

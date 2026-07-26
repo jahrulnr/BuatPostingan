@@ -42,6 +42,15 @@ func (f *fakeModelImporter) ImportModels(_ context.Context, _ entity.SettingsPro
 	return f.models, f.err
 }
 
+func TestMetadataChangedIncludesModelTask(t *testing.T) {
+	t.Parallel()
+	old := entity.SettingsModel{ID: "opaque-model"}
+	next := entity.SettingsModel{ID: "opaque-model", Task: "embedding"}
+	if !metadataChanged(old, next) {
+		t.Fatal("task metadata change must refresh the stored model")
+	}
+}
+
 type fakeReloader struct {
 	n    int
 	last config.Config

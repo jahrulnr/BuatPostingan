@@ -18,6 +18,7 @@ type Catalog struct {
 	mu         sync.RWMutex
 	providers  map[string]config.LLMProvider
 	modelLists map[string][]string
+	models     map[string][]config.LLMModel
 	active     string
 	effortCfg  string
 	stub       bool
@@ -30,6 +31,7 @@ func NewCatalog(app config.Config, vision *VisionPolicy, effort *EffortPolicy) *
 	return &Catalog{
 		providers:  app.LLMProviders,
 		modelLists: app.LLMModelLists,
+		models:     app.LLMModels,
 		active:     app.LLMActiveProvider,
 		effortCfg:  config.ParseEffortMode(app.LLMEffort),
 		stub:       app.LLMStub,
@@ -44,6 +46,7 @@ func (c *Catalog) Reload(app config.Config) {
 	defer c.mu.Unlock()
 	c.providers = app.LLMProviders
 	c.modelLists = app.LLMModelLists
+	c.models = app.LLMModels
 	c.active = app.LLMActiveProvider
 	c.effortCfg = config.ParseEffortMode(app.LLMEffort)
 	c.stub = app.LLMStub
@@ -55,6 +58,7 @@ func (c *Catalog) ListModels(ctx context.Context) (entity.ModelsCatalog, error) 
 	c.mu.RLock()
 	providers := c.providers
 	modelLists := c.modelLists
+	models := c.models
 	active := c.active
 	effortCfg := c.effortCfg
 	stub := c.stub
@@ -101,6 +105,10 @@ func (c *Catalog) ListModels(ctx context.Context) (entity.ModelsCatalog, error) 
 			if modelID == "" {
 				continue
 			}
+			meta, hasMeta := findModelMetadata(models[id], modelID)
+			if !isChatSelectableModel(p, modelID, meta, hasMeta) {
+				continue
+			}
 			if _, dup := seenModels[modelID]; dup {
 				continue
 			}
@@ -116,6 +124,13 @@ func (c *Catalog) ListModels(ctx context.Context) (entity.ModelsCatalog, error) 
 				Provider:       id,
 				DefaultEffort:  "auto",
 				SupportsVision: false,
+			}
+			if hasMeta {
+				if meta.Label != "" {
+					opt.Label = meta.Label
+				}
+				opt.Task = meta.Task
+				opt.OutputModes = append([]string(nil), meta.OutputModes...)
 			}
 			if c.vision != nil {
 				opt.SupportsVision = c.vision.SupportsImageFor(ctx, p)
@@ -167,6 +182,7 @@ func (c *Catalog) ResolveModel(_ context.Context, modelOrProvider string) (strin
 	c.mu.RLock()
 	providers := c.providers
 	modelLists := c.modelLists
+	models := c.models
 	stub := c.stub
 	c.mu.RUnlock()
 
@@ -184,6 +200,10 @@ func (c *Catalog) ResolveModel(_ context.Context, modelOrProvider string) (strin
 		if !p.Enabled {
 			return "", apperr.Validation("model not allowed")
 		}
+		meta, found := findModelMetadata(models[p.ID], p.Model)
+		if !isChatSelectableModel(p, p.Model, meta, found) {
+			return "", apperr.Validation("model not allowed")
+		}
 		return p.ID, nil
 	}
 	for _, id := range sortedProviderIDs(providers) {
@@ -192,15 +212,110 @@ func (c *Catalog) ResolveModel(_ context.Context, modelOrProvider string) (strin
 			continue
 		}
 		if strings.TrimSpace(p.Model) == raw {
+			meta, found := findModelMetadata(models[id], raw)
+			if !isChatSelectableModel(p, raw, meta, found) {
+				return "", apperr.Validation("model not allowed")
+			}
 			return p.ID, nil
 		}
 		for _, mid := range modelLists[id] {
 			if mid == raw {
+				meta, found := findModelMetadata(models[id], mid)
+				if !isChatSelectableModel(p, mid, meta, found) {
+					return "", apperr.Validation("model not allowed")
+				}
 				return p.ID, nil
 			}
 		}
 	}
 	return "", apperr.Validation("model not allowed")
+}
+
+func findModelMetadata(models []config.LLMModel, modelID string) (config.LLMModel, bool) {
+	for _, model := range models {
+		if strings.TrimSpace(model.ID) == modelID {
+			return model, true
+		}
+	}
+	return config.LLMModel{}, false
+}
+
+// Empty output metadata is treated as legacy/unknown and remains selectable.
+func supportsTextOutput(outputModes []string) bool {
+	if len(outputModes) == 0 {
+		return true
+	}
+	for _, mode := range outputModes {
+		if strings.EqualFold(strings.TrimSpace(mode), "text") {
+			return true
+		}
+	}
+	return false
+}
+
+func isChatSelectableModel(provider config.LLMProvider, modelID string, meta config.LLMModel, hasMeta bool) bool {
+	if hasMeta {
+		if !supportsTextOutput(meta.OutputModes) || isKnownNonChatTask(meta.Task) {
+			return false
+		}
+	}
+	return !isOpenAIProtocolProvider(provider) || !isKnownNonChatModelID(modelID)
+}
+
+func isOpenAIProtocolProvider(provider config.LLMProvider) bool {
+	switch strings.ToLower(strings.TrimSpace(provider.Type)) {
+	case "openai", "openai-compatible", "openrouter", "omniroute", "9router":
+		return true
+	case "claude":
+		return false
+	}
+	api := strings.ToLower(strings.TrimSpace(provider.API))
+	return api == "chat" || api == "responses"
+}
+
+func isKnownNonChatTask(task string) bool {
+	switch strings.ToLower(strings.TrimSpace(task)) {
+	case "embedding", "embeddings",
+		"text-to-speech", "speech-to-text", "tts", "stt",
+		"transcription", "translation",
+		"image-generation", "video-generation",
+		"moderation", "rerank", "reranking",
+		"classification", "ocr":
+		return true
+	default:
+		return false
+	}
+}
+
+func isKnownNonChatModelID(modelID string) bool {
+	id := strings.ToLower(strings.TrimSpace(modelID))
+	if id == "" {
+		return false
+	}
+	markers := []string{
+		"embedding", "embed-", "-embed", "/embed",
+		"rerank", "re-rank", "moderation",
+		"transcribe", "transcription", "whisper",
+		"text-to-speech", "speech-to-text", "-tts", "/tts", "tts-", "-stt", "/stt", "stt-",
+		"gpt-image", "dall-e", "image-generation", "imagegen",
+		"stable-diffusion", "sdxl", "seedream",
+		"video-generation",
+	}
+	for _, marker := range markers {
+		if strings.Contains(id, marker) {
+			return true
+		}
+	}
+	return hasModelFamilyPrefix(id, "sora") ||
+		hasModelFamilyPrefix(id, "flux") ||
+		hasModelFamilyPrefix(id, "imagen") ||
+		hasModelFamilyPrefix(id, "veo")
+}
+
+func hasModelFamilyPrefix(modelID, family string) bool {
+	return modelID == family ||
+		strings.HasPrefix(modelID, family+"-") ||
+		strings.Contains(modelID, "/"+family+"-")
 }
 
 func stubModels() []entity.ModelOption {

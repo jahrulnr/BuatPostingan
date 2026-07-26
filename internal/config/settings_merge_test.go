@@ -54,7 +54,10 @@ func TestApplySettingsFileReplacesProviders(t *testing.T) {
 					BaseURL: "http://127.0.0.1/v1",
 					APIKey:  "file-key",
 					Enabled: true,
-					Models:  []entity.SettingsModel{{ID: "mimo"}},
+					Models: []entity.SettingsModel{
+						{ID: "mimo", OutputModes: []string{"text"}},
+						{ID: "image-only", Task: "image-generation", OutputModes: []string{"image"}},
+					},
 				},
 			},
 		},
@@ -72,6 +75,13 @@ func TestApplySettingsFileReplacesProviders(t *testing.T) {
 	}
 	if got.LLMStub {
 		t.Fatal("stub should be false (key present)")
+	}
+	models := got.LLMModels["LOCAL"]
+	if len(models) != 2 || len(models[0].OutputModes) != 1 || models[0].OutputModes[0] != "text" {
+		t.Fatalf("runtime model metadata: %+v", models)
+	}
+	if models[1].Task != "image-generation" {
+		t.Fatalf("runtime model task: %+v", models[1])
 	}
 }
 

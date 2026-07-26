@@ -425,3 +425,25 @@ func TestModelImporter_ModalityShorthand(t *testing.T) {
 		t.Fatalf("output modes from shorthand: %+v", m.OutputModes)
 	}
 }
+
+func TestModelListItemCarriesRecognizedTaskMetadata(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		item modelListItem
+		want string
+	}{
+		{name: "explicit task", item: modelListItem{ID: "opaque", Task: "speech-to-text"}, want: "speech-to-text"},
+		{name: "provider type", item: modelListItem{ID: "opaque", Type: "embedding"}, want: "embedding"},
+		{name: "generic model type", item: modelListItem{ID: "chat", Type: "model"}, want: ""},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.item.ToEntity().Task; got != tt.want {
+				t.Fatalf("task=%q want=%q", got, tt.want)
+			}
+		})
+	}
+}

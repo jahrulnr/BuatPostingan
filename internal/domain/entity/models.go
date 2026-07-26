@@ -5,7 +5,9 @@ type ModelOption struct {
 	ID               string
 	Label            string
 	Provider         string
+	Task             string
 	SupportsVision   bool
+	OutputModes      []string
 	SupportedEfforts []string // empty = effort UI uses global options / omit when unsupported
 	DefaultEffort    string
 	Disabled         bool

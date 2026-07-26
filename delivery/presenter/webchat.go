@@ -84,11 +84,17 @@ func ListModels(cat entity.ModelsCatalog) map[string]any {
 		if efforts == nil {
 			efforts = []string{}
 		}
+		outputModes := m.OutputModes
+		if outputModes == nil {
+			outputModes = []string{}
+		}
 		rows = append(rows, map[string]any{
 			"id":                m.ID,
 			"label":             m.Label,
 			"provider":          m.Provider,
+			"task":              m.Task,
 			"supports_vision":   m.SupportsVision,
+			"output_modes":      outputModes,
 			"supported_efforts": efforts,
 			"default_effort":    m.DefaultEffort,
 			"disabled":          m.Disabled,

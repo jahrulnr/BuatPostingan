@@ -50,6 +50,8 @@ type Config struct {
 	LLMProviders        map[string]LLMProvider
 	// LLMModelLists is optional provider→model ids from config.json (picker expand).
 	LLMModelLists map[string][]string
+	// LLMModels keeps capability metadata used to decide which models are selectable.
+	LLMModels map[string][]LLMModel
 
 	ContextCompactionEnabled bool
 	ContextMaxInputTokens    int
@@ -103,6 +105,14 @@ type LLMProvider struct {
 	MaxOutputTokens int
 	MaxInputTokens  int
 	Enabled         bool
+}
+
+// LLMModel is the runtime subset of persisted model metadata needed by chat.
+type LLMModel struct {
+	ID          string
+	Label       string
+	Task        string
+	OutputModes []string
 }
 
 func Load() Config {

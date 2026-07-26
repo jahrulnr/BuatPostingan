@@ -98,7 +98,7 @@ Committed template: none. `storage/config.json` is **auto-generated** from struc
 | **llm.strategy / active_provider** | see provider notes | Strategy and active provider from JSON. |
 | **llm globals** | `stream`, `vision` (`auto`\|`on`\|`off`), `effort` (`auto`\|`none`\|`minimal`\|`low`\|`medium`\|`high`\|`xhigh`\|`max`), `total_attempt_budget`, `retry_base_delay_ms`, `retry_max_delay_ms`, `retry_jitter` | Pointer fields — omit keeps hardcoded default. Invalid `vision` / `effort` fall back to `auto`. |
 | **Provider** | `type?`, `id`, `name`, `prefix`, `api`, `base_url`, `api_key`, `api_key_optional`, `api_keys[]`, `enabled`, `models[]`, sizing | `type` selects an injected provider adapter; omitted legacy entries are inferred. `id` is the uppercased router slot. `api` ∈ `chat` \| `responses` \| `messages`. `api_key_optional` is registry-owned for local gateways. |
-| **Model** | `id`, `label?` | First model id maps to runtime `LLMProvider.Model` (primary). Extra models are picker allowlist entries for the same provider slot. |
+| **Model** | `id`, `label?`, `task?`, `input_modes?`, `output_modes?`, capability metadata | First model id maps to runtime `LLMProvider.Model` (primary). All imported models remain stored; chat-facing pickers hide explicit non-chat tasks and known embedding, speech, generation, moderation, and reranking model families. |
 | **context** | `compaction_enabled`, `max_input_tokens`, `reserve_tokens`, `recent_turns`, `summary_max_chars` | Pointer fields — omit keeps hardcoded default. |
 | **docs** | `top_k`, `min_score`, `fuzzy_enabled`, `app_id` | Pointer fields (except `app_id`) — omit keeps hardcoded default. |
 | **web_search** | `github_token` | Optional GitHub rate-limit token. Empty string is valid. |

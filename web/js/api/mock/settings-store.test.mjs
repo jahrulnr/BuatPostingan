@@ -33,3 +33,19 @@ test('mock provider persistence keeps provider type and messages dialect', funct
     assert.equal(created.api_key_set, true);
     assert.notEqual(created.api_key_masked, 'test-secret');
 });
+
+test('mock settings API preserves imported model capability metadata', function () {
+    const store = createSettingsStore();
+    store.createProvider({
+        type: 'openai',
+        id: 'OPENAI',
+        name: 'OpenAI',
+        api: 'responses',
+        base_url: 'https://api.openai.com/v1',
+        api_key: 'test-secret',
+        models: [{ id: 'gpt-image', output_modes: ['image'] }],
+    });
+
+    const provider = store.getProvider('OPENAI');
+    assert.deepEqual(provider.models[0].output_modes, ['image']);
+});

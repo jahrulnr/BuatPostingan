@@ -3,6 +3,8 @@
  * Persistence: localStorage bp.modelId / bp.effort
  */
 
+import { chatModels } from './model-capabilities.js';
+
 const LS_MODEL = 'bp.modelId';
 const LS_EFFORT = 'bp.effort';
 
@@ -292,7 +294,7 @@ export function bootModelPicker(opts) {
         try {
             catalog = await opts.listModels(opts.api, {});
             if (catalog && Array.isArray(catalog.models)) {
-                catalog.models = dedupeModels(catalog.models);
+                catalog.models = dedupeModels(chatModels(catalog.models));
             }
             applyGoneModelFallback();
         } catch (err) {

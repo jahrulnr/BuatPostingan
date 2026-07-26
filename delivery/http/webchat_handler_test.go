@@ -180,7 +180,8 @@ func TestListModelsJSONShape(t *testing.T) {
 		cat: entity.ModelsCatalog{
 			Models: []entity.ModelOption{{
 				ID: "openai/gpt-4o-mini", Label: "gpt-4o-mini · OPENROUTER", Provider: "OPENROUTER",
-				SupportsVision: true, SupportedEfforts: []string{"low", "medium", "high"}, DefaultEffort: "medium",
+				SupportsVision: true, OutputModes: []string{"text"},
+				SupportedEfforts: []string{"low", "medium", "high"}, DefaultEffort: "medium",
 			}},
 			DefaultModelID: "openai/gpt-4o-mini",
 			EffortCurrent:  "auto",
@@ -205,6 +206,14 @@ func TestListModelsJSONShape(t *testing.T) {
 	models, ok := body["models"].([]any)
 	if !ok || len(models) != 1 {
 		t.Fatalf("models: %v", body["models"])
+	}
+	first, ok := models[0].(map[string]any)
+	if !ok {
+		t.Fatalf("model: %T", models[0])
+	}
+	outputModes, ok := first["output_modes"].([]any)
+	if !ok || len(outputModes) != 1 || outputModes[0] != "text" {
+		t.Fatalf("output_modes: %v", first["output_modes"])
 	}
 	effort, ok := body["effort"].(map[string]any)
 	if !ok || effort["current"] != "auto" {
