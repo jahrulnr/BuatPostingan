@@ -1,0 +1,6 @@
+.git
+.playwright-mcp
+bin
+node_modules
+storage
+*.log

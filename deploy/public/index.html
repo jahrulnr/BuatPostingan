@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="BuatPostingan — workspace untuk membuat dan menerbitkan konten bersama AI.">
+  <title>BuatPostingan</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: oklch(16% 0.018 245);
+      --surface: oklch(20% 0.022 245);
+      --surface-2: oklch(24% 0.022 240);
+      --ink: oklch(93% 0.012 235);
+      --muted: oklch(68% 0.018 235);
+      --line: oklch(33% 0.022 240);
+      --accent: oklch(76% 0.11 215);
+      --accent-deep: oklch(31% 0.055 220);
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--ink);
+      font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+      background:
+        radial-gradient(circle at 12% 0%, oklch(38% 0.07 220 / .28), transparent 27rem),
+        radial-gradient(circle at 88% 88%, oklch(30% 0.045 190 / .16), transparent 30rem),
+        var(--bg);
+    }
+    main { width: min(100% - 2rem, 68rem); margin: 0 auto; padding: 1.25rem 0 3rem; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      min-height: 4.5rem; border-bottom: 1px solid var(--line);
+    }
+    .brand { display: inline-flex; align-items: center; gap: .85rem; font-size: 1.2rem; font-weight: 700; letter-spacing: -.02em; }
+    .mark {
+      display: grid; flex: 0 0 3rem; place-items: center; width: 3rem; height: 3rem;
+      border: 1px solid color-mix(in oklab, var(--accent) 72%, var(--line));
+      border-radius: .62rem; color: var(--accent);
+      background: color-mix(in oklab, var(--accent-deep) 72%, var(--surface));
+    }
+    .mark svg { display: block; width: 2.15rem; height: 2.15rem; }
+    .admin {
+      padding: .48rem .74rem; border: 1px solid var(--line); border-radius: .38rem;
+      color: var(--muted); text-decoration: none; font-size: .84rem;
+    }
+    .admin:hover, .admin:focus-visible { color: var(--ink); border-color: var(--accent); outline: none; }
+    .hero { padding: clamp(4.8rem, 15vh, 9rem) 0 3.4rem; max-width: 43rem; }
+    .eyebrow { margin: 0 0 .9rem; color: var(--accent); font-size: .75rem; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
+    h1 { margin: 0; max-width: 12ch; font-size: clamp(2.65rem, 8vw, 5.65rem); line-height: .96; letter-spacing: -.07em; }
+    .hero p { max-width: 39rem; margin: 1.5rem 0 0; color: var(--muted); font-size: clamp(1rem, 2vw, 1.18rem); line-height: 1.65; }
+    .hero a {
+      display: inline-flex; align-items: center; gap: .5rem; margin-top: 2rem; padding: .76rem 1rem;
+      border-radius: .42rem; color: oklch(18% 0.02 245); background: var(--accent);
+      font-weight: 700; text-decoration: none;
+    }
+    .hero a:hover, .hero a:focus-visible { background: oklch(83% 0.10 215); outline: 2px solid var(--accent); outline-offset: 3px; }
+    .quickstart {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; overflow: hidden;
+      border: 1px solid var(--line); border-radius: .65rem; background: var(--line);
+    }
+    .step { min-height: 10rem; padding: 1.25rem; background: color-mix(in oklab, var(--surface) 92%, var(--accent-deep)); }
+    .step span { display: block; color: var(--accent); font-family: ui-monospace, monospace; font-size: .72rem; }
+    .step h2 { margin: .8rem 0 .45rem; font-size: 1rem; }
+    .step p { margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.55; }
+    footer { padding: 1.6rem 0 0; color: var(--muted); font-size: .76rem; }
+    @media (max-width: 42rem) {
+      main { width: min(100% - 1.25rem, 68rem); }
+      .quickstart { grid-template-columns: 1fr; }
+      .hero { padding-top: 4rem; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="brand">
+        <span class="mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M12 2.5a7.25 7.25 0 0 0-7.25 7.25c0 4.76 5.17 10.26 7.25 12.25 2.08-1.99 7.25-7.49 7.25-12.25A7.25 7.25 0 0 0 12 2.5Z" fill="none" stroke="currentColor" stroke-width="1.65"/>
+            <path d="M9 6.65h4.2l1.8 1.8v5.77L12 17.35 9 14.22V6.65Z" fill="var(--ink)"/>
+            <path d="M13.2 6.65v1.8H15M10.65 10.7h2.7M10.65 12.7h2.7" fill="none" stroke="var(--accent-deep)" stroke-linecap="round" stroke-width="1.05"/>
+          </svg>
+        </span>
+        <span>BuatPostingan</span>
+      </div>
+      <a class="admin" href="/admin/">Admin workspace ↗</a>
+    </header>
+
+    <section class="hero" aria-labelledby="welcome">
+      <p class="eyebrow">Content workspace</p>
+      <h1 id="welcome">Selamat datang di BuatPostingan.</h1>
+      <p>Rancang konten, kolaborasi dengan AI, lalu kelola dan terbitkan static page dari satu workspace yang rapi.</p>
+      <a href="/admin/">Mulai dari workspace <span aria-hidden="true">→</span></a>
+    </section>
+
+    <section class="quickstart" aria-label="Quickstart">
+      <article class="step">
+        <span>01 / Tulis</span>
+        <h2>Buka workspace</h2>
+        <p>Mulai percakapan baru dan jelaskan tujuan konten atau page yang ingin dibuat.</p>
+      </article>
+      <article class="step">
+        <span>02 / Tinjau</span>
+        <h2>Periksa draft</h2>
+        <p>Gunakan Preview untuk melihat hasil kerja dan Pages untuk meninjau struktur file.</p>
+      </article>
+      <article class="step">
+        <span>03 / Terbitkan</span>
+        <h2>Kontrol publikasi</h2>
+        <p>Publish dari tab Pages saat siap. Hanya page published yang tampil di situs publik ini.</p>
+      </article>
+    </section>
+
+    <footer>Draft tetap privat sampai Anda memilih Publish.</footer>
+  </main>
+</body>
+</html>

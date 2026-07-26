@@ -1,0 +1,21 @@
+services:
+  buatpostingan:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    image: buatpostingan:local
+    ports:
+      - "${BP_PORT:-1212}:1212"
+    environment:
+      BP_LLM_STUB: "${BP_LLM_STUB:-true}"
+      BP_HTTP_ADDR: "127.0.0.1:1313"
+      BP_WEB_ROOT: "/app/web"
+      BP_STORAGE_ROOT: "/app/storage/webchat"
+      BP_DOCS_ROOT: "/app/resources/webchat/docs"
+      BP_PROMPTS_ROOT: "/app/resources/webchat/prompts"
+      BP_TOOLS_ROOT: "/app/resources/webchat/tools"
+      BP_SKILLS_ROOT: "/app/resources/webchat/skills"
+      BP_WORKSPACE_ROOT: "/app/storage/pages"
+    volumes:
+      - ./storage:/app/storage
+    restart: unless-stopped

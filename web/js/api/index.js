@@ -66,6 +66,12 @@ export function resolveApiBase(mockMode) {
 
     if (!mockMode) {
         try {
+            // The Docker deployment mounts the admin UI at /admin/ behind the
+            // same Nginx origin. Keep its API relative even though its public
+            // port is intentionally not the local-development :8080.
+            if (String(window.location.pathname || '').startsWith('/admin/')) {
+                return stripTrailingSlash(DEFAULT_API_BASE);
+            }
             const port = String(window.location.port || '');
             // Go default BP_HTTP_ADDR=:8080; make fe uses FE_PORT=5173 (python -m http.server).
             if (port && port !== '8080') {

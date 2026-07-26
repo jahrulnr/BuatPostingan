@@ -27,6 +27,18 @@ not copy, transform, or move a file. Unpublishing removes that symlink only,
 leaving the draft unchanged. A static host can expose only `.published/` when
 it needs the live set.
 
+## Docker publication route
+
+The bundled Docker deployment exposes the admin workspace at `/admin/` and
+serves only `storage/pages/.published/` from `/`. Consequently,
+`/<page-id>/` is reachable only after publication; draft preview remains an
+admin/API concern at `/api/pages/<page-id>/`.
+
+On first Docker startup, the bundled welcome template is seeded as page ID
+`home` and published. The exact root route `/` serves that published
+`home/index.html`; it remains an ordinary page workspace that the agent can
+read and edit with `page_read` and `page_edit`.
+
 ## Agent workflow
 
 1. Plan the page intent, audience, structure, and assets.

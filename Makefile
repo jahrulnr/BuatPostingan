@@ -1,11 +1,9 @@
-.PHONY: run run-be be run-fe fe build test tidy vet dockerize up down mcp-echo
+.PHONY: run run-be be run-fe fe build test tidy vet mcp-echo docker-build docker-up docker-restart docker-down dockerize up restart down
 
 NAME=buatpostingan
 APP=./cmd/app
 BIN=bin/buatpostingan
 MCP_ECHO_BIN=bin/mcp-echo
-NETWORK_NAME=app_network
-
 WEB_DIR=web
 FE_PORT?=5173
 
@@ -48,14 +46,20 @@ run-fe fe:
 
 # --- docker ---
 
-dockerize:
-	@if ! docker network inspect $(NETWORK_NAME) >/dev/null 2>&1; then \
-		docker network create --driver=overlay --attachable $(NETWORK_NAME); \
-	fi
-	docker build . -f deploy/Dockerfile -t $(NAME):dev
+docker-build:
+	docker compose -f compose.yml build
 
-up: dockerize
-	docker compose -f deploy/compose.yml up -d
+docker-up: docker-build
+	docker compose -f compose.yml up -d
 
-down:
-	docker compose -f deploy/compose.yml down --remove-orphans
+docker-restart:
+	docker compose -f compose.yml restart
+
+docker-down:
+	docker compose -f compose.yml down --remove-orphans
+
+# Backward-compatible aliases.
+dockerize: docker-build
+up: docker-up
+restart: docker-restart
+down: docker-down

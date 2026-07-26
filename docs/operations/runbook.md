@@ -71,6 +71,24 @@ Same-origin real UI: use Go-served page at http://localhost:8080/ (no CORS dance
 
 > Static `:5173` cannot handle `POST /api/*`. That is the live-server process, not a missing Go route. Real mode must not post to `:5173`.
 
+## Docker (Nginx + Go in one image)
+
+```bash
+make docker-build
+make docker-up
+# Admin UI: http://localhost:1212/admin/
+# Published pages: http://localhost:1212/<page-id>/
+
+make docker-restart
+make docker-down
+```
+
+Nginx is the only public listener on port `1212`. Go listens only inside the
+container on `127.0.0.1:1313`; Nginx proxies `/api/` and `healthz` to it.
+The root route serves only `storage/pages/.published/`, so an unpublished draft
+cannot be reached from the public site. Override the host port with
+`BP_PORT=1314 make docker-up`.
+
 ## Stub vs real LLM
 
 **Stub (default without keys):**

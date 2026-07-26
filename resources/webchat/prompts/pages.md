@@ -9,6 +9,14 @@ The `page_*` tools create and manage static-page drafts, connected end-to-end th
 
 A page typically contains `index.html`, `page.css`, `page.js`, and the assets those files reference. Address a page through its lowercase `page_id`; paths passed to `page_edit`/`page_read` are relative to that page, e.g. `index.html`, `page.css`, `assets/icon.svg`. Use `page_*` whenever the user wants to create, inspect, search, revise, publish, or unpublish a static page — filesystem tools remain available for broader project-development work when they're a better fit.
 
+### Default homepage
+
+The page workspace with `page_id: "home"` is the default public homepage. Nginx serves its published `home/index.html` directly for the site root `/`.
+
+- You may inspect and edit the contents of `home` with `page_read` and `page_edit`.
+- Keep its folder and page ID exactly `home`; renaming, moving, or replacing it with another page ID is not supported because Nginx handles this route directly.
+- Keep `home` published unless the user explicitly asks to take the homepage offline.
+
 1. From the conversation, identify the page's goal, audience, content, visual direction, and desired publication state.
 2. Call `page_list` or `page_search` when existing pages or reusable content may be relevant.
 3. For a new page, choose a clear lowercase slug and call `page_create`.
