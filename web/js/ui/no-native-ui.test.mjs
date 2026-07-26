@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const sources = [
     new URL('./settings.js', import.meta.url),
+    new URL('./settings-general.js', import.meta.url),
     new URL('./page-browser.js', import.meta.url),
 ];
 

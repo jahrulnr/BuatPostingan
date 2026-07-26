@@ -43,14 +43,26 @@ type Snapshot struct {
 	ConfigPath string                `json:"config_path"`
 	Users      []entity.SettingsUser `json:"users"`
 	LLM        LLMPublic             `json:"llm"`
+	Limits     LimitsPublic          `json:"limits"`
+	Context    ContextPublic         `json:"context"`
+	Docs       DocsPublic            `json:"docs"`
+	WebSearch  WebSearchPublic       `json:"web_search"`
+	MCP        MCPPublic             `json:"mcp"`
 }
 
-// LLMPublic is masked LLM settings for API.
+// LLMPublic is masked LLM settings for API (providers + globals).
 type LLMPublic struct {
-	Strategy       string           `json:"strategy"`
-	ActiveProvider string           `json:"active_provider"`
-	Stub           bool             `json:"stub"`
-	Providers      []ProviderPublic `json:"providers"`
+	Strategy           string           `json:"strategy"`
+	ActiveProvider     string           `json:"active_provider"`
+	Stub               bool             `json:"stub"`
+	Stream             bool             `json:"stream"`
+	Vision             string           `json:"vision"`
+	Effort             string           `json:"effort"`
+	TotalAttemptBudget int              `json:"total_attempt_budget"`
+	RetryBaseDelayMS   int              `json:"retry_base_delay_ms"`
+	RetryMaxDelayMS    int              `json:"retry_max_delay_ms"`
+	RetryJitter        float64          `json:"retry_jitter"`
+	Providers          []ProviderPublic `json:"providers"`
 }
 
 // ProviderPublic never includes raw api_key.
@@ -83,7 +95,12 @@ func (s *Service) GetSnapshot(ctx context.Context) (Snapshot, error) {
 		Source:     source,
 		ConfigPath: s.store.Path(),
 		Users:      doc.Users,
-		LLM:        publicLLM(rt, doc, s.providers),
+		LLM:        enrichLLMPublic(publicLLM(rt, doc, s.providers), rt),
+		Limits:     publicLimits(rt),
+		Context:    publicContext(rt),
+		Docs:       publicDocs(rt),
+		WebSearch:  publicWebSearch(rt),
+		MCP:        publicMCP(rt),
 	}, nil
 }
 

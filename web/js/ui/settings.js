@@ -21,6 +21,7 @@ import {
 } from '../api/index.js';
 import { bootAppSelects, confirmAppDialog, openAppDialog, setAppSelectValue } from './dialogs.js';
 import { chatModels } from './model-capabilities.js';
+import { loadGeneralPanel } from './settings-general.js';
 
 const PREF_KEYS = [
     'bp.theme',
@@ -135,7 +136,10 @@ export function bootSettings() {
         panel.innerHTML = '<div class="bp-settings__loading">Loading…</div>';
         try {
             if (section === 'general') {
-                panel.innerHTML = renderGeneral();
+                await loadGeneralPanel(panel, {
+                    toast: toast,
+                    reload: renderSettings,
+                });
             } else if (section === 'users') {
                 const data = await listSettingsUsers(api);
                 panel.innerHTML = renderUsers(data.users || []);
@@ -166,18 +170,6 @@ export function bootSettings() {
         }
     }
 
-    function renderGeneral() {
-        return (
-            '<header class="bp-settings__head">' +
-            '<h2>General</h2>' +
-            '<p class="bp-settings__lede">Theme and local preferences. Server env globals stay in <code>BP_*</code>.</p>' +
-            '</header>' +
-            '<div class="bp-settings__card">' +
-            '<p class="bp-muted">Use the theme control in the top chrome. Logout (left nav) clears local prefs only.</p>' +
-            '</div>'
-        );
-    }
-
     function renderUsers(users) {
         const rows = users
             .map(function (u) {
@@ -203,7 +195,6 @@ export function bootSettings() {
             .join('');
         return (
             '<header class="bp-settings__head">' +
-            '<div><h2>Users</h2><p class="bp-settings__lede">Local JSON users — no auth yet.</p></div>' +
             '<button type="button" class="bp-settings__btn bp-settings__btn--primary" data-add-user>' +
             '<i class="bi bi-plus-lg" aria-hidden="true"></i> Add user</button>' +
             '</header>' +

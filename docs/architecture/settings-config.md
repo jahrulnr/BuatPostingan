@@ -132,7 +132,8 @@ Base: **`/api/settings`** (product-level; separate from chat turns). Mount via `
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/settings` | Snapshot: users + masked providers + meta (`source`: `file`\|`env`) |
+| `GET` | `/api/settings` | Snapshot: users + masked providers + resolved limits/context/docs/web_search/mcp + llm globals |
+| `PATCH` | `/api/settings` | Update product knobs (`limits`, `llm` globals, `context`, `docs`, `web_search`, `mcp`) — not users/providers |
 | `GET` | `/api/settings/users` | List users |
 | `POST` | `/api/settings/users` | Create `{name, role}` → user |
 | `PATCH` | `/api/settings/users/{id}` | Update name/role |
@@ -175,11 +176,13 @@ After any LLM-mutating write, call `LLMRuntime.Reload(mergedConfig)` so Router /
   OpenAI-compatible slots remain available.
 - Hash routes:
   - `#/settings` → redirect Models
-  - `#/settings/general` — stub panel
+  - `#/settings/general` — compact editor for limits / LLM globals / context / docs / web_search / MCP
   - `#/settings/users`
   - `#/settings/models`
   - `#/settings/models/{providerId}`
 - Back / brand → `#/` (chat).
+
+`GET /api/settings` returns resolved (non-pointer) product knobs so the General form always has concrete values. `PATCH /api/settings` writes only the sections present in the body; omit a section to leave it untouched. `web_search.github_token` follows the provider key rule: omit keeps the secret; non-empty replaces.
 
 ### Dual-driver
 

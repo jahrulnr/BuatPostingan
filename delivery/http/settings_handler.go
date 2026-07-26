@@ -19,6 +19,7 @@ func NewSettingsHandler(uc *settings.Service) *SettingsHandler {
 
 func (h *SettingsHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/settings", h.GetSnapshot)
+	mux.HandleFunc("PATCH /api/settings", h.PatchConfig)
 	mux.HandleFunc("GET /api/settings/users", h.ListUsers)
 	mux.HandleFunc("POST /api/settings/users", h.CreateUser)
 	mux.HandleFunc("PATCH /api/settings/users/{id}", h.UpdateUser)
@@ -40,6 +41,20 @@ func (h *SettingsHandler) ListProviderCatalog(w http.ResponseWriter, _ *http.Req
 
 func (h *SettingsHandler) GetSnapshot(w http.ResponseWriter, r *http.Request) {
 	out, err := h.UC.GetSnapshot(r.Context())
+	if err != nil {
+		writeErr(w, r, "settings", err)
+		return
+	}
+	presenter.WriteJSON(w, http.StatusOK, out)
+}
+
+func (h *SettingsHandler) PatchConfig(w http.ResponseWriter, r *http.Request) {
+	var body settings.ConfigPatch
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, r, "settings", err)
+		return
+	}
+	out, err := h.UC.PatchConfig(r.Context(), body)
 	if err != nil {
 		writeErr(w, r, "settings", err)
 		return

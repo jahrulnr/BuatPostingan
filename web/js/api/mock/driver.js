@@ -263,6 +263,9 @@ function wrapSettings(fn) {
 export function getSettingsSnapshotMock() {
     return wrapSettings(function () { return settingsStore.snapshot(); });
 }
+export function patchSettingsConfigMock(_api, body) {
+    return wrapSettings(function () { return settingsStore.patchConfig(body); });
+}
 export function listSettingsUsersMock() {
     return wrapSettings(function () { return settingsStore.listUsers(); });
 }

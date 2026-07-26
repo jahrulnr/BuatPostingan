@@ -33,6 +33,24 @@ function toPublic(p) {
     };
 }
 
+function cloneServers(servers) {
+    return (servers || []).map(function (s) {
+        return {
+            id: s.id,
+            transport: s.transport || 'stdio',
+            command: s.command || '',
+            args: Array.isArray(s.args) ? s.args.slice() : [],
+            env: Object.assign({}, s.env || {}),
+            url: s.url || '',
+            enabled: !!s.enabled,
+            trusted: !!s.trusted,
+            allow_tools: Array.isArray(s.allow_tools) ? s.allow_tools.slice() : [],
+            deny_tools: Array.isArray(s.deny_tools) ? s.deny_tools.slice() : [],
+            allow_mutations: !!s.allow_mutations,
+        };
+    });
+}
+
 export function createSettingsStore() {
     const providerCatalog = [
         { type: 'openrouter', name: 'OpenRouter', description: 'One API for models from many upstream providers.', auth_type: 'api_key', api: 'chat', base_url: 'https://openrouter.ai/api/v1', prefix: 'openrouter', icon: 'OR', accent: '#7c5cff', configurable: true },
@@ -42,14 +60,60 @@ export function createSettingsStore() {
         { type: 'openai-compatible', name: 'OpenAI Compatible', description: 'Custom OpenAI-compatible endpoint hosted by you or another vendor.', auth_type: 'api_key', api: 'chat', base_url: '', prefix: 'compatible', icon: 'OC', accent: '#64748b', configurable: true },
         { type: 'claude', name: 'Claude API', description: 'Official Anthropic Messages API for Claude models.', auth_type: 'api_key', api: 'messages', base_url: 'https://api.anthropic.com/v1', prefix: 'claude', icon: 'AI', accent: '#d97757', configurable: true },
     ];
-    /** @type {{users: Object[], llm: {strategy:string, active_provider:string, stub:boolean, providers: Object[]}}} */
     const state = {
         users: [{ id: 'usr_owner', name: 'Owner', role: 'owner' }],
+        limits: {
+            max_tool_rounds: 8,
+            speak_floor_ttl_sec: 600,
+            lock_ttl_sec: 300,
+            turn_job_timeout_sec: 120,
+        },
         llm: {
             strategy: 'failover',
             active_provider: '',
             stub: true,
+            stream: true,
+            vision: 'auto',
+            effort: 'auto',
+            total_attempt_budget: 4,
+            retry_base_delay_ms: 250,
+            retry_max_delay_ms: 5000,
+            retry_jitter: 0.2,
             providers: [],
+        },
+        context: {
+            compaction_enabled: true,
+            max_input_tokens: 12000,
+            reserve_tokens: 3000,
+            recent_turns: 4,
+            summary_max_chars: 12000,
+        },
+        docs: {
+            top_k: 5,
+            min_score: 0.5,
+            fuzzy_enabled: true,
+            app_id: 'buatpostingan',
+        },
+        web_search: {
+            github_token: '',
+        },
+        mcp: {
+            enabled: true,
+            connect_timeout_sec: 15,
+            call_timeout_sec: 30,
+            servers: [{
+                id: 'echo',
+                transport: 'stdio',
+                command: './bin/mcp-echo',
+                args: [],
+                env: {},
+                url: '',
+                enabled: true,
+                trusted: true,
+                allow_tools: ['echo'],
+                deny_tools: [],
+                allow_mutations: false,
+            }],
         },
     };
 
@@ -61,7 +125,12 @@ export function createSettingsStore() {
         return err;
     }
 
+    function requirePositive(n, label) {
+        if (!(n >= 1)) throw ApiError(422, 'validation', label + ' must be >= 1');
+    }
+
     function snapshot() {
+        const gh = maskKey(state.web_search.github_token);
         return {
             source: 'mock',
             config_path: 'storage/config.json',
@@ -70,9 +139,145 @@ export function createSettingsStore() {
                 strategy: state.llm.strategy,
                 active_provider: state.llm.active_provider,
                 stub: state.llm.stub,
+                stream: !!state.llm.stream,
+                vision: state.llm.vision,
+                effort: state.llm.effort,
+                total_attempt_budget: state.llm.total_attempt_budget,
+                retry_base_delay_ms: state.llm.retry_base_delay_ms,
+                retry_max_delay_ms: state.llm.retry_max_delay_ms,
+                retry_jitter: state.llm.retry_jitter,
                 providers: state.llm.providers.map(toPublic),
             },
+            limits: Object.assign({}, state.limits),
+            context: Object.assign({}, state.context),
+            docs: Object.assign({}, state.docs),
+            web_search: {
+                github_token_set: gh.set,
+                github_token_masked: gh.masked,
+            },
+            mcp: {
+                enabled: !!state.mcp.enabled,
+                connect_timeout_sec: state.mcp.connect_timeout_sec,
+                call_timeout_sec: state.mcp.call_timeout_sec,
+                servers: cloneServers(state.mcp.servers),
+            },
         };
+    }
+
+    function patchConfig(body) {
+        const patch = body || {};
+        if (patch.limits) {
+            const l = patch.limits;
+            if (l.max_tool_rounds != null) {
+                requirePositive(Number(l.max_tool_rounds), 'limits.max_tool_rounds');
+                state.limits.max_tool_rounds = Number(l.max_tool_rounds);
+            }
+            if (l.speak_floor_ttl_sec != null) {
+                requirePositive(Number(l.speak_floor_ttl_sec), 'limits.speak_floor_ttl_sec');
+                state.limits.speak_floor_ttl_sec = Number(l.speak_floor_ttl_sec);
+            }
+            if (l.lock_ttl_sec != null) {
+                requirePositive(Number(l.lock_ttl_sec), 'limits.lock_ttl_sec');
+                state.limits.lock_ttl_sec = Number(l.lock_ttl_sec);
+            }
+            if (l.turn_job_timeout_sec != null) {
+                requirePositive(Number(l.turn_job_timeout_sec), 'limits.turn_job_timeout_sec');
+                state.limits.turn_job_timeout_sec = Number(l.turn_job_timeout_sec);
+            }
+        }
+        if (patch.llm) {
+            const llm = patch.llm;
+            if (llm.strategy != null) {
+                const s = String(llm.strategy).toLowerCase();
+                if (['failover', 'round_robin', 'switch'].indexOf(s) < 0) {
+                    throw ApiError(422, 'validation', 'llm.strategy must be failover|round_robin|switch');
+                }
+                state.llm.strategy = s;
+            }
+            if (llm.active_provider != null) {
+                state.llm.active_provider = String(llm.active_provider || '').trim().toUpperCase();
+            }
+            if (typeof llm.stream === 'boolean') state.llm.stream = llm.stream;
+            if (llm.vision != null) {
+                const v = String(llm.vision).toLowerCase();
+                state.llm.vision = v === 'on' || v === 'off' ? v : 'auto';
+            }
+            if (llm.effort != null) {
+                const e = String(llm.effort).toLowerCase();
+                const ok = ['auto', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+                state.llm.effort = ok.indexOf(e) >= 0 ? e : 'auto';
+            }
+            if (llm.total_attempt_budget != null) {
+                requirePositive(Number(llm.total_attempt_budget), 'llm.total_attempt_budget');
+                state.llm.total_attempt_budget = Number(llm.total_attempt_budget);
+            }
+            if (llm.retry_base_delay_ms != null) {
+                requirePositive(Number(llm.retry_base_delay_ms), 'llm.retry_base_delay_ms');
+                state.llm.retry_base_delay_ms = Number(llm.retry_base_delay_ms);
+            }
+            if (llm.retry_max_delay_ms != null) {
+                requirePositive(Number(llm.retry_max_delay_ms), 'llm.retry_max_delay_ms');
+                state.llm.retry_max_delay_ms = Number(llm.retry_max_delay_ms);
+            }
+            if (llm.retry_jitter != null) {
+                const j = Number(llm.retry_jitter);
+                if (j < 0 || j > 1) throw ApiError(422, 'validation', 'llm.retry_jitter must be between 0 and 1');
+                state.llm.retry_jitter = j;
+            }
+        }
+        if (patch.context) {
+            const c = patch.context;
+            if (typeof c.compaction_enabled === 'boolean') state.context.compaction_enabled = c.compaction_enabled;
+            if (c.max_input_tokens != null) {
+                requirePositive(Number(c.max_input_tokens), 'context.max_input_tokens');
+                state.context.max_input_tokens = Number(c.max_input_tokens);
+            }
+            if (c.reserve_tokens != null) {
+                if (Number(c.reserve_tokens) < 0) throw ApiError(422, 'validation', 'context.reserve_tokens must be >= 0');
+                state.context.reserve_tokens = Number(c.reserve_tokens);
+            }
+            if (c.recent_turns != null) {
+                requirePositive(Number(c.recent_turns), 'context.recent_turns');
+                state.context.recent_turns = Number(c.recent_turns);
+            }
+            if (c.summary_max_chars != null) {
+                requirePositive(Number(c.summary_max_chars), 'context.summary_max_chars');
+                state.context.summary_max_chars = Number(c.summary_max_chars);
+            }
+        }
+        if (patch.docs) {
+            const d = patch.docs;
+            if (d.top_k != null) {
+                requirePositive(Number(d.top_k), 'docs.top_k');
+                state.docs.top_k = Number(d.top_k);
+            }
+            if (d.min_score != null) {
+                const s = Number(d.min_score);
+                if (s < 0 || s > 1) throw ApiError(422, 'validation', 'docs.min_score must be between 0 and 1');
+                state.docs.min_score = s;
+            }
+            if (typeof d.fuzzy_enabled === 'boolean') state.docs.fuzzy_enabled = d.fuzzy_enabled;
+            if (d.app_id != null) state.docs.app_id = String(d.app_id || '').trim();
+        }
+        if (patch.web_search && Object.prototype.hasOwnProperty.call(patch.web_search, 'github_token')) {
+            state.web_search.github_token = String(patch.web_search.github_token || '').trim();
+        }
+        if (patch.mcp) {
+            const m = patch.mcp;
+            if (typeof m.enabled === 'boolean') state.mcp.enabled = m.enabled;
+            if (m.connect_timeout_sec != null) {
+                requirePositive(Number(m.connect_timeout_sec), 'mcp.connect_timeout_sec');
+                state.mcp.connect_timeout_sec = Number(m.connect_timeout_sec);
+            }
+            if (m.call_timeout_sec != null) {
+                requirePositive(Number(m.call_timeout_sec), 'mcp.call_timeout_sec');
+                state.mcp.call_timeout_sec = Number(m.call_timeout_sec);
+            }
+            if (Array.isArray(m.servers)) {
+                state.mcp.servers = cloneServers(m.servers);
+            }
+        }
+        return snapshot();
     }
 
     function listUsers() {
@@ -247,6 +452,7 @@ export function createSettingsStore() {
 
     return {
         snapshot,
+        patchConfig,
         listUsers,
         createUser,
         updateUser,

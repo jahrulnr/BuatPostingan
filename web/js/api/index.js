@@ -141,6 +141,10 @@ export const getSettingsSnapshot = mockMode
     ? mock.getSettingsSnapshotMock
     : real.getSettingsSnapshotImpl;
 
+export const patchSettingsConfig = mockMode
+    ? mock.patchSettingsConfigMock
+    : real.patchSettingsConfigImpl;
+
 export const listSettingsUsers = mockMode
     ? mock.listSettingsUsersMock
     : real.listSettingsUsersImpl;

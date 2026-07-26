@@ -169,3 +169,66 @@ func TestCRUDUsersAndMask(t *testing.T) {
 		t.Fatalf("want validation, got %v", err)
 	}
 }
+
+func TestPatchConfigUpdatesGlobalsAndMasksToken(t *testing.T) {
+	dir := t.TempDir()
+	store := appconfig.NewStore(filepath.Join(dir, "config.json"))
+	env := config.Load()
+	rel := &fakeReloader{}
+	svc := NewService(store, env, rel, nil, nil)
+	ctx := context.Background()
+
+	stream := false
+	vision := "on"
+	rounds := 12
+	token := "ghp_test_token_abcd"
+	enabled := false
+	snap, err := svc.PatchConfig(ctx, ConfigPatch{
+		Limits: &LimitsPatch{MaxToolRounds: &rounds},
+		LLM: &LLMGlobalsPatch{
+			Stream: &stream,
+			Vision: &vision,
+		},
+		WebSearch: &WebSearchPatch{GitHubToken: &token},
+		MCP: &MCPPatch{
+			Enabled: &enabled,
+			Servers: &[]MCPServerPublic{{
+				ID: "echo", Transport: "stdio", Command: "./bin/mcp-echo", Enabled: true,
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Limits.MaxToolRounds != 12 {
+		t.Fatalf("limits=%+v", snap.Limits)
+	}
+	if snap.LLM.Stream || snap.LLM.Vision != "on" {
+		t.Fatalf("llm globals=%+v", snap.LLM)
+	}
+	if !snap.WebSearch.GitHubTokenSet || snap.WebSearch.GitHubTokenMasked == token {
+		t.Fatalf("token mask fail: %+v", snap.WebSearch)
+	}
+	if snap.MCP.Enabled || len(snap.MCP.Servers) != 1 {
+		t.Fatalf("mcp=%+v", snap.MCP)
+	}
+	if rel.n < 1 || rel.last.MaxToolRounds != 12 || rel.last.GitHubToken != token {
+		t.Fatalf("reload missing: n=%d cfg=%+v", rel.n, rel.last)
+	}
+
+	keep := ""
+	_, err = svc.PatchConfig(ctx, ConfigPatch{
+		WebSearch: &WebSearchPatch{GitHubToken: nil},
+		LLM:       &LLMGlobalsPatch{ActiveProvider: &keep},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := svc.GetSnapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !again.WebSearch.GitHubTokenSet {
+		t.Fatal("omitted github_token must keep existing secret")
+	}
+}

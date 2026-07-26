@@ -26,7 +26,7 @@ Halaman Settings adalah tampilan full-page yang menggantikan workspace chat saat
 
 ### Konten section Users
 
-- Header: Heading "Users" dengan lede "Local JSON users — no auth yet." Di kanan ada tombol "Add user" (biru, ikon plus).
+- Header: Heading "Users" Di kanan ada tombol "Add user" (biru, ikon plus).
 - Tabel: Kolom — ID (code style), Name, Role, dan tombol aksi. Setiap baris punya Edit (tombol ghost abu-abu) dan Delete (tombol merah danger) di kanan. Empty state menampilkan "No users" di baris muted.
 
 ### Konten section Models

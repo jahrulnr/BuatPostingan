@@ -26,7 +26,7 @@ The Settings page is a full-page view that replaces the chat workspace when acti
 
 ### Users section content
 
-- Header: "Users" heading with lede "Local JSON users — no auth yet." On the right is an "Add user" button (blue, plus icon).
+- Header: "Users" On the right is an "Add user" button (blue, plus icon).
 - Table: Columns — ID (code style), Name, Role, and action buttons. Each row has Edit (grey ghost button) and Delete (red danger button) on the right. Empty state shows "No users" in a muted row.
 
 ### Models section content

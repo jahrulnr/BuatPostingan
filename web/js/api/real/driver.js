@@ -296,6 +296,15 @@ export function getSettingsSnapshotImpl(api) {
 }
 
 /** @param {import('../types.js').ApiContext} api */
+export function patchSettingsConfigImpl(api, body) {
+    return request(settingsBase(api), {
+        method: 'PATCH',
+        headers: jsonHeaders(api),
+        body: JSON.stringify(body || {}),
+    }).then(parseJson);
+}
+
+/** @param {import('../types.js').ApiContext} api */
 export function listSettingsUsersImpl(api) {
     return request(settingsBase(api) + '/users', { headers: { Accept: 'application/json' } }).then(parseJson);
 }

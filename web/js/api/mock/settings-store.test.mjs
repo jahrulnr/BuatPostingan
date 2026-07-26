@@ -49,3 +49,27 @@ test('mock settings API preserves imported model capability metadata', function 
     const provider = store.getProvider('OPENAI');
     assert.deepEqual(provider.models[0].output_modes, ['image']);
 });
+
+test('mock settings snapshot exposes product knobs and patch updates them', function () {
+    const store = createSettingsStore();
+    const snap = store.snapshot();
+    assert.equal(snap.limits.max_tool_rounds, 8);
+    assert.equal(snap.llm.stream, true);
+    assert.equal(snap.context.compaction_enabled, true);
+    assert.equal(snap.docs.app_id, 'buatpostingan');
+    assert.equal(snap.mcp.enabled, true);
+    assert.equal(snap.web_search.github_token_set, false);
+
+    const next = store.patchConfig({
+        limits: { max_tool_rounds: 11 },
+        llm: { stream: false, vision: 'on' },
+        web_search: { github_token: 'ghp_secret_token' },
+        mcp: { enabled: false },
+    });
+    assert.equal(next.limits.max_tool_rounds, 11);
+    assert.equal(next.llm.stream, false);
+    assert.equal(next.llm.vision, 'on');
+    assert.equal(next.mcp.enabled, false);
+    assert.equal(next.web_search.github_token_set, true);
+    assert.notEqual(next.web_search.github_token_masked, 'ghp_secret_token');
+});
