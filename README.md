@@ -4,9 +4,14 @@
 
 ![Logo - BuatPostingan](web/assets/logo.png)
 
-Drupal, WordPress, and Joomla were built human-first: an AI has to fight through menus, forms, and modules just to publish a page. BuatPostingan flips that — the agent designs, writes, and ships pages directly from static-pages primitives. You supply the data and the intent; it drives the CMS.
+<div align="center">
+  <a href="docs/">Docs</a> ·
+  <a href="docs/DEVELOPMENT.md">Development</a> ·
+  <a href="docs/operations/runbook.md">Runbook</a> ·
+  <a href="AGENTS.md">Agents</a>
+</div>
 
-[Docs](docs/) · [Development](docs/DEVELOPMENT.md) · [Runbook](docs/operations/runbook.md) · [Agents](AGENTS.md)
+Drupal, WordPress, and Joomla were built human-first: an AI has to fight through menus, forms, and modules just to publish a page. BuatPostingan flips that — the agent designs, writes, and ships pages directly from static-pages primitives. You supply the data and the intent; it drives the CMS.
 
 ![Chat workspace — the agent drafts a page and the live preview updates alongside it](docs/screenshot/chat-workspace.png)
 
